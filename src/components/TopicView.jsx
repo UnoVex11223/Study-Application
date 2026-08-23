@@ -24,7 +24,7 @@ export default function TopicView() {
       <button className="bk" onClick={() => setView("home")} style={{ marginBottom: 24 }}>← All Topics</button>
       <div style={{ marginBottom: 28 }}>
         <div className="ptitle">{topic?.name}</div>
-        <div className="psub">{cards.length} card{cards.length !== 1 ? "s" : ""}{dc > 0 ? ` · ${dc} due` : ""}</div>
+        <div className="psub">{cards.length} card{cards.length !== 1 ? "s" : ""}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <button className="ab aq md" onClick={() => setView("flashcard")} disabled={!cards.length}>Flip Cards</button>
@@ -34,7 +34,7 @@ export default function TopicView() {
       </div>
       {dc > 0 && (
         <button className="ab rd md" onClick={() => startReview(topicId)} style={{ width: "100%", marginBottom: 24 }}>
-          Review Due Cards ({dc})
+          Review Due Cards
         </button>
       )}
       {!cards.length ? (

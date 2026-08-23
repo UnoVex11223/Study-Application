@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp, GRADS } from "./context.js";
 
 // Downscale to a reasonable cover size and re-encode as JPEG so the
@@ -25,82 +25,132 @@ function processImage(file) {
   });
 }
 
+function TopicModal({ topic, onSave, onClose }) {
+  const editing = Boolean(topic);
+  const [name, setName] = useState(topic?.name || "");
+  const [image, setImage] = useState(topic?.image || null);
+  const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    try {
+      setImage(await processImage(file));
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const submit = () => {
+    const n = name.trim();
+    if (!n) return setError("Give it a name.");
+    onSave({ ...(topic || {}), name: n, image });
+  };
+
+  return (
+    <div className="ov">
+      <div className="ov-backdrop" onClick={onClose}/>
+      <div className="modal-box fu">
+        <div className="modal-title">{editing ? "Edit topic" : "New topic"}</div>
+
+        <div className="field">
+          <span className="lbl">NAME</span>
+          <input className="inp" value={name} onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && submit()} autoFocus/>
+        </div>
+
+        <div className="field">
+          <span className="lbl">COVER IMAGE</span>
+          {image ? (
+            <div className="cover-preview">
+              <img src={image} alt="Cover preview"/>
+              <button className="cover-remove" onClick={() => setImage(null)}>✕ Remove</button>
+            </div>
+          ) : (
+            <div
+              className={`dropzone${dragOver ? " over" : ""}`}
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]); }}
+            >
+              <div className="dz-title">🖼 Drop an image here, or click to browse</div>
+              <div className="dz-sub">Optional — a glossy gradient is used if you skip it</div>
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
+            onChange={e => { handleFile(e.target.files?.[0]); e.target.value = ""; }}/>
+        </div>
+
+        {error && <div className="err">{error}</div>}
+
+        <div className="modal-btns">
+          <button className="ab gh md" onClick={onClose}>Cancel</button>
+          <button className="ab gr md" onClick={submit}>{editing ? "Save changes" : "Create topic"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TopicsTab() {
   const { topics, updateTopics, goTopic, deleteConfId, setDeleteConfId } = useApp();
-  const [showAddTopic, setShowAddTopic] = useState(false);
-  const [newTopicName, setNewTopicName] = useState("");
-  const fileRef = useRef(null);
-  const uploadIdRef = useRef(null);
+  const [modal, setModal] = useState(null); // null | { topic: null } (add) | { topic } (edit)
 
-  const addTopic = () => {
-    if (!newTopicName.trim()) return;
-    const id = Date.now();
-    updateTopics(p => [...p, { id, name: newTopicName.trim(), gi: p.length % GRADS.length, cards: [] }]);
-    setNewTopicName(""); setShowAddTopic(false); goTopic(id);
+  const saveTopic = (draft) => {
+    if (draft.id) {
+      updateTopics(p => p.map(t => t.id === draft.id ? { ...t, name: draft.name, image: draft.image } : t));
+    } else {
+      updateTopics(p => [...p, { id: Date.now(), name: draft.name, image: draft.image, gi: p.length % GRADS.length, cards: [] }]);
+    }
+    setModal(null);
   };
   const deleteTopic = (id) => { updateTopics(p => p.filter(t => t.id !== id)); setDeleteConfId(null); };
 
-  const pickImage = (tid) => { uploadIdRef.current = tid; fileRef.current?.click(); };
-  const onFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    const tid = uploadIdRef.current;
-    if (!file || tid == null) return;
-    try {
-      const image = await processImage(file);
-      updateTopics(p => p.map(t => t.id === tid ? { ...t, image } : t));
-    } catch { /* not an image — ignore */ }
-  };
-  const removeImage = (tid) => updateTopics(p => p.map(t => t.id === tid ? { ...t, image: null } : t));
-
   return (
     <div className="tgrid">
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFile}/>
-      {topics.map(t => {
-        return (
-          <div key={t.id} className="tcard" onClick={() => { if (deleteConfId === t.id) return; goTopic(t.id); }}>
-            <div className="tcard-cover">
-              {t.image ? (
-                <img src={t.image} alt={t.name} draggable={false}/>
-              ) : (
-                <div className="tcard-cover-fallback" style={{ background: GRADS[t.gi] }}>🗂</div>
-              )}
-              <div className="tcard-acts" onClick={e => e.stopPropagation()}>
-                <button className="tcard-act" title={t.image ? "Replace image" : "Add image"} onClick={() => { setDeleteConfId(null); pickImage(t.id); }}>🖼</button>
-                {t.image && <button className="tcard-act" title="Remove image" onClick={() => removeImage(t.id)}>✕</button>}
-                <button className="tcard-act" title="Delete topic" onClick={() => setDeleteConfId(t.id)}>🗑</button>
-              </div>
-            </div>
-            <div className="tcard-body">
-              <div className="tcard-n">{t.name}</div>
-              <div className="tcard-c">{t.cards.length} card{t.cards.length !== 1 ? "s" : ""}</div>
-            </div>
-            {deleteConfId === t.id && (
-              <div className="del-ov" onClick={e => e.stopPropagation()}>
-                <div style={{ color: "#fff", fontWeight: 800, fontSize: 14, textAlign: "center" }}>Delete "{t.name}"?</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="ab sm rd" onClick={() => deleteTopic(t.id)}>Delete</button>
-                  <button className="ab gh sm" onClick={() => setDeleteConfId(null)}>Cancel</button>
-                </div>
-              </div>
+      {topics.map(t => (
+        <div key={t.id} className="tcard" onClick={() => { if (deleteConfId === t.id) return; goTopic(t.id); }}>
+          <div className="tcard-cover">
+            {t.image ? (
+              <img src={t.image} alt={t.name} draggable={false}/>
+            ) : (
+              <div className="tcard-cover-fallback" style={{ background: GRADS[t.gi] }}>🗂</div>
             )}
+            <div className="tcard-acts" onClick={e => e.stopPropagation()}>
+              <button className="tcard-act" title="Edit" onClick={() => { setDeleteConfId(null); setModal({ topic: t }); }}>✎</button>
+              <button className="tcard-act" title="Delete topic" onClick={() => setDeleteConfId(t.id)}>🗑</button>
+            </div>
           </div>
-        );
-      })}
-      {showAddTopic ? (
-        <div className="glass" style={{ padding: 20, borderRadius: 24 }}>
-          <input className="inp" placeholder="Topic name…" value={newTopicName} onChange={e => setNewTopicName(e.target.value)} onKeyDown={e => e.key === "Enter" && addTopic()} autoFocus style={{ marginBottom: 10 }}/>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <button className="ab aq sm" onClick={addTopic}>Create</button>
-            <button className="ab gh sm" onClick={() => { setShowAddTopic(false); setNewTopicName(""); }}>Cancel</button>
+          <div className="tcard-body">
+            <div className="tcard-n">{t.name}</div>
+            <div className="tcard-c">{t.cards.length} card{t.cards.length !== 1 ? "s" : ""}</div>
           </div>
+          {deleteConfId === t.id && (
+            <div className="del-ov" onClick={e => e.stopPropagation()}>
+              <div style={{ color: "#fff", fontWeight: 800, fontSize: 14, textAlign: "center" }}>Delete "{t.name}"?</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="ab sm rd" onClick={() => deleteTopic(t.id)}>Delete</button>
+                <button className="ab gh sm" onClick={() => setDeleteConfId(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="addcard" onClick={() => setShowAddTopic(true)}>
-          <span style={{ color: "#fff", fontSize: 30, fontWeight: 300 }}>+</span>
-          <span style={{ color: "rgba(255,255,255,.8)", fontSize: 14, fontWeight: 700 }}>New Topic</span>
-        </div>
-      )}
+      ))}
+      <button className="addcard" onClick={() => setModal({ topic: null })}>
+        <span className="addcard-plus">＋</span>
+        <span className="addcard-txt">New Topic</span>
+        <span className="addcard-sub">Cover image &amp; flashcards</span>
+      </button>
+      {modal && <TopicModal topic={modal.topic} onSave={saveTopic} onClose={() => setModal(null)}/>}
     </div>
   );
 }
