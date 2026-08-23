@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { useApp, GRADS } from "./context.js";
-import { dueCount } from "../lib/fsrs.js";
 
 // Downscale to a reasonable cover size and re-encode as JPEG so the
 // stored data URL stays small.
@@ -58,19 +57,23 @@ export default function TopicsTab() {
     <div className="tgrid">
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFile}/>
       {topics.map(t => {
-        const dc = dueCount(t.cards);
-        const bg = t.image
-          ? { backgroundImage: `linear-gradient(180deg, rgba(2,20,60,.15), rgba(2,20,60,.62)), url(${t.image})`, backgroundSize: "cover", backgroundPosition: "center" }
-          : { background: GRADS[t.gi] };
         return (
-          <div key={t.id} className="tcard" style={bg} onClick={() => { if (deleteConfId === t.id) return; goTopic(t.id); }}>
-            <div className="tcard-n">{t.name}</div>
-            <div className="tcard-c">{t.cards.length} card{t.cards.length !== 1 ? "s" : ""}</div>
-            {dc > 0 && <div className="weak-pill">{dc} due</div>}
-            <div className="tcard-acts" onClick={e => e.stopPropagation()}>
-              <button className="tcard-act" title={t.image ? "Replace image" : "Add image"} onClick={() => { setDeleteConfId(null); pickImage(t.id); }}>🖼</button>
-              {t.image && <button className="tcard-act" title="Remove image" onClick={() => removeImage(t.id)}>✕</button>}
-              <button className="tcard-act" title="Delete topic" onClick={() => setDeleteConfId(t.id)}>🗑</button>
+          <div key={t.id} className="tcard" onClick={() => { if (deleteConfId === t.id) return; goTopic(t.id); }}>
+            <div className="tcard-cover">
+              {t.image ? (
+                <img src={t.image} alt={t.name} draggable={false}/>
+              ) : (
+                <div className="tcard-cover-fallback" style={{ background: GRADS[t.gi] }}>🗂</div>
+              )}
+              <div className="tcard-acts" onClick={e => e.stopPropagation()}>
+                <button className="tcard-act" title={t.image ? "Replace image" : "Add image"} onClick={() => { setDeleteConfId(null); pickImage(t.id); }}>🖼</button>
+                {t.image && <button className="tcard-act" title="Remove image" onClick={() => removeImage(t.id)}>✕</button>}
+                <button className="tcard-act" title="Delete topic" onClick={() => setDeleteConfId(t.id)}>🗑</button>
+              </div>
+            </div>
+            <div className="tcard-body">
+              <div className="tcard-n">{t.name}</div>
+              <div className="tcard-c">{t.cards.length} card{t.cards.length !== 1 ? "s" : ""}</div>
             </div>
             {deleteConfId === t.id && (
               <div className="del-ov" onClick={e => e.stopPropagation()}>
@@ -86,7 +89,7 @@ export default function TopicsTab() {
       })}
       {showAddTopic ? (
         <div className="glass" style={{ padding: 20, borderRadius: 24 }}>
-          <input className="inp" value={newTopicName} onChange={e => setNewTopicName(e.target.value)} onKeyDown={e => e.key === "Enter" && addTopic()} autoFocus style={{ marginBottom: 10 }}/>
+          <input className="inp" placeholder="Topic name…" value={newTopicName} onChange={e => setNewTopicName(e.target.value)} onKeyDown={e => e.key === "Enter" && addTopic()} autoFocus style={{ marginBottom: 10 }}/>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <button className="ab aq sm" onClick={addTopic}>Create</button>
             <button className="ab gh sm" onClick={() => { setShowAddTopic(false); setNewTopicName(""); }}>Cancel</button>

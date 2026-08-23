@@ -35,7 +35,7 @@ function SettingsBody({ onClose }) {
         </div>
         <div className="lbl">Anthropic API key</div>
         <input className="inp" type="password" value={key} onChange={e => setKey(e.target.value)}
-          placeholder={hasKey ? "•••••••• (key saved — paste to replace)" : undefined}
+          placeholder={hasKey ? "•••••••• (key saved — paste to replace)" : "sk-ant-…"}
           onKeyDown={e => e.key === "Enter" && key.trim() && save()} style={{ marginBottom: 14 }}/>
         {saved && <div style={{ color: "#6effc8", fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Saved ✓</div>}
         <div style={{ display: "grid", gridTemplateColumns: hasKey ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>

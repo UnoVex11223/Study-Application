@@ -120,9 +120,9 @@ export default function AddCards() {
       {tab === "manual" && (
         <div className="glass" style={{ padding: 24 }}>
           <div className="lbl">Front — Question or Term</div>
-          <input className="inp" value={newFront} onChange={e => setNewFront(e.target.value)} style={{ marginBottom: 16 }}/>
+          <input className="inp" placeholder="e.g. What does a pointer store?" value={newFront} onChange={e => setNewFront(e.target.value)} style={{ marginBottom: 16 }}/>
           <div className="lbl">Back — Answer or Definition</div>
-          <input className="inp" value={newBack} onChange={e => setNewBack(e.target.value)} onKeyDown={e => e.key === "Enter" && addBasic()} style={{ marginBottom: 20 }}/>
+          <input className="inp" placeholder="e.g. The memory address of another variable" value={newBack} onChange={e => setNewBack(e.target.value)} onKeyDown={e => e.key === "Enter" && addBasic()} style={{ marginBottom: 20 }}/>
           <button className="ab aq md" onClick={addBasic} disabled={!newFront.trim() || !newBack.trim()} style={{ width: "100%" }}>+ Add Card</button>
         </div>
       )}
@@ -130,7 +130,7 @@ export default function AddCards() {
       {tab === "cloze" && (
         <div className="glass" style={{ padding: 24 }}>
           <div className="lbl">Sentence with a blank</div>
-          <textarea ref={clozeRef} className="txta" value={clozeText} onChange={e => setClozeText(e.target.value)}/>
+          <textarea ref={clozeRef} className="txta" placeholder={"The mitochondria is the {{c1::powerhouse}} of the cell."} value={clozeText} onChange={e => setClozeText(e.target.value)}/>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
             <button className="ab gh md" onClick={blankSelection}>Blank selection</button>
             <button className="ab pu md" onClick={addCloze} disabled={!clozeParts(clozeText)}>+ Add Cloze</button>
@@ -167,7 +167,7 @@ export default function AddCards() {
             </div>
           )}
           <div className="lbl">And / or paste notes below</div>
-          <textarea className="txta" value={noteText} onChange={e => setNoteText(e.target.value)}/>
+          <textarea className="txta" placeholder="Paste lecture notes, chapter summaries, definitions…" value={noteText} onChange={e => setNoteText(e.target.value)}/>
           {genError && <div className="err">{genError}</div>}
           <button className="ab pu md" onClick={generate} disabled={(!noteText.trim() && files.length === 0) || progress !== null} style={{ width: "100%", marginTop: 16 }}>
             {progress ? `Generating… chunk ${progress.chunk}/${progress.total}${progress.cardsSoFar ? ` · ${progress.cardsSoFar} cards so far` : ""}` : "Generate Flashcards with AI"}
