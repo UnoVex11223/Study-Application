@@ -53,9 +53,9 @@ export function XpStrip() {
 }
 
 /** Standard screen chrome: gradient background, orbs, XP popups, level-up modal. */
-export function Screen({ children }) {
+export function Screen({ children, className = '' }) {
   return (
-    <div className="af"><Orbs/><XpPopups/><LevelUpModal/>
+    <div className={`af ${className}`}><Orbs/><XpPopups/><LevelUpModal/>
       <div className="scr fu">{children}</div>
     </div>
   );

@@ -47,33 +47,31 @@ XP and rank levels (Newcomer → Transcendent, 20 ranks) reward consistent revie
 
 ---
 
-## How AI card generation works (the part that matters for note-prep)
+## How AI card generation works
 
-In a topic, "Add Cards → From Notes (AI)" accepts pasted text and/or uploaded `.md`/`.txt` files. Long input is automatically split into ~12,000-character chunks on paragraph boundaries and processed sequentially, so very large files don't fail outright — but the app has no idea where your natural chapter/topic boundaries are, so a hand-organized input still produces better, more focused cards than one giant dump.
+The **From your reading** workspace accepts pasted text and `.md`, `.markdown`, or `.txt` files. Markdown headings define source sections; headings inside fenced code are preserved as code. Long sections are split into requests of at most 12,000 characters, without creating extra section budgets. Source names and heading ancestry are retained automatically.
 
-The generation prompt is specifically instructed to:
+Three content depths control the maximum workload:
 
-**Extract:**
-- Key definitions and vocabulary
-- Distinctions between similar/confusable concepts
-- Scenario-based "which should you use?" questions
-- Facts that are commonly mixed up
-- Comparisons between types/modes/options
+| Depth | New questions per import | Questions per section | Total questions in a topic |
+| --- | ---: | ---: | ---: |
+| Essentials | 8 | 2 | 16 |
+| Balanced (default) | 12 | 4 | 24 |
+| Broader | 18 | 6 | 36 |
 
-**Ignore:**
-- Markdown structure, headers, wikilinks
-- Tips/callouts/reminders (study aids, not testable facts)
-- Code examples, *unless* the code is the only place a concept is explained
-- Navigation/"related notes" sections
-- Vague statements that would never be tested
+These are ceilings, not quotas. Existing questions count toward capacity. Earlier decks above the limits remain intact. Manual additions are still available. A topic's core set is a selective collection, not a claim to cover or master an entire subject.
 
-**Output:** a mix of basic cards (~3/4) and cloze cards (~1/4), each basic card auto-generated with 3 plausible wrong answers for quiz mode.
+The generator prioritizes central definitions, mechanisms, useful methods, important distinctions and consequential misconceptions. It uses explicit objectives, examples and exercises as relevance signals, and avoids trivia and guesses about exam frequency. A learning focus can be supplied, but is optional.
 
-### Implication for preparing notes with another AI
+Each suggestion has a concept, recall/explain/apply/distinguish skill, core/supporting priority, reason for inclusion, reference answer, essential points and a matching source passage. One question per normalized concept is selected. Deterministic filtering excludes unsupported quotes, malformed responses, duplicate concepts and matching question fingerprints. It does not guarantee semantic correctness or catch every paraphrase duplicate.
 
-Because code blocks are mostly skipped, source material that's heavy on code (like a programming book) needs deliberate prose translation — for each significant code example, describe **what it does** and **the specific gotcha/behavior it demonstrates** in plain language, so that becomes extractable. Also: since the app can't detect chapter boundaries, pre-splitting source material by chapter/topic and feeding each section into its own AeroFlash Topic produces meaningfully better, more relevant flashcards than one massive unstructured file.
+Selection favors coverage across sections and files before more questions from one section. The same budgets apply to the entire import, not to each API request. The section outline explicitly shows sections without a selected question. Import up to 180,000 characters and 48 source segments at a time.
 
-Ideal input to this pipeline is clean, structured prose organized as: definitions → core concept explanations (with the "vs. similar concept" contrast made explicit) → plain-language description of any code/example behavior → explicit comparisons → common mistakes. No exercises, no chapter-intro fluff, no cross-references.
+The bounded draft is saved after each completed segment, and survives leaving the screen or restarting. Interrupted imports are labeled partial. Questions enter the study queue only when **Add questions** is clicked; the final transaction rechecks current limits. Individual suggestions can be omitted. Generated cards are basic cards, with optional distractors for the existing quiz mode. Manually authored cloze cards remain supported.
+
+### Preparing useful source notes
+
+Preserve real headings, definitions, explanations, worked examples, relevant code and important distinctions. Do not create lots of repetitive detail solely to produce more cards. Unstructured text without headings currently remains one section. Broader course structure, concept graphs and evidence-based mastery tracking are planned in later chunks; see `docs/REFACTOR-PLAN.md`.
 
 ---
 
