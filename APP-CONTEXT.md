@@ -10,11 +10,12 @@ This document exists so you can paste it into another AI (ChatGPT, etc.) as cont
 
 1. **Create a Topic** (e.g. "Pointers", "Chapter 6 — Structs") — a container for related cards.
 2. **Add cards** to it — manually, as cloze deletions, or by feeding notes to AI generation.
-3. Every day, hit **"Review Now"** on the home screen. It pulls together every card that's due *across all your topics* (not just one), mixed randomly — this interleaving is deliberate and improves retention versus studying one topic at a time.
-4. For each card, you reveal the answer, then rate how well you knew it: **Again / Hard / Good / Easy**. That rating feeds the scheduler, which decides exactly when you'll see that card next — seconds from now if you got it wrong, weeks or months from now if you know it cold.
-5. Over time the app builds a picture of what you've actually mastered vs. what keeps slipping (the Insights tab).
+3. Hit **Review Now** for a written recall session across due topics, with up to 12 questions. Due cards come before new cards. The global new-card allowance still applies.
+4. Write a short answer before seeing the reference. The grader checks every essential point, accepting equivalent wording and reasoning. A clear miss is **Not yet**; an uncertain or unavailable assessment stays **Ungraded**. Literal cloze matches can be checked offline.
+5. Read the feedback and choose **Save & continue**. Correct unaided scheduled recall uses Good (or Hard if it took effort); a miss uses Again. Hinted, ungraded, self-checked and early practice do not extend review intervals. There is no speed bonus or endless retry loop.
+6. Return after a gap. Insights separates written recall, explanation, application and comparison outcomes. These observations are not a whole-subject mastery score.
 
-There's no "studying a deck front to back" — the app decides what you need to see today based on your own memory curve for each individual card.
+The first submitted answer and its feedback are saved before confirmation. Leaving before confirmation keeps an unfinished attempt without changing its schedule. A grader retry uses the same locked answer. Dispute an AI grade to leave it ungraded without a penalty.
 
 ---
 
@@ -27,23 +28,31 @@ Both types are scheduled by the same spaced-repetition system and can appear in 
 
 ## Study modes
 
-- **Review** — the main daily due-card queue described above. Rate Again/Hard/Good/Easy; this is what drives the scheduling.
-- **Flip Cards** — simple front/back flashcard flipping through a topic, also feeds ratings into the scheduler.
-- **Quiz** — multiple choice, using each card's 3 wrong answers as distractors. Right = scheduled further out, wrong = scheduled to repeat soon.
-- **Type Mode** — you type the answer from memory instead of picking it. An AI grades your free-text answer for substance (not exact wording), tells you what you got right/missed, and suggests a rating — you can accept or override it. Falls back to a simple keyword-overlap check if no AI key is configured.
-- **Simulate** — a 20-question, 25-minute timed test pulling from every topic at once, like a mock exam. No going back once you've answered. Score breakdown by topic at the end.
+- **Review** — a bounded daily written-recall session, using the flow above.
+- **Practice recall** — the same writing workspace within a topic, prioritizing due and new questions. Early practice is recorded separately and does not extend the schedule.
+- **Flip Cards** — front/back practice with self-ratings and its existing scheduling behavior.
+- **Quiz** — multiple choice with its existing right/wrong scheduling behavior. Recognition is not counted as unaided written recall.
+- **Simulate** — the existing 20-question timed multiple-choice exam mode.
+
+## Assessment and feedback
+
+New generated cards carry one to four essential points. Older cards use their existing reference answer as a single criterion. AI assessment requires one check per criterion, a reason, and an exact student quote for present or contradicted points. Missing criteria, fabricated quotes, ambiguous references and API errors abstain. Matching words alone never awards credit. An answer must satisfy every essential point and contain no material error to be marked correct.
+
+AI assessment is fallible. The **Dispute this grade** control leaves the attempt ungraded. Optional self-checks stay separate. Without AI, only literal cloze matches have an automatic positive check; free explanations stay ungraded. Source passages can be expanded after answering.
 
 ## Insights dashboard
 
-- Day streak, reviews today, cards due now, 30-day retention rate
-- A GitHub-style activity heatmap of review history
-- A 7-day forecast of how many cards will come due each day
-- Per-topic mastery percentage (cards scheduled 3+ weeks out = "mastered")
-- **Leeches** — cards you keep forgetting (4+ failed reviews), flagged as candidates to rewrite because a card that's failed repeatedly is usually poorly worded, not genuinely hard
+- Day streak, activity today, cards due now, and the historical share rated Good/Easy (all modes)
+- Unaided scheduled written outcomes by recall / explain / apply / compare, over the last 30 days
+- Separate counts for practice/ungraded attempts and attempts at least a day after prior recorded feedback
+- The last five written answers, including original text and saved feedback
+- An activity heatmap and seven-day due forecast
+- Scheduling maturity by topic: cards in review with estimated stability of 21+ days, explicitly not subject mastery
+- Repeatedly missed cards, flagged for inspection and possible rewriting
 
 ## Gamification
 
-XP and rank levels (Newcomer → Transcendent, 20 ranks) reward consistent reviewing — small XP per card rated, streak bonuses, and a bonus for clearing your whole due queue in one sitting. This is a motivation layer sitting on top of the real mechanic (spaced repetition); it doesn't affect scheduling.
+XP and rank levels reward practice. Written recall earns XP only for saved, correctly recalled scheduled answers (Good or Hard), with no session-completion bonus. Assisted, early, disputed and ungraded written attempts earn no recall XP. Existing optional modes retain their historical XP behavior. XP is not a mastery measure.
 
 ---
 
@@ -77,6 +86,6 @@ Preserve real headings, definitions, explanations, worked examples, relevant cod
 
 ## Data & privacy
 
-Everything — topics, cards, review history, XP, streaks, and your API key — is stored **locally only**, in a single file on your machine (`electron-store`, a local JSON config file). Nothing syncs to a server. AI features (card generation, typed-answer grading) call the Anthropic API directly from the app's background process using your own API key, which you set once in Settings; the key never touches the app's UI code or leaves your machine except for that direct API call. Without a key, everything still works except AI generation and AI grading (grading falls back to a basic keyword match).
+Topics, cards, answer history, XP, streaks, and your API key are persisted **locally**, in a single file on your machine (`electron-store`, a local JSON config file). Nothing syncs to a server. AI features (card generation, typed-answer grading) call the Anthropic API directly from the app's background process using your own API key, which you set once in Settings; the key never touches the app's UI code or leaves your machine except for that direct API call. For grading, the question, reference answer, essential points, source quote and submitted answer are sent to Anthropic. Without a key, generation is unavailable and written explanations stay ungraded; exact cloze matches still work locally. There is no keyword-grading fallback. The review log keeps up to 5,000 raw entries, including written answers and feedback, plus cumulative daily activity. The oldest raw entries age out as new ones are added.
 
 There's a "Reset All Progress" option in Settings that wipes topics/cards/XP/history in one confirmed action while leaving your API key untouched.

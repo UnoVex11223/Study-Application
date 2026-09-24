@@ -27,7 +27,8 @@
       "build/**",
       "electron.cjs",
       "preload.cjs",
-      "content-engine.mjs"
+      "content-engine.mjs",
+      "assessment-engine.mjs"
     ],
     "directories": {
       "output": "release"

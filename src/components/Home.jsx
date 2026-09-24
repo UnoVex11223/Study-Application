@@ -6,6 +6,7 @@ import SimTab from "./SimTab.jsx";
 import RanksTab from "./RanksTab.jsx";
 import { getDueCards } from "../lib/fsrs.js";
 import { newAllowance } from "../lib/storage.js";
+import { RECALL_SESSION_LIMIT } from "../lib/recall.js";
 
 const TABS = [
   ["topics", "Topics"],
@@ -38,7 +39,7 @@ export default function Home() {
             <span className="review-cta-sub" style={{ display: "block" }}>
               {queue.length === 0
                 ? "Nothing due — add cards or come back later"
-                : `${dueNow} due${newNow > 0 ? ` · ${newNow} new` : ""} · mixed across all topics`}
+                : `${dueNow} due${newNow > 0 ? ` · ${newNow} new` : ""} · up to ${RECALL_SESSION_LIMIT} written questions this session`}
             </span>
           </span>
           {queue.length > 0 && <span className="review-cta-count">{queue.length}</span>}

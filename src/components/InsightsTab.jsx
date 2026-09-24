@@ -3,6 +3,8 @@ import { useApp } from "./context.js";
 import { dueForecast, isMature } from "../lib/fsrs.js";
 import { retention, todayStr } from "../lib/storage.js";
 import { cardPromptText } from "../lib/cards.js";
+import { recallSummary } from "../lib/recall.js";
+import '../recall.css';
 
 const DAY_MS = 864e5;
 
@@ -54,6 +56,8 @@ export default function InsightsTab() {
   const today = todayStr();
   const isToday = stats.lastStudyDate === today;
   const ret = retention(log, 30);
+  const recall = recallSummary(log);
+  const recentAnswers = log.entries.filter(entry => entry.attempt).slice(-5).reverse();
   const dueNow = topics.reduce((s, t) => s + t.cards.filter(c => c.srs && c.srs.state !== "new" && c.srs.due != null && c.srs.due <= Date.now()).length, 0);
 
   const topicMastery = topics
@@ -72,15 +76,38 @@ export default function InsightsTab() {
     <div className="fu">
       <div style={{ marginBottom: 20 }}>
         <div className="ptitle">Insights</div>
-        <div className="psub">Your memory, measured</div>
+        <div className="psub">Practice activity and evidence from your answers</div>
       </div>
 
       <div className="stat-grid">
         <div className="stat-card"><div className="stat-num">{stats.streak}</div><div className="stat-lbl">Day Streak</div></div>
         <div className="stat-card"><div className="stat-num">{isToday ? stats.todayCount : 0}</div><div className="stat-lbl">Today</div></div>
         <div className="stat-card"><div className="stat-num">{dueNow}</div><div className="stat-lbl">Due Now</div></div>
-        <div className="stat-card"><div className="stat-num">{ret == null ? "—" : `${Math.round(ret * 100)}%`}</div><div className="stat-lbl">Retention 30d</div></div>
+        <div className="stat-card"><div className="stat-num">{ret == null ? "—" : `${Math.round(ret * 100)}%`}</div><div className="stat-lbl">Good / Easy · 30d</div></div>
       </div>
+
+      <section className="recall-insights">
+        <h2>Unaided written answers · last 30 days</h2>
+        <p>{recall.total ? `${recall.correct} of ${recall.total} scheduled attempts covered the essential points.` : 'Your first written recall session will start this record.'}</p>
+        <div className="recall-skill-stats">{Object.entries(recall.skills).map(([skill, count]) => <div key={skill}><strong>{count.total ? `${count.correct} / ${count.total}` : '—'}</strong><span>{{ recall: 'Recall', explain: 'Explain', apply: 'Apply', distinguish: 'Compare' }[skill]}</span></div>)}</div>
+        <p>{recall.delayed} attempts followed at least a day since prior recorded feedback. {recall.practice} practice or ungraded attempts are separate. “I don’t know” counts as a miss; hints, self-checks, multiple choice and legacy ratings do not count as unaided successes. These are observations, not a mastery percentage.</p>
+      </section>
+
+      {recentAnswers.length > 0 && <section className="recall-history">
+        <div className="section-title">Recent written answers</div>
+        {recentAnswers.map(entry => {
+          const attempt = entry.attempt;
+          const assessment = attempt.assessment ?? attempt.assessments?.at(-1)?.result;
+          return <details key={attempt.id}>
+            <summary><span>{attempt.input.question}</span><small>{attempt.status === 'pending' ? 'Awaiting confirmation' : attempt.evidence === 'unaided' ? attempt.outcome === 'correct' ? 'Unaided · correct' : 'Unaided · not yet' : 'Practice / ungraded'}</small></summary>
+            <p className="recall-history-label">Your original answer · {new Date(entry.ts).toLocaleDateString()}</p><blockquote>{attempt.input.userAnswer || 'I don’t know'}</blockquote>
+            {assessment && <p>{assessment.feedback}</p>}
+            {attempt.practiceReason && <p>{attempt.practiceReason}</p>}
+            {attempt.selfAssessment && <p>Self-check: {{ complete: 'essential points covered', partial: 'partly recalled', missed: 'not recalled' }[attempt.selfAssessment]}.</p>}
+            {attempt.status === 'pending' && <p>This attempt was left before confirmation. Its answer and available feedback are saved; its schedule was not changed.</p>}
+          </details>;
+        })}
+      </section>}
 
       <div className="section-title">Activity — last 17 weeks</div>
       <div className="glass" style={{ padding: "14px 16px", marginBottom: 24, borderRadius: 18 }}>
@@ -95,7 +122,7 @@ export default function InsightsTab() {
 
       {topicMastery.length > 0 && (
         <>
-          <div className="section-title">Mastery by topic</div>
+          <div className="section-title">Scheduling maturity by topic</div>
           {topicMastery.map(t => (
             <div key={t.id} className="acc-row" onClick={() => goTopic(t.id)}>
               <div style={{ color: "#fff", fontWeight: 700, fontSize: 13, minWidth: 110, flex: 1 }}>{t.name}</div>
@@ -106,7 +133,7 @@ export default function InsightsTab() {
             </div>
           ))}
           <div style={{ color: "rgba(255,255,255,.45)", fontSize: 11, fontWeight: 600, margin: "6px 0 24px" }}>
-            Mastered = scheduled 3+ weeks out. New cards count against mastery until learned.
+            Share of cards in review with estimated stability of 21+ days. This includes all study modes and is not proof of subject mastery.
           </div>
         </>
       )}

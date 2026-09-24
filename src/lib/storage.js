@@ -73,6 +73,7 @@ export async function loadAll() {
 export const saveTopics = (topics) => storeSet("af_topics", topics);
 export const saveXp = (xp) => storeSet("af_xp", xp);
 export const saveStats = (stats) => storeSet("af_stats", stats);
+export const saveLog = (log) => storeSet("af_log", log);
 
 /** Bump streak / today counters after n reviews. Returns the new stats object. */
 export function bumpStats(stats, n = 1) {
@@ -112,9 +113,10 @@ export function logReview(log, { cardId, topicId, rating, mode }, now = Date.now
   const day = log.daily[date] ?? { reviews: 0, correct: 0 };
   const ns = {
     entries: [...log.entries, { ts: now, cardId, topicId, rating, mode }].slice(-MAX_LOG_ENTRIES),
-    daily: { ...log.daily, [date]: { reviews: day.reviews + 1, correct: day.correct + (rating >= 3 ? 1 : 0) } },
+    daily: { ...log.daily, [date]: { ...day, reviews: day.reviews + 1,
+      ratedReviews: (day.ratedReviews ?? day.reviews) + 1,
+      correct: day.correct + (rating >= 3 ? 1 : 0) } },
   };
-  storeSet("af_log", ns);
   return ns;
 }
 
@@ -123,7 +125,7 @@ export function retention(log, days = 30, now = Date.now()) {
   const cutoff = now - days * 864e5;
   let total = 0, good = 0;
   for (const [date, d] of Object.entries(log.daily)) {
-    if (new Date(date + "T00:00:00").getTime() >= cutoff) { total += d.reviews; good += d.correct; }
+    if (new Date(date + "T00:00:00").getTime() >= cutoff) { total += d.ratedReviews ?? d.reviews; good += d.correct; }
   }
   return total === 0 ? null : good / total;
 }

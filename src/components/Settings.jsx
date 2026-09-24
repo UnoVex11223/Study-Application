@@ -44,7 +44,7 @@ function SettingsBody({ onClose }) {
           <button className="ab gh md" onClick={onClose}>Close</button>
         </div>
         <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12, fontWeight: 600, marginTop: 16, lineHeight: 1.5 }}>
-          Get a key at console.anthropic.com → API Keys. Without one, everything still works except AI generation and AI grading (typed answers fall back to a keyword check).
+          Get a key at console.anthropic.com → API Keys. Without one, written explanations stay ungraded; exact cloze matches can still be checked. Self-checks are recorded separately and do not change the review schedule. Flip cards and multiple choice remain available.
         </div>
 
         <div style={{ borderTop: "1px solid rgba(255,255,255,.15)", marginTop: 24, paddingTop: 20 }}>

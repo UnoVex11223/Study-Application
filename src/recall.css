@@ -1,0 +1,100 @@
+.recall-workspace .scr { max-width: 1080px; }
+.recall-workspace .workspace-topbar { margin-bottom: 34px; }
+.recall-session-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.recall-session-header p { color: var(--muted); margin-top: 8px; font-size: 12px; }
+.recall-session-count { font-size: 26px; font-variant-numeric: tabular-nums; color: #d9edd9; }
+.recall-session-count span { color: #84998b; font-size: 15px; }
+.recall-progress { height: 3px; background: #2e4437; border-radius: 4px; margin: 23px 0 35px; overflow: hidden; }
+.recall-progress > span { display: block; height: 100%; background: #bee6c0; transition: width .2s; }
+.recall-layout { display: grid; grid-template-columns: minmax(0, 1fr) 205px; gap: 42px; align-items: start; }
+.recall-main { min-width: 0; }
+.recall-question { padding: 0 0 27px; }
+.recall-question-meta { display: flex; align-items: center; gap: 12px; color: #9ab39f; font-size: 11px; }
+.recall-question-meta > span:last-child { overflow-wrap: anywhere; }
+.recall-question h1 { font-size: clamp(22px, 2.7vw, 31px); font-weight: 650; line-height: 1.45; letter-spacing: -.55px; margin: 21px 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recall-label { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; font-size: 13px; font-weight: 800; margin-bottom: 12px; }
+.recall-label span { font-weight: 500; color: #8fa597; font-size: 11px; }
+textarea.recall-input { min-height: 180px; border-radius: 13px; padding: 18px; font-size: 14px !important; line-height: 1.85; background: #18271e; }
+textarea.recall-input:focus-visible { outline: 2px solid #bdddbc; outline-offset: 3px; }
+textarea.recall-input[readonly] { color: #c5d5c8; background: #132118; }
+.recall-input::placeholder { color: #849c89; }
+.recall-input-meta { display: flex; justify-content: space-between; gap: 18px; color: #93a998; font-size: 10px; line-height: 1.7; margin: 8px 1px 22px; }
+.recall-input-meta > span:last-child { white-space: nowrap; }
+.recall-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.recall-actions .studio-primary { flex-grow: 1; }
+.recall-link { border: 0; background: none; padding: 13px 0; color: #b1c8b4; font-size: 11px !important; text-align: left; text-decoration: underline; text-underline-offset: 4px; }
+.recall-cue { padding: 15px 17px; margin: 0 0 18px; border: 1px solid #666044; background: #302e21; border-radius: 10px; }
+.recall-cue strong { color: #e0d5a6; font-size: 11px; }
+.recall-cue p { font-size: 13px; line-height: 1.7; margin-top: 7px; }
+.recall-sidebar { padding: 24px 0 0 24px; border-left: 1px solid var(--line); }
+.recall-sidebar h2 { font-size: 27px; font-weight: 500; letter-spacing: -.6px; line-height: 1.3; margin: 15px 0 28px; color: #d8e9d4; }
+.recall-sidebar ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 21px; }
+.recall-sidebar li { display: flex; gap: 12px; }
+.recall-sidebar li > b { color: #80a386; font-size: 10px; font-weight: 600; padding-top: 2px; }
+.recall-sidebar li strong { font-size: 11px; font-weight: 750; }
+.recall-sidebar li p { font-size: 11px; line-height: 1.8; color: #a7bca9; margin-top: 5px; }
+.recall-sidebar-note { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); color: #c1d4bc; font-size: 11px; line-height: 1.8; }
+.recall-checking { display: flex; gap: 15px; align-items: center; padding: 23px; border: 1px solid #476049; border-radius: 12px; margin-top: 25px; }
+.recall-checking strong { font-size: 13px; }
+.recall-checking p { font-size: 11px; margin-top: 6px; color: var(--muted); }
+.recall-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--mint); flex-shrink: 0; animation: recall-pulse 1.4s ease-in-out infinite alternate; }
+@keyframes recall-pulse { to { opacity: .3; } }
+.recall-feedback { margin-top: 26px; border: 1px solid #456449; border-radius: 15px; padding: 24px; background: #1b2d20; }
+.recall-feedback.incorrect { border-color: #8d6949; background: #2a2b20; }
+.recall-feedback.uncertain { border-color: #586575; background: #202b2c; }
+.recall-feedback-heading { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+.recall-feedback-heading h2 { font-size: 23px; line-height: 1.35; margin-top: 9px; font-weight: 650; letter-spacing: -.4px; }
+.recall-feedback-heading h2:focus { outline: none; }
+.recall-outcome-mark { font-size: 25px; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: #385039; color: #d5edcc; flex-shrink: 0; }
+.incorrect .recall-outcome-mark { background: #534735; color: #f0dbb7; }
+.uncertain .recall-outcome-mark { background: #38494d; color: #cfdee1; }
+.recall-feedback-copy { font-size: 13px; line-height: 1.8; color: #c9d7c9; margin: 16px 0 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recall-checks { list-style: none; padding: 0; margin: 0; }
+.recall-checks li { padding: 16px 0; border-top: 1px solid #465342; }
+.recall-checks li > div { display: flex; align-items: baseline; gap: 10px; }
+.recall-check-status { font-size: 9px; color: #c1dfba; background: #354c33; padding: 4px 7px; border-radius: 5px; white-space: nowrap; }
+.check-missing .recall-check-status, .check-contradicted .recall-check-status { color: #f2d7b4; background: #584536; }
+.check-uncertain .recall-check-status { color: #d3dfed; background: #41505b; }
+.recall-checks strong { font-size: 12px; line-height: 1.75; font-weight: 700; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recall-checks p, .recall-errors p { margin-top: 7px; color: #b4c8b5; font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.recall-feedback blockquote { border-left: 2px solid #758b6d; margin: 10px 0 0; padding: 0 0 0 12px; color: #d3dfce; font-size: 12px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recall-reference { border-top: 1px solid #52614a; padding-top: 19px; margin-top: 15px; }
+.recall-reference h3, .recall-errors h3 { font-size: 11px; color: #cce0c0; text-transform: uppercase; letter-spacing: 1px; }
+.recall-reference p { font-size: 13px; color: #dbe7d4; line-height: 1.85; margin-top: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recall-errors { border: 1px solid #826543; padding: 16px; border-radius: 8px; margin: 14px 0; }
+.recall-self-check { margin-top: 24px; }
+.recall-self-check label { display: block; font-size: 12px; font-weight: 800; }
+.recall-self-check label span { display: block; color: #b1c2bd; font-weight: 500; font-size: 10px; margin-top: 6px; }
+.recall-self-check select { width: 100%; max-width: 100%; color: #e2ece6; background: #182322; border: 1px solid #62756d; padding: 12px; border-radius: 8px; font: inherit; font-size: 12px; margin-top: 10px; }
+.recall-difficulty, .recall-dispute { display: flex; gap: 9px; align-items: center; font-size: 11px; color: #c1d4bd; line-height: 1.7; cursor: pointer; }
+.recall-difficulty { margin-top: 23px; flex-wrap: wrap; }
+.recall-difficulty span { font-size: 10px; color: #a5bb9f; }
+.recall-difficulty input, .recall-dispute input { accent-color: #c1e3b4; width: 15px; height: 15px; flex-shrink: 0; }
+.recall-schedule-note { font-size: 11px; color: #c2d1bc; line-height: 1.8; margin: 20px 0 17px; }
+.recall-complete { text-align: center; max-width: 640px; margin: 30px auto 0; }
+.recall-complete-symbol { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 26px; border: 1px solid #547750; border-radius: 50%; font-size: 36px; color: #d4edc5; background: #2e442d; }
+.recall-complete h1 { font-size: clamp(25px, 4vw, 36px); letter-spacing: -.8px; font-weight: 600; margin: 16px 0 12px; }
+.recall-complete p { color: #b3c8b4; font-size: 13px; line-height: 1.9; }
+.recall-result-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 30px 0 23px; border: 1px solid #41583e; border-radius: 13px; padding: 25px 10px; background: #1d2e20; }
+.recall-result-grid > div + div { border-left: 1px solid #41583e; }
+.recall-result-grid strong { display: block; color: #d0ebbd; font-size: 35px; font-weight: 500; }
+.recall-result-grid span { display: block; color: #b3c9a9; font-size: 11px; margin-top: 7px; }
+.recall-complete .recall-summary-note { font-size: 11px; margin-bottom: 26px; }
+.recall-insights { margin-bottom: 24px; padding: 20px; border: 1px solid #526d5a; border-radius: 16px; background: #163c38; }
+.recall-insights h2 { color: #f0f8ee; font-size: 16px; margin-bottom: 9px; }
+.recall-insights > p { color: #c3d9d0; font-size: 12px; line-height: 1.8; }
+.recall-skill-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+.recall-skill-stats > div { border: 1px solid #477363; border-radius: 9px; padding: 12px; }
+.recall-skill-stats strong { display: block; color: #d7efd1; font-size: 21px; }
+.recall-skill-stats span { color: #c2d9ce; font-size: 11px; display: block; margin-top: 5px; }
+.recall-history { margin-bottom: 26px; }
+.recall-history details { border: 1px solid #73a7b5; border-radius: 10px; background: #124b67; margin-top: 9px; padding: 15px; }
+.recall-history summary { cursor: pointer; color: #f0f7f4; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+.recall-history summary small { display: block; color: #c7e2d8; font-size: 10px; font-weight: 500; margin-top: 7px; }
+.recall-history p { color: #e0ede9; font-size: 12px; line-height: 1.8; margin-top: 12px; overflow-wrap: anywhere; }
+.recall-history p.recall-history-label { color: #bdddd5; font-size: 10px; margin-top: 20px; }
+.recall-history blockquote { border-left: 2px solid #a9d6c7; margin: 10px 0 0; padding-left: 13px; font-size: 13px; line-height: 1.8; color: #edf7ee; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 800px) { .recall-layout { grid-template-columns: minmax(0, 1fr) 170px; gap: 25px; } .recall-sidebar { padding-left: 18px; } .recall-feedback { padding: 20px; } }
+@media (max-width: 660px) { .recall-layout { grid-template-columns: minmax(0, 1fr); } .recall-sidebar { display: none; } .recall-skill-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .recall-feedback { padding: 16px; } .recall-actions { align-items: stretch; flex-direction: column; } .recall-checks li > div { align-items: flex-start; flex-direction: column; gap: 7px; } .recall-label { align-items: flex-start; flex-direction: column; gap: 5px; } .recall-result-grid span { font-size: 10px; } }
+@media (prefers-reduced-motion: reduce) { .recall-pulse { animation: none; } }

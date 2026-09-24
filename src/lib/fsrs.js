@@ -171,5 +171,5 @@ export function dueForecast(topics, days = 7, now = Date.now()) {
   return counts;
 }
 
-/** A card counts as "mastered" once it's in review with a 3-week-plus memory. */
+/** Scheduling maturity only; this is not evidence of whole-subject mastery. */
 export const isMature = (c) => c.srs?.state === "review" && c.srs.stability >= 21;

@@ -56,7 +56,7 @@ export default function TopicView() {
       </main>
       <aside className="topic-sidebar"><div className="set-summary"><span className="studio-eyebrow">YOUR CORE SET</span><div className="topic-set-number">{cards.length}<span> / {profile.perTopic}</span></div><p>{cards.length >= profile.perTopic ? 'Your set has reached its automatic content limit.' : 'Room to grow, without an endless queue.'}</p><div className="capacity-track"><span style={{ width: `${Math.min(100, cards.length / profile.perTopic * 100)}%` }}/></div><span className="capacity-label">{profile.label} · workload limit</span></div>
         <section className="practice-options"><h2>Choose your practice</h2><button disabled={!dc} onClick={() => startReview(topicId)}><span>Due review</span><b>{dc}</b></button><button disabled={!cards.length} onClick={() => setView('flashcard')}><span>Flip cards</span><b>↗</b></button><button disabled={quizzable < 2} onClick={() => setView('quiz')}><span>Multiple choice</span><b>↗</b></button></section>
-        <p className="studio-footnote">Section counts show the size of your study set. Recall, application and mastery tracking will be added in the next stages.</p>
+        <p className="studio-footnote">Practice recall checks your own explanation against essential points. Sessions stop at 12 questions. Section counts show workload; mastery and knowledge maps come in later stages.</p>
       </aside>
     </div>
   </Screen>;

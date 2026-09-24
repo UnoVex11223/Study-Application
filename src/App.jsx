@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppCtx } from "./components/context.js";
 import Home from "./components/Home.jsx";
 import TopicView from "./components/TopicView.jsx";
@@ -9,7 +9,8 @@ import TypedQuiz from "./components/TypedQuiz.jsx";
 import Sim from "./components/Sim.jsx";
 import AddCards from "./components/AddCards.jsx";
 import SettingsModal from "./components/Settings.jsx";
-import { loadAll, saveTopics, saveXp, bumpStats, bumpNewCards, newAllowance, logReview, resetProgress as resetProgressStore } from "./lib/storage.js";
+import { loadAll, saveTopics, saveXp, saveLog, bumpStats, bumpNewCards, newAllowance, logReview, resetProgress as resetProgressStore } from "./lib/storage.js";
+import { beginRecallAttempt, finishRecallAttempt, noteRecallFeedback } from "./lib/recall.js";
 import { rate, newSrs, getDueCards } from "./lib/fsrs.js";
 import { getLevel, getLvlData, XP_FOR_RATING } from "./lib/xp.js";
 
@@ -22,6 +23,8 @@ export default function App() {
   const [xp, setXp] = useState(0);
   const [stats, setStats] = useState({});
   const [log, setLog] = useState({ entries: [], daily: {} });
+  const topicsRef = useRef([]);
+  const logRef = useRef({ entries: [], daily: {} });
 
   const [reviewQueue, setReviewQueue] = useState([]);
   const [sessionNonce, setSessionNonce] = useState(0);
@@ -34,16 +37,22 @@ export default function App() {
 
   useEffect(() => {
     loadAll().then(({ topics, xp, stats, log }) => {
+      topicsRef.current = topics; logRef.current = log;
       setTopics(topics); setXp(xp); setStats(stats); setLog(log); setReady(true);
     });
   }, []);
 
   const updateTopics = useCallback((fn) => {
-    setTopics(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      saveTopics(next);
-      return next;
-    });
+    const next = typeof fn === "function" ? fn(topicsRef.current) : fn;
+    topicsRef.current = next;
+    setTopics(next);
+    saveTopics(next);
+  }, []);
+
+  const updateLog = useCallback((next) => {
+    logRef.current = next;
+    setLog(next);
+    saveLog(next);
   }, []);
 
   const addXp = useCallback((amount) => {
@@ -59,7 +68,7 @@ export default function App() {
     setTimeout(() => setXpPopups(p => p.filter(x => x.id !== id)), 1900);
   }, []);
 
-  /** Every answer in every mode lands here: reschedule the card, log it, count it, pay XP. */
+  /** Legacy flip / recognition modes retain their behavior and separate history. */
   const applyRating = useCallback((card, rating, mode) => {
     const wasNew = !card.srs || card.srs.state === "new";
     const updated = rate(card.srs ?? newSrs(), rating);
@@ -71,20 +80,46 @@ export default function App() {
       if (wasNew) ns = bumpNewCards(ns);
       return ns;
     });
-    setLog(l => logReview(l, { cardId: card.id, topicId: card.topicId, rating, mode }));
+    updateLog(logReview(logRef.current, { cardId: card.id, topicId: card.topicId, rating, mode }));
     const amt = XP_FOR_RATING[rating];
     if (amt) addXp(amt);
     return updated;
-  }, [updateTopics, addXp]);
+  }, [updateTopics, updateLog, addXp]);
+
+  const beginRecall = useCallback((card, options) => {
+    const next = beginRecallAttempt(logRef.current, card, { ...options, allowNew: newAllowance(stats) > 0 });
+    if (next === logRef.current) return false;
+    updateLog(next);
+    return true;
+  }, [stats, updateLog]);
+
+  const completeRecall = useCallback((attemptId, options) => {
+    const result = finishRecallAttempt(logRef.current, topicsRef.current, attemptId, options);
+    if (!result.saved) return null;
+    // Update refs before React renders, so rapid repeated clicks cannot reschedule twice.
+    updateLog(result.log);
+    if (result.topics !== topicsRef.current) updateTopics(result.topics);
+    setStats(previous => {
+      const next = bumpStats(previous);
+      return result.wasNew ? bumpNewCards(next) : next;
+    });
+    if (result.rating && XP_FOR_RATING[result.rating]) addXp(XP_FOR_RATING[result.rating]);
+    return result.entry;
+  }, [updateLog, updateTopics, addXp]);
+
+  const recordRecallFeedback = useCallback((attemptId, assessment) => {
+    const next = noteRecallFeedback(logRef.current, attemptId, assessment);
+    if (next !== logRef.current) updateLog(next);
+  }, [updateLog]);
 
   const goTopic = useCallback((id) => {
     setTopicId(id); setView("topic"); setColorPickId(null); setDeleteConfId(null);
   }, []);
 
   const startReview = useCallback((maybeTopicId) => {
-    const scopeId = typeof maybeTopicId === "number" ? maybeTopicId : null;
-    const scope = scopeId ? topics.filter(t => t.id === scopeId) : topics;
-    const queue = getDueCards(scope, { newAllowance: scopeId ? 0 : newAllowance(stats) });
+    const scopeId = ["number", "string"].includes(typeof maybeTopicId) ? maybeTopicId : null;
+    const scope = scopeId !== null ? topics.filter(t => t.id === scopeId) : topics;
+    const queue = getDueCards(scope, { newAllowance: scopeId !== null ? 0 : newAllowance(stats) });
     if (!queue.length) return;
     setReviewQueue(queue);
     setSessionNonce(n => n + 1);
@@ -97,6 +132,7 @@ export default function App() {
 
   const resetProgress = useCallback(() => {
     const fresh = resetProgressStore();
+    topicsRef.current = fresh.topics; logRef.current = fresh.log;
     setTopics(fresh.topics); setXp(fresh.xp); setStats(fresh.stats); setLog(fresh.log);
     setTopicId(null); setView("home"); setHomeTab("topics"); setSettingsOpen(false);
   }, []);
@@ -108,7 +144,7 @@ export default function App() {
     topics, updateTopics, topicId, goTopic,
     xp, addXp, stats, setStats, log,
     xpPopups, levelUpData, setLevelUpData,
-    applyRating, startReview, reviewQueue, startSim,
+    applyRating, beginRecall, completeRecall, recordRecallFeedback, startReview, reviewQueue, startSim,
     settingsOpen, openSettings: () => setSettingsOpen(true), closeSettings: () => setSettingsOpen(false), resetProgress,
     colorPickId, setColorPickId, deleteConfId, setDeleteConfId, clearPickers,
   };

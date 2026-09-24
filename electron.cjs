@@ -55,37 +55,27 @@ ipcMain.handle("ai:generateCards", async (_event, input) => {
   }
 });
 
-const GRADE_SCHEMA = {
-  type: "object",
-  properties: {
-    verdict: { type: "string", enum: ["correct", "partial", "incorrect"] },
-    missing: { type: "array", items: { type: "string" }, description: "Key points the student's answer missed or got wrong. Empty if fully correct." },
-    feedback: { type: "string", description: "One or two encouraging sentences of specific feedback." },
-  },
-  required: ["verdict", "missing", "feedback"],
-  additionalProperties: false,
-};
-
-ipcMain.handle("ai:gradeAnswer", async (_event, { question, correctAnswer, userAnswer }) => {
+// Structured assessment shares validation rules with the renderer.
+ipcMain.handle("ai:gradeAnswer", async (_event, input) => {
   const client = getClient();
-  if (!client) return { ok: false, error: "no-key" };
+  if (!client) return { ok: false, error: "Add your Anthropic API key in Settings to grade written explanations." };
   try {
+    const { GRADE_SCHEMA, GRADE_SYSTEM, assessmentPayload, validateAssessment } = await import("./assessment-engine.mjs");
+    const payload = assessmentPayload(input);
     const message = await client.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 4000,
+      system: GRADE_SYSTEM,
       output_config: { format: { type: "json_schema", schema: GRADE_SCHEMA } },
-      messages: [{
-        role: "user",
-        content: `You are grading a student's free-recall flashcard answer. Judge on substance, not wording — synonyms, paraphrases, and different orderings are fine. "correct" means all key concepts are present; "partial" means the core idea is there but something important is missing or slightly wrong; "incorrect" means the core idea is missing or wrong.
-
-Question: ${question}
-Model answer: ${correctAnswer}
-Student's answer: ${userAnswer}`,
-      }],
-    });
-    if (message.stop_reason === "refusal") return { ok: false, error: "refused" };
-    const text = message.content.find((b) => b.type === "text")?.text ?? "";
-    return { ok: true, data: JSON.parse(text) };
+      messages: [{ role: "user", content: JSON.stringify(payload) }],
+    }, { timeout: 45000, maxRetries: 0 });
+    if (message.stop_reason === "refusal") return { ok: false, error: "The grader declined this answer. It remains ungraded." };
+    if (message.stop_reason !== "end_turn") return { ok: false, error: "The grading response was incomplete. Your schedule is unchanged." };
+    const text = message.content.find(block => block.type === "text")?.text ?? "";
+    const parsed = JSON.parse(text);
+    const validated = validateAssessment(parsed, payload);
+    if (validated.method === "ungraded") return { ok: false, error: validated.feedback };
+    return { ok: true, data: parsed };
   } catch (err) {
     return { ok: false, error: friendlyError(err) };
   }
