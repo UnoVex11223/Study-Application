@@ -110,13 +110,13 @@ export default function InsightsTab() {
       </section>}
 
       <div className="section-title">Activity — last 17 weeks</div>
-      <div className="glass" style={{ padding: "14px 16px", marginBottom: 24, borderRadius: 18 }}>
+      <div className="glass" style={{ padding: "14px 16px", marginBottom: 24, borderRadius: "var(--aero-radius-panel)" }}>
         <Heatmap daily={log.daily}/>
-        <div style={{ color: "rgba(255,255,255,.5)", fontSize: 11, fontWeight: 600 }}>{totalReviews.toLocaleString()} reviews logged</div>
+        <div style={{ color: "var(--aero-muted)", fontSize: 11, fontWeight: 600 }}>{totalReviews.toLocaleString()} reviews logged</div>
       </div>
 
       <div className="section-title">Upcoming reviews</div>
-      <div className="glass" style={{ padding: "10px 14px", marginBottom: 24, borderRadius: 18 }}>
+      <div className="glass" style={{ padding: "10px 14px", marginBottom: 24, borderRadius: "var(--aero-radius-panel)" }}>
         <Forecast topics={topics}/>
       </div>
 
@@ -129,10 +129,10 @@ export default function InsightsTab() {
               <div className="acc-bar-bg">
                 <div className="acc-bar-fill" style={{ width: `${Math.round(t.mastery * 100)}%`, background: t.mastery >= 0.7 ? "#6effc8" : t.mastery >= 0.3 ? "#ffd200" : "#ff8888" }}/>
               </div>
-              <div style={{ color: "rgba(255,255,255,.8)", fontWeight: 800, fontSize: 13, minWidth: 44, textAlign: "right" }}>{Math.round(t.mastery * 100)}%</div>
+              <div style={{ color: "var(--aero-muted)", fontWeight: 800, fontSize: 13, minWidth: 44, textAlign: "right" }}>{Math.round(t.mastery * 100)}%</div>
             </div>
           ))}
-          <div style={{ color: "rgba(255,255,255,.45)", fontSize: 11, fontWeight: 600, margin: "6px 0 24px" }}>
+          <div style={{ color: "var(--aero-muted)", fontSize: 11, fontWeight: 600, margin: "6px 0 24px" }}>
             Share of cards in review with estimated stability of 21+ days. This includes all study modes and is not proof of subject mastery.
           </div>
         </>
@@ -145,12 +145,12 @@ export default function InsightsTab() {
             <div key={c.id} className="weak-row">
               <div style={{ flex: 1 }}>
                 <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{cardPromptText(c)}</div>
-                <div style={{ color: "rgba(255,255,255,.5)", fontSize: 11, fontWeight: 600, marginTop: 2 }}>{c.topicName}</div>
+                <div style={{ color: "var(--aero-muted)", fontSize: 11, fontWeight: 600, marginTop: 2 }}>{c.topicName}</div>
               </div>
               <div style={{ color: "#ff9090", fontWeight: 900, fontSize: 13, minWidth: 28, textAlign: "right" }}>{c.srs.lapses}×</div>
             </div>
           ))}
-          <div style={{ color: "rgba(255,255,255,.45)", fontSize: 11, fontWeight: 600, marginTop: 6 }}>
+          <div style={{ color: "var(--aero-muted)", fontSize: 11, fontWeight: 600, marginTop: 6 }}>
             Tip: a card missed this often is usually badly written — try rewriting it as something smaller and more concrete.
           </div>
         </>
@@ -160,7 +160,7 @@ export default function InsightsTab() {
         <div className="glass" style={{ padding: 40, textAlign: "center" }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📈</div>
           <div style={{ color: "#fff", fontSize: 16, fontWeight: 800 }}>No reviews yet</div>
-          <div style={{ color: "rgba(255,255,255,.55)", fontSize: 14, fontWeight: 600, marginTop: 6 }}>
+          <div style={{ color: "var(--aero-muted)", fontSize: 14, fontWeight: 600, marginTop: 6 }}>
             Start a Review session and your stats will build up here
           </div>
         </div>

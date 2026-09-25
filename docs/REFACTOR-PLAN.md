@@ -33,9 +33,21 @@ Implemented on `codex/aeroflash-02-recall`, building on chunk 1:
 - Writing cues, practice before a card is due, attempts inside the daily new-card limit's exclusion, repeats within one minute of recorded feedback, and ungraded or self-checked answers do not extend the schedule or earn recall XP. There is no written-session completion bonus. The one-minute replay guard and 12-question ceiling are product policies, not claims about optimal learning intervals. Delayed mastery rules remain in chunk 3.
 - First answers are saved before grading. Feedback is also saved before confirmation; leaving early keeps a pending entry without changing the schedule. Only **Save & continue** commits the review outcome. One retry can regrade the locked original answer. Duplicate completion and stale or deleted question checks prevent duplicate scheduling changes.
 - Additive versioned `attempt` metadata lives in the existing bounded 5,000-entry review log: question/reference/rubric snapshot, original answer, skill, assistance, timing, grading evidence, dispute, optional self-check and scheduling decision. Existing cards, schedules and old entries are preserved. As before, the oldest raw entries eventually age out; daily activity totals remain.
-- A new sage/dark recall workspace includes legible writing space, point-by-point feedback, source passage disclosure, clear keyboard controls, a bounded-session summary, narrow-screen layouts and reduced-motion behavior. Insights separates unaided recall/explain/apply/compare outcomes from practice and shows the last five written answers. Legacy mixed-mode ratings are labeled Good/Easy, and the old topic “mastery” bar is relabeled scheduling maturity.
+- A written recall workspace includes legible writing space, point-by-point feedback, source passage disclosure, clear keyboard controls, a bounded-session summary, narrow-screen layouts and reduced-motion behavior. Insights separates unaided recall/explain/apply/compare outcomes from practice and shows the last five written answers. Legacy mixed-mode ratings are labeled Good/Easy, and the old topic “mastery” bar is relabeled scheduling maturity. The initial sage theme is superseded by the Aero theme correction below.
 
 The AI still makes semantic judgments and can be wrong. Structural evidence validation is not proof of semantic correctness. The user can challenge a grade, and the app explicitly abstains when it cannot reliably assess the answer. Flip-card, multiple-choice and simulation behavior remains available with its historical scheduling behavior; those modes do not become new unaided written evidence.
+
+## Theme correction — Frutiger Aero consistency
+
+Implemented on `codex/aeroflash-aero-theme`, building on chunk 2, at Isaac's request:
+
+- Restored a single blue/aqua Frutiger Aero appearance across the home screens, topic workspace, content builder, written recall, feedback, insights, and dialogs. Restored the soft background orbs on newer screens.
+- `src/aero-theme.css` owns the shared palette, glass surfaces, typography, radii and semantic feedback colors. Shared panels, pill buttons, segmented navigation and inputs live in `src/styles.css`; screen styles handle layout. Theme variables live at the root so Settings inherits the same appearance outside the screen wrapper.
+- Glossy aqua primary actions, rounded glass panels, consistent Nunito typography, stronger backing behind reading surfaces, larger workspace labels, and aligned progress bars. Correct/missing/ungraded feedback retains explicit text labels and distinct status accents.
+- Narrow layouts retain the section outline and practice choices, with stacked depth options and wrapping dialog actions. Keyboard focus and reduced-motion styling now apply throughout the app.
+- No changes to content limits, grading, persistence, schedules, or dependency versions. Curriculum and mastery remain the next functional chunk.
+
+Verification: all 39 existing tests, lint, production build and `git diff --check` pass. All four stylesheets parse and every referenced CSS variable resolves; content and recall styles contain no independent color palette. Desktop visual acceptance remains necessary: the available browser policy blocks local previews. Inspect Home → Topic → Add content → Written recall → Insights → Settings, including a narrow window and feedback states.
 
 ## Next chunks — not implemented yet
 

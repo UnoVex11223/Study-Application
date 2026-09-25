@@ -40,6 +40,10 @@ New generated cards carry one to four essential points. Older cards use their ex
 
 AI assessment is fallible. The **Dispute this grade** control leaves the attempt ungraded. Optional self-checks stay separate. Without AI, only literal cloze matches have an automatic positive check; free explanations stay ungraded. Source passages can be expanded after answering.
 
+## Visual theme
+
+The app uses one Frutiger Aero theme: blue/aqua gradients, translucent glass panels, glossy pill buttons, rounded inputs, soft background orbs and Nunito typography. Shared design values live in `src/aero-theme.css`; shared component styling lives in `src/styles.css`. Workspace and recall styles should use these shared values, including for feedback and dialogs, rather than introduce independent palettes. Narrow windows retain section outlines and practice controls. Reduced-motion settings apply throughout the app.
+
 ## Insights dashboard
 
 - Day streak, activity today, cards due now, and the historical share rated Good/Easy (all modes)

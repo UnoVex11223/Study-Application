@@ -30,7 +30,7 @@ function SettingsBody({ onClose }) {
       <div className="lu-backdrop" onClick={onClose}/>
       <div className="settings-box">
         <div style={{ color: "#fff", fontSize: 20, fontWeight: 900, marginBottom: 6 }}>⚙ Settings</div>
-        <div style={{ color: "rgba(255,255,255,.6)", fontSize: 13, fontWeight: 600, marginBottom: 20 }}>
+        <div style={{ color: "var(--aero-muted)", fontSize: 13, fontWeight: 600, marginBottom: 20, lineHeight: 1.7 }}>
           AI card generation and answer grading need an Anthropic API key. It's stored locally on this machine and never leaves it except to call the API.
         </div>
         <div className="lbl">Anthropic API key</div>
@@ -38,17 +38,17 @@ function SettingsBody({ onClose }) {
           placeholder={hasKey ? "•••••••• (key saved — paste to replace)" : undefined}
           onKeyDown={e => e.key === "Enter" && key.trim() && save()} style={{ marginBottom: 14 }}/>
         {saved && <div style={{ color: "#6effc8", fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Saved ✓</div>}
-        <div style={{ display: "grid", gridTemplateColumns: hasKey ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
+        <div className="settings-actions">
           <button className="ab aq md" onClick={save} disabled={!key.trim()}>Save</button>
           {hasKey && <button className="ab rd md" onClick={clear}>Remove</button>}
           <button className="ab gh md" onClick={onClose}>Close</button>
         </div>
-        <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12, fontWeight: 600, marginTop: 16, lineHeight: 1.5 }}>
+        <div style={{ color: "var(--aero-muted)", fontSize: 12, fontWeight: 600, marginTop: 16, lineHeight: 1.7 }}>
           Get a key at console.anthropic.com → API Keys. Without one, written explanations stay ungraded; exact cloze matches can still be checked. Self-checks are recorded separately and do not change the review schedule. Flip cards and multiple choice remain available.
         </div>
 
-        <div style={{ borderTop: "1px solid rgba(255,255,255,.15)", marginTop: 24, paddingTop: 20 }}>
-          <div style={{ color: "#ff9090", fontSize: 13, fontWeight: 800, letterSpacing: .4, textTransform: "uppercase", marginBottom: 10 }}>Danger Zone</div>
+        <div style={{ borderTop: "1px solid var(--aero-line)", marginTop: 24, paddingTop: 20 }}>
+          <div style={{ color: "var(--aero-danger)", fontSize: 13, fontWeight: 800, letterSpacing: .4, textTransform: "uppercase", marginBottom: 10 }}>Danger Zone</div>
           {!confirmingReset ? (
             <button className="ab rd md" style={{ width: "100%" }} onClick={() => setConfirmingReset(true)}>
               Reset All Progress
@@ -58,10 +58,10 @@ function SettingsBody({ onClose }) {
               <div style={{ color: "#fff", fontWeight: 800, fontSize: 14, marginBottom: 6 }}>
                 Delete {topics.length} topic{topics.length !== 1 ? "s" : ""} and {cardCount} card{cardCount !== 1 ? "s" : ""}?
               </div>
-              <div style={{ color: "rgba(255,255,255,.7)", fontSize: 12, fontWeight: 600, marginBottom: 14 }}>
+              <div style={{ color: "var(--aero-muted)", fontSize: 12, fontWeight: 600, marginBottom: 14 }}>
                 This clears every card, XP, streak, and review history. Your API key is kept. This can't be undone.
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="settings-actions">
                 <button className="ab rd sm" onClick={resetProgress}>Yes, delete everything</button>
                 <button className="ab gh sm" onClick={() => setConfirmingReset(false)}>Cancel</button>
               </div>

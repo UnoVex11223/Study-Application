@@ -26,7 +26,7 @@ export default function Home() {
       <Orbs/><XpPopups/><LevelUpModal/>
       <div className="scr fu">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ color: "rgba(255,255,255,.6)", fontWeight: 700, fontSize: 13, letterSpacing: 1.4 }}>AEROFLASH</span>
+          <span className="workspace-brand">AERO<span>FLASH</span></span>
           <button className="gear-btn" onClick={(e) => { e.stopPropagation(); openSettings(); }} title="Settings">⚙</button>
         </div>
         <XpStrip/>
