@@ -1,84 +1,114 @@
 # AeroFlash — How It Works
 
-AeroFlash is a desktop flashcard app (Electron + React) built around one idea: **learning should be scheduled by memory science, not by feel.** You dump in notes, it turns them into flashcards, and it tells you exactly which cards to review and when — using the same spaced-repetition algorithm behind modern Anki (FSRS).
+AeroFlash is a desktop study app (Electron + React) for keeping what you learn in long-term memory across many subjects at once. You add material a chapter at a time; it pulls out the concepts worth remembering, writes questions you answer from memory, and schedules a short daily session sized to the time you have.
 
-This document exists so you can paste it into another AI (ChatGPT, etc.) as context when asking it to prepare notes, summaries, or study material for you — so it understands what format and structure will actually work well inside the app.
-
----
-
-## The core loop
-
-1. **Create a Topic** (e.g. "Pointers", "Chapter 6 — Structs") — a container for related cards.
-2. **Add cards** to it — manually, as cloze deletions, or by feeding notes to AI generation.
-3. Every day, hit **"Review Now"** on the home screen. It pulls together every card that's due *across all your topics* (not just one), mixed randomly — this interleaving is deliberate and improves retention versus studying one topic at a time.
-4. For each card, you reveal the answer, then rate how well you knew it: **Again / Hard / Good / Easy**. That rating feeds the scheduler, which decides exactly when you'll see that card next — seconds from now if you got it wrong, weeks or months from now if you know it cold.
-5. Over time the app builds a picture of what you've actually mastered vs. what keeps slipping (the Insights tab).
-
-There's no "studying a deck front to back" — the app decides what you need to see today based on your own memory curve for each individual card.
+This file doubles as context you can paste into another AI when preparing material for the app.
 
 ---
 
-## Card types
+## The daily loop
 
-- **Basic** — a question ("front") and answer ("back"), plus 3 wrong-answer options used in multiple-choice quiz mode.
-- **Cloze** — a sentence with one key term blanked out, written as `The mitochondria is the {{c1::powerhouse}} of the cell.` Shown as a fill-in-the-blank. Best for definitions, exact terms, and numeric facts.
+1. **Today** shows one session: a number of questions and an estimated time. It never asks for more than your daily budget (20 minutes by default, set in Settings).
+2. You answer each question by **typing from memory**. There is no multiple choice.
+3. Your answer is graded against the question's **key points** (see Grading), you see what you missed, and you rate how well you knew it (Again / Hard / Good / Easy, with a suggested rating preselected — press Enter to accept).
+4. The scheduler (FSRS) decides when each question comes back.
 
-Both types are scheduled by the same spaced-repetition system and can appear in the same Review session.
+### How the day stays manageable
 
-## Study modes
+- **Time budget.** Everything due is ranked by how close it is to being forgotten, weighted by importance (core > supporting > detail) and by how many other concepts build on it. Questions are added in that order until the budget is full. Anything that doesn't fit waits for a later day, most urgent first.
+- **One question per concept per day.** Concepts have several questions (recall, explain, apply…); only one of them appears on a given day.
+- **New material only when there's room.** New concepts are added only if reviews fit, capped per day (6 by default), and paused automatically if reviews were deferred today or if the coming week is already heavy.
+- **Load balancing.** When a review is scheduled days out, it lands on the least-busy day in its window, so future days stay even.
+- **Course status.** Each course is *Active* (reviews + new concepts), *Maintaining* (reviews only) or *Paused* (left out). Taking on more subjects means setting older ones to Maintaining, not drowning in reviews.
+- **Study day** starts at 4am by default, so late-night sessions count toward the day you started.
 
-- **Review** — the main daily due-card queue described above. Rate Again/Hard/Good/Easy; this is what drives the scheduling.
-- **Flip Cards** — simple front/back flashcard flipping through a topic, also feeds ratings into the scheduler.
-- **Quiz** — multiple choice, using each card's 3 wrong answers as distractors. Right = scheduled further out, wrong = scheduled to repeat soon.
-- **Type Mode** — you type the answer from memory instead of picking it. An AI grades your free-text answer for substance (not exact wording), tells you what you got right/missed, and suggests a rating — you can accept or override it. Falls back to a simple keyword-overlap check if no AI key is configured.
-- **Simulate** — a 20-question, 25-minute timed test pulling from every topic at once, like a mock exam. No going back once you've answered. Score breakdown by topic at the end.
-
-## Insights dashboard
-
-- Day streak, reviews today, cards due now, 30-day retention rate
-- A GitHub-style activity heatmap of review history
-- A 7-day forecast of how many cards will come due each day
-- Per-topic mastery percentage (cards scheduled 3+ weeks out = "mastered")
-- **Leeches** — cards you keep forgetting (4+ failed reviews), flagged as candidates to rewrite because a card that's failed repeatedly is usually poorly worded, not genuinely hard
-
-## Gamification
-
-XP and rank levels (Newcomer → Transcendent, 20 ranks) reward consistent reviewing — small XP per card rated, streak bonuses, and a bonus for clearing your whole due queue in one sitting. This is a motivation layer sitting on top of the real mechanic (spaced repetition); it doesn't affect scheduling.
+"Study 5 more minutes" is offered after a session if there's more waiting, but coming back tomorrow does more for memory.
 
 ---
 
-## How AI card generation works (the part that matters for note-prep)
+## Structure
 
-In a topic, "Add Cards → From Notes (AI)" accepts pasted text and/or uploaded `.md`/`.txt` files. Long input is automatically split into ~12,000-character chunks on paragraph boundaries and processed sequentially, so very large files don't fail outright — but the app has no idea where your natural chapter/topic boundaries are, so a hand-organized input still produces better, more focused cards than one giant dump.
+```
+Course (a book, class or subject)
+└── Section (a chapter or part of one)
+    └── Concept (one idea worth remembering; core / supporting / detail)
+        └── Questions (recall, explain, distinguish, apply, connect)
+```
 
-The generation prompt is specifically instructed to:
+Concepts are connected by **prerequisites** ("B builds on A", a DAG with cycle checks) and by **cross-course links** (related / easily confused / used together). Each link carries a one-sentence explanation. Low-confidence links show as dashed "unconfirmed" and never block anything.
 
-**Extract:**
-- Key definitions and vocabulary
-- Distinctions between similar/confusable concepts
-- Scenario-based "which should you use?" questions
-- Facts that are commonly mixed up
-- Comparisons between types/modes/options
+New concepts are introduced from the **knowledge frontier**: a concept becomes eligible once its prerequisites have been started. Several active courses advance in parallel (round-robin).
 
-**Ignore:**
-- Markdown structure, headers, wikilinks
-- Tips/callouts/reminders (study aids, not testable facts)
-- Code examples, *unless* the code is the only place a concept is explained
-- Navigation/"related notes" sections
-- Vague statements that would never be tested
+## Question types
 
-**Output:** a mix of basic cards (~3/4) and cloze cards (~1/4), each basic card auto-generated with 3 plausible wrong answers for quiz mode.
+| Type | What you do | How it's checked |
+|---|---|---|
+| Recall | Produce a term or fact | Accepted answers (typo-tolerant), otherwise key points |
+| Explain | Say what it is and why it matters | Key points |
+| Distinguish | Tell it apart from a similar idea | Key points |
+| Apply | Solve a new example, predict output, fix code | Key points (result + reasoning) |
+| Connect | Explain how ideas work together | Key points |
 
-### Implication for preparing notes with another AI
+## Grading
 
-Because code blocks are mostly skipped, source material that's heavy on code (like a programming book) needs deliberate prose translation — for each significant code example, describe **what it does** and **the specific gotcha/behavior it demonstrates** in plain language, so that becomes extractable. Also: since the app can't detect chapter boundaries, pre-splitting source material by chapter/topic and feeding each section into its own AeroFlash Topic produces meaningfully better, more relevant flashcards than one massive unstructured file.
+Every question carries a small rubric written when the question is created: **key points** a correct answer must contain, plus common **misconceptions** that make an answer wrong.
 
-Ideal input to this pipeline is clean, structured prose organized as: definitions → core concept explanations (with the "vs. similar concept" contrast made explicit) → plain-language description of any code/example behavior → explicit comparisons → common mistakes. No exercises, no chapter-intro fluff, no cross-references.
+- Recall answers that match an accepted answer are marked correct instantly.
+- Otherwise the answer is graded by Claude against the rubric, on meaning, not wording. All key points and no misconception → correct; some points → partly there; otherwise not yet.
+- If the grader can't tell, it asks one short follow-up question.
+- Without an API key (or if grading fails) you check your answer yourself against the same key points.
+- Hints and "I don't know" are recorded as help: a helped answer never counts toward mastery and caps the rating at Hard.
+- "I was right" lets you overrule a grade; overrides are recorded.
+
+If you miss a question whose prerequisite is shaky, the session adds a quick **foundation check** on that prerequisite. Missed questions come back later in the same session.
+
+## Mastery (three separate numbers)
+
+- **Started** (coverage): share of a course's concepts you've begun.
+- **Mastered**: a concept is mastered when your last two study days with it both ended in a correct unaided answer, and — if it has an application-type question — you've answered one correctly. Course and section percentages count **core** concepts only.
+- **Recall chance now**: FSRS's estimate of remembering it today.
+
+Progress also shows success by question type (so you can see "strong recall, weak application"), answers recalled after a week or more, weak spots, and recurring misconceptions.
+
+## Teach back
+
+Pick a section and explain it from memory as if teaching it. Each concept is marked covered, partly, not mentioned, or incorrect. Covered concepts that were due count as reviewed; missed ones are brought forward to your next session. (If you turn on "show concept names", it's practice only.)
+
+---
+
+## Adding material
+
+**Course → Add material**:
+
+1. Paste text, drop `.md`/`.txt` notes, or drop the **book's PDF** and pick a chapter from its table of contents (page numbers are kept so each concept can cite its page).
+2. Claude splits it into sections and concepts and rates each concept's importance from real signals (definitions, worked examples, warnings, things later ideas depend on) — not word frequency. Anecdotes, boilerplate and navigation are dropped. Details start unticked; untick anything you don't want.
+3. Claude writes questions with rubrics for the chosen concepts, then looks for connections to your other courses in the background.
+
+If text lost something in copying (a figure, a garbled equation), you're told instead of getting a question built on missing information.
+
+You can also write questions yourself (Course → Add a question) with key points, accepted answers, misconceptions and a hint.
+
+### Preparing material with another AI
+
+The extractor handles raw chapters well; the most useful prep is simply splitting a book by chapter and adding each one as you finish it. If you do pre-process, keep: definitions, explanations with the "why", worked examples (code included, with a sentence on what it demonstrates), explicit comparisons, and common mistakes. Drop exercises' instructions, cross-references and chapter intros.
 
 ---
 
 ## Data & privacy
 
-Everything — topics, cards, review history, XP, streaks, and your API key — is stored **locally only**, in a single file on your machine (`electron-store`, a local JSON config file). Nothing syncs to a server. AI features (card generation, typed-answer grading) call the Anthropic API directly from the app's background process using your own API key, which you set once in Settings; the key never touches the app's UI code or leaves your machine except for that direct API call. Without a key, everything still works except AI generation and AI grading (grading falls back to a basic keyword match).
+Everything lives locally in one file on your machine (electron-store). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
 
-There's a "Reset All Progress" option in Settings that wipes topics/cards/XP/history in one confirmed action while leaving your API key untouched.
+Data from the previous version (topics of flashcards) is migrated automatically the first time you open this version: each topic becomes a course, each card keeps its schedule and review history, and the old data is left in place on disk. Old multiple-choice answers are kept in history but don't count as mastery evidence.
+
+## For developers
+
+```
+electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC
+pdf-text.cjs      PDF outline + page text (pdf.js)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, migrate, model, ai
+src/state/        store (reducer + persistence)
+src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, AddMaterial, KnowledgeMap, Progress, TeachBack, Settings
+tests/            node --test (logic + main-process IPC with a stubbed API)
+```
+
+`npm test`, `npm run lint`, `npm run build`, `npm run electron` (dev), `npm run dist` (package).
