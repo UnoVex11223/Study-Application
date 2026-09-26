@@ -370,6 +370,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .review-dropped { margin-top: 4px; }
 .review-dropped > summary { cursor: pointer; padding: 4px 0 8px; font-weight: 600; }
 .progress-line { display: flex; align-items: center; gap: 12px; }
+.busy-progress { margin-top: 14px; display: grid; gap: 8px; }
 .spinner { width: 16px; height: 16px; border: 2px solid var(--rule-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

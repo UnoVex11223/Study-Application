@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { ImportanceTag, Notice, Spinner } from "../ui/ui.jsx";
+import { Bar, ImportanceTag, Notice, Spinner } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import Markdown from "../ui/Markdown.jsx";
@@ -10,6 +10,8 @@ import { index } from "../lib/model.js";
 import { aiBridge, aiAvailable, extractMaterial, generateTasks, buildImport, linkConcepts } from "../lib/ai.js";
 
 const STEPS = ["Source", "Choose concepts", "Review questions"];
+
+const selectedKeys = (ex) => ex.sections.flatMap(s => s.concepts.filter(c => c.selected).map(c => c.key));
 
 function QuestionRow({ q, onToggle, dropped }) {
   const dimText = q.dims ? Object.entries(q.dims).map(([k, v]) => `${DIMENSIONS[k]}: ${v}/5`).join("\n") : "Checked by rules only";
@@ -58,6 +60,11 @@ export default function AddMaterial({ courseId }) {
   const [hasKey, setHasKey] = useState(null);
   const [book, setBook] = useState(null); // { name, data, pages, outline, pick, from, to, loading }
   const fileRef = useRef(null);
+  // Questions are written in the background as soon as concepts are found, so
+  // most are ready by the time you've looked the list over. `ready` holds
+  // finished groups by concept key; `running` is the background run, if any.
+  const ready = useRef(new Map());
+  const running = useRef(null);
 
   useEffect(() => { aiAvailable().then(setHasKey); }, []);
 
@@ -111,9 +118,24 @@ export default function AddMaterial({ courseId }) {
       onProgress: (p) => p.parts > 1 && setBusy({ label: `Reading part ${p.part} of ${p.parts}` }),
     });
     setBusy(null);
+    ready.current = new Map(); running.current = null;
     if (!res.ok) { setError(res.error); setStep(0); return; }
     setExtraction(res);
     if (!title.trim() && res.title) setTitle(res.title);
+    writeInBackground(res);
+  };
+
+  // Start writing questions for the concepts that are ticked by default.
+  const writeInBackground = (ex) => {
+    const run = { keys: new Set(selectedKeys(ex)), progress: null, listen: null };
+    run.promise = generateTasks({
+      state, courseId, sections: ex.sections,
+      onProgress: (p) => { run.progress = p; run.listen?.(); },
+    }).then((res) => {
+      if (running.current === run && res.ok) for (const g of res.groups) ready.current.set(g.conceptKey, g);
+      return res;
+    });
+    running.current = run;
   };
 
   const toggle = (si, ci) => setExtraction(x => ({
@@ -125,17 +147,44 @@ export default function AddMaterial({ courseId }) {
 
   const create = async () => {
     setError(""); setStep(2);
-    setBusy({ label: "Writing questions" });
-    const res = await generateTasks({
-      state, courseId, sections: extraction.sections,
-      onProgress: (p) => setBusy({
-        label: p.step === "review" ? `Reviewing the questions for "${p.section}"` : `Writing questions for "${p.section}"`,
-        part: p.part, parts: p.parts,
-      }),
-    });
+    const wanted = selectedKeys(extraction);
+    const bg = running.current;
+    const onlyKeys = (keys) => extraction.sections.map(s => ({ ...s, concepts: s.concepts.map(c => ({ ...c, selected: keys.has(c.key) })) }));
+
+    // Progress across the background run and anything written now.
+    const runs = [];
+    const show = () => {
+      const sum = (f) => runs.reduce((n, r) => n + (r.progress?.[f] ?? 0), 0);
+      setBusy({ label: "Writing and reviewing questions", done: sum("done"), total: sum("total"), passed: sum("passed") });
+    };
+    const write = (keys) => {
+      const run = { progress: null };
+      runs.push(run);
+      return generateTasks({ state, courseId, sections: onlyKeys(keys), onProgress: (p) => { run.progress = p; show(); } })
+        .then((res) => { if (res.ok) for (const g of res.groups) ready.current.set(g.conceptKey, g); return res; });
+    };
+
+    const waiting = bg && wanted.some(k => bg.keys.has(k) && !ready.current.has(k));
+    if (waiting) { runs.push(bg); bg.listen = show; }
+    const fresh = new Set(wanted.filter(k => !ready.current.has(k) && !(waiting && bg.keys.has(k))));
+    show();
+    const results = await Promise.all([waiting ? bg.promise : null, fresh.size ? write(fresh) : null]);
+
+    // Anything still missing (a failed group) gets one more try now.
+    const missing = new Set(wanted.filter(k => !ready.current.has(k)));
+    const last = missing.size ? await write(missing) : null;
+    if (bg) bg.listen = null;
     setBusy(null);
-    if (!res.ok) { setError(res.error); setStep(1); return; }
-    setReview(res);
+
+    const groups = wanted.map(k => ready.current.get(k)).filter(Boolean);
+    const error = [last, ...results].find(r => r && !r.ok)?.error ?? last?.partial ?? null;
+    if (!groups.length) { setError(error || "No questions could be written."); setStep(1); return; }
+    setReview({
+      groups,
+      written: groups.reduce((n, g) => n + g.kept.length + g.dropped.length, 0),
+      reviewed: groups.every(g => g.reviewed !== false),
+      partial: groups.length < wanted.length ? error : null,
+    });
   };
 
   const toggleQuestion = (gi, list, qi) => setReview(r => ({
@@ -172,6 +221,7 @@ export default function AddMaterial({ courseId }) {
 
   // Keep an opened PDF around so the next chapter is one click away.
   const reset = () => {
+    ready.current = new Map(); running.current = null;
     setStep(0); setTitle(""); setLocation(""); setText(""); setFiles([]); setExtraction(null); setResult(null); setReview(null); setLinkState(null); setError("");
     setBook(b => {
       if (!b?.outline) return b;
@@ -282,7 +332,16 @@ export default function AddMaterial({ courseId }) {
       {busy && (
         <div className="panel panel-pad">
           <div className="progress-line"><Spinner/><span>{busy.label}{busy.parts > 1 ? ` (${busy.part} of ${busy.parts})` : ""}…</span></div>
-          <p className="muted small" style={{ marginTop: 10 }}>A long chapter can take a minute or two.</p>
+          {busy.total > 0 ? (
+            <div className="busy-progress">
+              <Bar value={busy.done / busy.total} thin/>
+              <p className="muted small">
+                {busy.done} of {busy.total} concept groups done{busy.passed ? `, ${busy.passed} question${busy.passed === 1 ? "" : "s"} passed so far` : ""}. Groups run side by side, so they tend to finish close together.
+              </p>
+            </div>
+          ) : (
+            <p className="muted small" style={{ marginTop: 10 }}>A long chapter can take a minute or two.</p>
+          )}
         </div>
       )}
 

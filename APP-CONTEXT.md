@@ -100,6 +100,8 @@ Pick a section and explain it from memory as if teaching it. Each concept is mar
 2. Claude splits it into sections and concepts and rates each concept's importance from real signals (definitions, worked examples, warnings, things later ideas depend on) — not word frequency. Anecdotes, boilerplate and navigation are dropped. Details start unticked; untick anything you don't want.
 3. Claude writes candidate questions with rubrics, an independent review scores them, and you confirm what passed (see Question quality). New concepts are then linked to your other courses in the background.
 
+Question writing starts in the background as soon as the concepts are found, so most of it is done while you look the list over. Concepts are handled in groups of up to four, several groups at a time; ticking an extra concept only writes that one, and going back to the concept list doesn't redo finished work.
+
 If text lost something in copying (a figure, a garbled equation), you're told instead of getting a question built on missing information.
 
 You can also write questions yourself (Course → Add a question) with key points, accepted answers, misconceptions and a hint.

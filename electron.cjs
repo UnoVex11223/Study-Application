@@ -54,7 +54,8 @@ const MODELS = {
 function getClient() {
   const apiKey = store.get(API_KEY) || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
-  return new Anthropic({ apiKey });
+  // Retries (with backoff) cover brief overloads when several groups run at once.
+  return new Anthropic({ apiKey, maxRetries: 4 });
 }
 
 function friendlyError(err) {
@@ -203,7 +204,7 @@ const ITEMS_SYSTEM = `You write retrieval-practice questions. The learner answer
 HOW MANY
 Write candidates generously — a separate reviewer keeps only the best:
 core concept: 3–4 candidates. supporting: 2. detail: 1, and only if the detail is genuinely worth knowing.
-Across the section, write at most one "connect" question asking how 2–3 of the concepts work together; attach it to the most central one.
+Write at most one "connect" question for the concepts you're given, and only if 2–3 of them genuinely work together; attach it to the most central one.
 
 ABILITIES
 - recall: produce a term, name or key fact. Exactly one short answer should be correct. Fill accept with every acceptable short answer (synonyms, abbreviations, alternate spellings). If the answer would be a sentence, it's an explain question instead.

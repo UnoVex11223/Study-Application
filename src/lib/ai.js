@@ -93,46 +93,94 @@ export async function generateTasks({ state, courseId, sections, onProgress }) {
   const a = api();
   if (!a) return { ok: false, error: "AI features need the desktop app." };
   const courseName = index(state).course[courseId]?.name ?? "";
-  const batches = [];
-  for (const s of sections) {
-    const chosen = s.concepts.filter(c => c.selected);
-    for (let i = 0; i < chosen.length; i += 8) batches.push({ section: s, concepts: chosen.slice(i, i + 8) });
-  }
-  const groups = [];
-  let failed = null, written = 0, reviewedAll = true;
-  for (let bi = 0; bi < batches.length; bi++) {
-    const { section, concepts } = batches[bi];
-    const ctx = concepts.map(c => ({ key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt }));
+  const batches = splitBatches(sections);
+  if (!batches.length) return { ok: false, error: "Pick at least one concept." };
 
-    onProgress?.({ step: "write", part: bi + 1, parts: batches.length, section: section.title });
+  // Each group is written and then reviewed on its own, so groups run side by
+  // side instead of one after another. Most of the wait is the model writing
+  // text, so this cuts a chapter's wait roughly by the number of groups.
+  const runBatch = async ({ section, concepts }, bi) => {
+    const ctx = concepts.map(c => ({ key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt }));
     const res = wrap(await a.items({ courseName, sectionTitle: section.title, concepts: ctx }));
-    if (!res.ok) { failed = res.error; break; }
+    if (!res.ok) return { ok: false, error: res.error };
     const keys = new Set(concepts.map(c => c.key));
     const raw = res.data.tasks.filter(t => keys.has(t.concept_key) && ABILITIES[t.ability] && t.prompt?.trim() && t.model_answer?.trim());
     const candidates = raw.map((t, i) => ({ ...toQuestion(t, `q${bi}_${i}`), conceptKey: t.concept_key }));
-    written += candidates.length;
 
-    onProgress?.({ step: "review", part: bi + 1, parts: batches.length, section: section.title });
     let reviews = {};
     const crit = a.critique ? wrap(await a.critique({
       courseName, sectionTitle: section.title, concepts: ctx,
       questions: candidates.map(q => ({ id: q.id, concept_key: q.conceptKey, ability: q.ability, prompt: q.prompt, model_answer: q.answer, accept: q.accept, required_points: q.points, misconceptions: q.misconceptions })),
     })) : { ok: false };
     if (crit.ok) reviews = Object.fromEntries(crit.data.reviews.map(r => [r.id, r]));
-    else reviewedAll = false;
 
-    for (const c of concepts) {
-      const mine = candidates.filter(q => q.conceptKey === c.key);
-      const { kept, dropped } = selectForConcept(mine, reviews, c.importance);
-      groups.push({
-        sectionTitle: section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance,
+    const groups = concepts.map(c => {
+      const { kept, dropped } = selectForConcept(candidates.filter(q => q.conceptKey === c.key), reviews, c.importance);
+      return {
+        sectionTitle: section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: crit.ok,
         kept: kept.map(q => ({ ...q, selected: true })),
         dropped: dropped.map(q => ({ ...q, selected: false })),
-      });
-    }
+      };
+    });
+    return { ok: true, groups, written: candidates.length, reviewed: crit.ok };
+  };
+
+  const attempt = (b, bi) => runBatch(b, bi).catch(err => ({ ok: false, error: err?.message || "Something went wrong." }));
+
+  const results = new Array(batches.length).fill(null);
+  let done = 0, passed = 0;
+  const report = () => onProgress?.({ step: "write", done, total: batches.length, passed });
+  const settle = (bi, r) => {
+    results[bi] = r;
+    if (r.ok) { done++; passed += r.groups.reduce((n, g) => n + g.kept.length, 0); report(); }
+  };
+  report();
+  await inParallel(batches, PARALLEL_GROUPS, async (b, bi) => settle(bi, await attempt(b, bi)));
+  // A group that failed (overloaded API, dropped connection) gets one more try.
+  for (let bi = 0; bi < batches.length; bi++) {
+    if (!results[bi].ok) settle(bi, await attempt(batches[bi], bi));
   }
-  if (!groups.length && failed) return { ok: false, error: failed };
-  return { ok: true, groups, written, reviewed: reviewedAll, partial: failed };
+
+  const ok = results.filter(r => r.ok);
+  const failed = results.find(r => !r.ok)?.error ?? null;
+  if (!ok.length) return { ok: false, error: failed };
+  return {
+    ok: true,
+    groups: ok.flatMap(r => r.groups),
+    written: ok.reduce((n, r) => n + r.written, 0),
+    reviewed: ok.every(r => r.reviewed),
+    partial: failed,
+  };
+}
+
+// Smaller groups finish sooner and run in parallel; 4 concepts per call keeps
+// each response short while still letting the writer see related ideas.
+const GROUP_SIZE = 4;
+const PARALLEL_GROUPS = 6;
+
+/** Split each section's chosen concepts into evenly sized groups of at most GROUP_SIZE. */
+export function splitBatches(sections, size = GROUP_SIZE) {
+  const batches = [];
+  for (const s of sections) {
+    const chosen = s.concepts.filter(c => c.selected);
+    if (!chosen.length) continue;
+    const n = Math.ceil(chosen.length / size);
+    const per = Math.ceil(chosen.length / n);
+    for (let i = 0; i < chosen.length; i += per) batches.push({ section: s, concepts: chosen.slice(i, i + per) });
+  }
+  return batches;
+}
+
+/** Run fn over items with at most `limit` in flight at once. */
+export async function inParallel(items, limit, fn) {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
 // Questions that passed the gate carry a `warnings` array; ones you kept
