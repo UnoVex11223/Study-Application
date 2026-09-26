@@ -3,6 +3,7 @@
 
 import { index, makeSection, makeConcept, makeItem, makeEdge, ABILITIES, IMPORTANCE } from "./model.js";
 import { selectForConcept, lintQuestion } from "./quality.js";
+import { verifyPoints } from "./grade.js";
 
 const api = () => (typeof window !== "undefined" && window.aeroflash?.ai) || null;
 
@@ -239,13 +240,18 @@ export async function gradeWithAI(item, concept, answer, followUp = null) {
   }));
   if (!res.ok) return res;
   const d = res.data;
+  const raw = points.map((text, i) => ({ text, met: Boolean(d.points[i]?.met), evidence: d.points[i]?.evidence || "" }));
+  const full = [answer, followUp?.answer].filter(Boolean).join("\n");
+  const checked = verifyPoints(raw, full);
+  const corrections = checked.filter(p => p.corrected);
   return {
     ok: true,
-    points: points.map((text, i) => ({ text, met: Boolean(d.points[i]?.met), evidence: d.points[i]?.evidence || "" })),
+    points: checked,
     misconceptionsFound: d.misconceptions_found || [],
-    uncertain: Boolean(d.uncertain) && !followUp,
+    uncertain: Boolean(d.uncertain) && !followUp && !corrections.length,
     followUp: d.follow_up || "",
-    feedback: d.feedback || "",
+    // If our checks overruled the grader, its feedback no longer applies.
+    feedback: corrections.length ? "" : d.feedback || "",
   };
 }
 

@@ -29,7 +29,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
   const [followUp, setFollowUp] = useState({ question: "", answer: "" });
   const [checks, setChecks] = useState({ points: [], misc: [] });
   const [error, setError] = useState("");
-  const [overridden, setOverridden] = useState(false);
+  const [override, setOverride] = useState(null); // you can overrule the grade either way: "correct" | "incorrect"
   const [reporting, setReporting] = useState(false);
   const started = useRef(0);
   const finished = useRef(false);
@@ -81,7 +81,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
     });
   };
 
-  const verdict = grade ? (overridden ? "correct" : grade.verdict) : null;
+  const verdict = grade ? (override ?? grade.verdict) : null;
   const suggested = verdict ? suggestedRating(verdict, { aided }) : null;
   const ivls = previewIntervals(item.srs, now, { retention });
 
@@ -89,9 +89,9 @@ export default function TaskView({ task, item, concept, section, course, aiReady
     if (finished.current) return; // Enter on a focused button must not rate twice
     finished.current = true;
     onDone({
-      verdict, rating, aided, overridden,
+      verdict, rating, aided, overridden: Boolean(override),
       ms: Date.now() - started.current,
-      misconceptions: overridden ? [] : grade.misconceptionsFound,
+      misconceptions: override === "correct" ? [] : grade.misconceptionsFound,
     });
   };
 
@@ -102,7 +102,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
       if (e.key === "Enter") { e.preventDefault(); rate(suggested); }
       else if (["1", "2", "3", "4"].includes(e.key)) rate(Number(e.key));
     }
-  }, [phase, answer, followUp, suggested, grade, overridden, aided]);
+  }, [phase, answer, followUp, suggested, grade, override, aided]);
 
   const kind = task.kind === "requeue" ? "requeue" : task.kind;
 
@@ -219,7 +219,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
           <div className="feedback-head">
             <span className={`verdict verdict-${VERDICT[verdict].tone}`}>{VERDICT[verdict].label}</span>
             {aided && verdict === "correct" && <span className="tag">With help</span>}
-            {overridden && <span className="tag">Marked correct by you</span>}
+            {override && <span className="tag">{override === "correct" ? "Marked correct by you" : "Marked wrong by you"}</span>}
             <div className="grow"/>
             {grade.source === "ai" && <span className="muted small">Graded against {grade.points.length} key point{grade.points.length === 1 ? "" : "s"}</span>}
             {grade.source === "exact" && <span className="muted small">Matched an accepted answer</span>}
@@ -230,16 +230,17 @@ export default function TaskView({ task, item, concept, section, course, aiReady
               <div className="checks">
                 {grade.points.map((p, i) => (
                   <div key={i} className="check">
-                    <span className={`check-mark ${p.met || overridden ? "yes" : "no"}`}><Icon name={p.met || overridden ? "check" : "x"} size={12} stroke={2.6}/></span>
+                    <span className={`check-mark ${p.met || override === "correct" ? "yes" : "no"}`}><Icon name={p.met || override === "correct" ? "check" : "x"} size={12} stroke={2.6}/></span>
                     <div className="grow">
                       <Markdown>{p.text}</Markdown>
                       {p.evidence && p.met && <div className="check-evidence">You wrote: “{p.evidence}”</div>}
+                      {p.corrected && <div className="check-evidence">{p.corrected}</div>}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            {!overridden && grade.misconceptionsFound.map((m, i) => (
+            {override !== "correct" && grade.misconceptionsFound.map((m, i) => (
               <div key={i} className="misconception"><strong>Misconception:</strong> {m}</div>
             ))}
             <div>
@@ -262,8 +263,11 @@ export default function TaskView({ task, item, concept, section, course, aiReady
           </div>
           <div className="feedback-foot small muted">
             <span className="grow">Press Enter to continue with <strong>{RATING_LABEL[suggested]}</strong>, or 1–4 to choose.</span>
-            {verdict !== "correct" && grade.source !== "reveal" && !overridden && (
-              <button className="link small" onClick={() => setOverridden(true)}>I was right</button>
+            {grade.verdict !== "correct" && grade.source !== "reveal" && !override && (
+              <button className="link small" onClick={() => setOverride("correct")}>I was right</button>
+            )}
+            {grade.verdict === "correct" && !override && (
+              <button className="link small" onClick={() => setOverride("incorrect")}>Actually, I got this wrong</button>
             )}
           </div>
         </div>

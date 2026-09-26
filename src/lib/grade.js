@@ -62,6 +62,56 @@ export function verdictFromChecks(pointsMet, misconceptionCount = 0) {
   return "incorrect";
 }
 
+// ── Checking the AI grader's work ──────────────────────────────────────────
+// A language model can occasionally mark a point as met when it isn't (for
+// example, quoting the model answer instead of yours). These deterministic
+// checks run on every AI grade and can only turn a "met" into "not met".
+
+const NUMBER_WORDS = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+  hundred: 100, thousand: 1000,
+};
+const NUM_RE = /(?<![\w)\]])[-\u2212\u2013]?\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?/g; // a minus counts only when it isn't subtraction
+
+/**
+ * Numbers that carry meaning: two or more digits, negative, or decimal.
+ * ("uses 2 pointers" doesn't require the digit 2; "-32,768" does.)
+ */
+export function significantNumbers(text) {
+  const s = String(text || "").replace(/\b[a-z]+\b/gi, w => (w.toLowerCase() in NUMBER_WORDS ? String(NUMBER_WORDS[w.toLowerCase()]) : w));
+  return (s.match(NUM_RE) || [])
+    .map(n => n.replace(/[\u2212\u2013]/g, "-").replace(/,/g, ""))
+    .map(n => n.replace(/\.0+$/, ""))
+    .filter(n => n.startsWith("-") || n.includes(".") || n.replace("-", "").length >= 2);
+}
+
+/** Is the grader's quoted evidence really in the learner's answer? */
+export function evidenceInAnswer(evidence, answer) {
+  const e = normalize(evidence), a = normalize(answer);
+  if (!e) return true; // nothing quoted, nothing to contradict
+  if (a.includes(e)) return true;
+  const ew = e.split(" ").filter(Boolean);
+  const aw = new Set(a.split(" "));
+  return ew.filter(w => aw.has(w)).length / ew.length >= 0.7;
+}
+
+/**
+ * Downgrade AI-marked points that the answer can't support: required numbers
+ * missing from the answer, or "evidence" that isn't in the answer at all.
+ */
+export function verifyPoints(points, answer) {
+  const have = new Set(significantNumbers(answer));
+  return points.map(p => {
+    if (!p.met) return p;
+    const missing = significantNumbers(p.text).filter(n => !have.has(n));
+    if (missing.length) return { ...p, met: false, evidence: "", corrected: `Your answer doesn't contain ${missing.join(" and ")}.` };
+    if (!evidenceInAnswer(p.evidence, answer)) return { ...p, met: false, evidence: "", corrected: "Your answer doesn't state this." };
+    return p;
+  });
+}
+
 export const VERDICT = {
   correct:   { label: "Correct",      tone: "good" },
   partial:   { label: "Partly there", tone: "warn" },

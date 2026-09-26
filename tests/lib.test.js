@@ -6,7 +6,7 @@ import { emptyState, makeCourse, makeSection, makeConcept, makeItem, makeEdge } 
 import { buildPlan, interleave, forecastLoad, makeLoadAt } from "../src/lib/planner.js";
 import { conceptMastery, courseMastery } from "../src/lib/mastery.js";
 import { wouldCycle, mergeEdges, layeredLayout, topoOrder } from "../src/lib/graph.js";
-import { matchesAccepted, verdictFromChecks, suggestedRating, normalize } from "../src/lib/grade.js";
+import { matchesAccepted, verdictFromChecks, suggestedRating, normalize, verifyPoints, significantNumbers } from "../src/lib/grade.js";
 import { dayKey, dayEndTs, addDays } from "../src/lib/time.js";
 
 const DAY = 864e5;
@@ -313,4 +313,21 @@ test("rubric checks map to verdicts and ratings", () => {
   assert.equal(suggestedRating("correct"), RATING.GOOD);
   assert.equal(suggestedRating("correct", { aided: true }), RATING.HARD);
   assert.equal(suggestedRating("incorrect"), RATING.AGAIN);
+});
+
+test("AI grades are checked: wrong numbers and invented quotes can't pass", () => {
+  // The real case: a wrong range marked correct, with the model answer quoted as "evidence".
+  const [p] = verifyPoints([{ text: "Gives the answer: -32,768 through 32,767", met: true, evidence: "-32,768 through 32,767" }], "[-112, 111] ?");
+  assert.equal(p.met, false);
+  assert.match(p.corrected, /-32768/);
+  // Same answer written differently still passes.
+  assert.equal(verifyPoints([{ text: "Range is -32,768 to 32,767", met: true, evidence: "−32768 to 32767" }], "−32768 to 32767")[0].met, true);
+  assert.equal(verifyPoints([{ text: "Uses 16 bits", met: true, evidence: "sixteen bits" }], "It uses sixteen bits")[0].met, true);
+  // A quote that isn't in the answer is rejected; a close quote is fine.
+  assert.equal(verifyPoints([{ text: "Names the constant", met: true, evidence: "a named constant documents intent" }], "just a number")[0].met, false);
+  assert.equal(verifyPoints([{ text: "Names the constant", met: true, evidence: "naming it makes the purpose clear" }], "Naming it makes the purpose clearer.")[0].met, true);
+  // Checks never upgrade a point, and subtraction isn't a negative number.
+  assert.equal(verifyPoints([{ text: "x", met: false, evidence: "" }], "x")[0].met, false);
+  assert.deepEqual(significantNumbers("returns n-1 and 2 pointers"), []);
+  assert.deepEqual(significantNumbers("[-112, 111]"), ["-112", "111"]);
 });

@@ -326,7 +326,7 @@ Reported problem: ${problem}${note ? `\nLearner's note: ${escapeTag(note)}` : ""
 const GRADE_SCHEMA = obj({
   points: {
     type: "array",
-    items: obj({ met: { type: "boolean" }, evidence: str("Quote or paraphrase from the answer, or empty") }),
+    items: obj({ met: { type: "boolean" }, evidence: str("The learner's own words that state this point, copied exactly from inside <answer>; empty if met is false") }),
     description: "One entry per required point, in the same order",
   },
   misconceptions_found: strList("Misconceptions or clear factual errors the answer asserts"),
@@ -339,6 +339,8 @@ const GRADE_SYSTEM = `You grade a learner's typed answer to a retrieval-practice
 
 - Grade meaning, not wording. Paraphrases, synonyms, informal language, a different order and small typos are fine.
 - For each required point, decide whether the answer states it, explicitly or with clearly equivalent meaning. A vague gesture ("it's bad", "it matters") does not satisfy a point that requires a reason or mechanism.
+- Evidence must be copied exactly from the learner's answer inside <answer>. Never quote the model answer or the key point itself. If you can't point to the learner's own words that state a point, that point is not met.
+- Specific values must match. A different number, range, name, term or result is wrong even if its form looks right (e.g. "[-112, 111]" does not satisfy "-32,768 through 32,767"). A guess followed by a question mark still has to be right.
 - Don't penalize the absence of anything the rubric doesn't require, and don't reward length or keyword stuffing.
 - For each listed misconception, decide whether the answer asserts it. Also report any other clear factual error that bears on the question.
 - If the answer is ambiguous in a way that decides a required point, set uncertain to true and ask one short follow-up question that would settle it. Otherwise uncertain is false and follow_up is empty.
