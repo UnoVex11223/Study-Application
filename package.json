@@ -1,9 +1,9 @@
 {
   "name": "aeroflash",
-  "description": "Aeroflash Study Application",
+  "description": "AeroFlash: a study app for long-term retention",
   "author": "UnoVex11223",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
   "type": "module",
   "main": "electron.cjs",
   "scripts": {
@@ -12,11 +12,18 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "dist": "vite build && electron-builder --dir"
+    "dist": "vite build && electron-builder --dir",
+    "test": "node --test tests/*.test.js tests/*.test.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
+    "@fontsource-variable/literata": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "d3-force": "^3.0.0",
     "electron-store": "^8.2.0",
+    "katex": "^0.18.9",
+    "pdfjs-dist": "^6.3.289",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
@@ -25,7 +32,8 @@
       "dist/**",
       "build/**",
       "electron.cjs",
-      "preload.cjs"
+      "preload.cjs",
+      "pdf-text.cjs"
     ],
     "directories": {
       "output": "release"

@@ -6,7 +6,15 @@ contextBridge.exposeInMainWorld("aeroflash", {
     set: (key, val) => ipcRenderer.invoke("store-set", key, val),
   },
   ai: {
-    generateCards: (noteText) => ipcRenderer.invoke("ai:generateCards", noteText),
-    gradeAnswer: (payload) => ipcRenderer.invoke("ai:gradeAnswer", payload),
+    status: () => ipcRenderer.invoke("ai:status"),
+    extract: (payload) => ipcRenderer.invoke("ai:extract", payload),
+    items: (payload) => ipcRenderer.invoke("ai:items", payload),
+    grade: (payload) => ipcRenderer.invoke("ai:grade", payload),
+    link: (payload) => ipcRenderer.invoke("ai:link", payload),
+    teachback: (payload) => ipcRenderer.invoke("ai:teachback", payload),
+  },
+  pdf: {
+    outline: (data) => ipcRenderer.invoke("pdf:outline", data),
+    text: (payload) => ipcRenderer.invoke("pdf:text", payload),
   },
 });

@@ -1,129 +1,94 @@
-import { useCallback, useEffect, useState } from "react";
-import { AppCtx } from "./components/context.js";
-import Home from "./components/Home.jsx";
-import TopicView from "./components/TopicView.jsx";
-import ReviewSession from "./components/ReviewSession.jsx";
-import Flashcard from "./components/Flashcard.jsx";
-import Quiz from "./components/Quiz.jsx";
-import TypedQuiz from "./components/TypedQuiz.jsx";
-import Sim from "./components/Sim.jsx";
-import AddCards from "./components/AddCards.jsx";
-import SettingsModal from "./components/Settings.jsx";
-import { loadAll, saveTopics, saveXp, bumpStats, bumpNewCards, newAllowance, logReview, resetProgress as resetProgressStore } from "./lib/storage.js";
-import { rate, newSrs, getDueCards } from "./lib/fsrs.js";
-import { getLevel, getLvlData, XP_FOR_RATING } from "./lib/xp.js";
+import { useEffect, useMemo, useState } from "react";
+import { StoreProvider, useStore } from "./state/store.jsx";
+import { NavCtx } from "./ui/nav.js";
+import Icon from "./ui/Icon.jsx";
+import { buildPlan } from "./lib/planner.js";
+import Today from "./views/Today.jsx";
+import Courses from "./views/Courses.jsx";
+import Course from "./views/Course.jsx";
+import AddMaterial from "./views/AddMaterial.jsx";
+import KnowledgeMap from "./views/KnowledgeMap.jsx";
+import Progress from "./views/Progress.jsx";
+import Settings from "./views/Settings.jsx";
+import TeachBack from "./views/TeachBack.jsx";
+import Session from "./views/Session.jsx";
 
-export default function App() {
-  const [ready, setReady] = useState(false);
-  const [view, setView] = useState("home");
-  const [homeTab, setHomeTab] = useState("topics");
-  const [topics, setTopics] = useState([]);
-  const [topicId, setTopicId] = useState(null);
-  const [xp, setXp] = useState(0);
-  const [stats, setStats] = useState({});
-  const [log, setLog] = useState({ entries: [], daily: {} });
+const NAV = [
+  { id: "today", label: "Today", icon: "today" },
+  { id: "courses", label: "Courses", icon: "courses" },
+  { id: "map", label: "Knowledge map", icon: "map" },
+  { id: "progress", label: "Progress", icon: "progress" },
+];
 
-  const [reviewQueue, setReviewQueue] = useState([]);
-  const [sessionNonce, setSessionNonce] = useState(0);
+/** Re-render every `ms` so time-based views (due counts, plans) stay current. */
+function useNow(ms = 60000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
+  return now;
+}
 
-  const [xpPopups, setXpPopups] = useState([]);
-  const [levelUpData, setLevelUpData] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [colorPickId, setColorPickId] = useState(null);
-  const [deleteConfId, setDeleteConfId] = useState(null);
+function Shell() {
+  const { state } = useStore();
+  const [route, setRoute] = useState({ view: "today" });
+  const [session, setSession] = useState(null);
+  const now = useNow();
 
   useEffect(() => {
-    loadAll().then(({ topics, xp, stats, log }) => {
-      setTopics(topics); setXp(xp); setStats(stats); setLog(log); setReady(true);
-    });
-  }, []);
+    if (!state) return;
+    const root = document.documentElement;
+    if (state.settings.theme === "system") delete root.dataset.theme;
+    else root.dataset.theme = state.settings.theme;
+  }, [state]);
 
-  const updateTopics = useCallback((fn) => {
-    setTopics(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      saveTopics(next);
-      return next;
-    });
-  }, []);
+  const plan = useMemo(() => (state ? buildPlan(state, { now }) : null), [state, now]);
 
-  const addXp = useCallback((amount) => {
-    setXp(prev => {
-      const next = prev + amount;
-      saveXp(next);
-      const ol = getLevel(prev), nl = getLevel(next);
-      if (nl > ol) setTimeout(() => setLevelUpData(getLvlData(nl)), 400);
-      return next;
-    });
-    const id = Date.now() + Math.random();
-    setXpPopups(p => [...p, { id, amount }]);
-    setTimeout(() => setXpPopups(p => p.filter(x => x.id !== id)), 1900);
-  }, []);
+  const nav = useMemo(() => ({
+    route,
+    go: (view, params = {}) => { setRoute({ view, ...params }); document.querySelector(".main")?.scrollTo(0, 0); },
+    startSession: (opts) => setSession({ key: Date.now(), ...opts }),
+    endSession: () => setSession(null),
+    now,
+  }), [route, now]);
 
-  /** Every answer in every mode lands here: reschedule the card, log it, count it, pay XP. */
-  const applyRating = useCallback((card, rating, mode) => {
-    const wasNew = !card.srs || card.srs.state === "new";
-    const updated = rate(card.srs ?? newSrs(), rating);
-    updateTopics(p => p.map(t => t.id !== card.topicId ? t : {
-      ...t, cards: t.cards.map(c => c.id !== card.id ? c : { ...c, srs: updated }),
-    }));
-    setStats(s => {
-      let ns = bumpStats(s);
-      if (wasNew) ns = bumpNewCards(ns);
-      return ns;
-    });
-    setLog(l => logReview(l, { cardId: card.id, topicId: card.topicId, rating, mode }));
-    const amt = XP_FOR_RATING[rating];
-    if (amt) addXp(amt);
-    return updated;
-  }, [updateTopics, addXp]);
+  if (!state) return <div className="app-loading"/>;
 
-  const goTopic = useCallback((id) => {
-    setTopicId(id); setView("topic"); setColorPickId(null); setDeleteConfId(null);
-  }, []);
+  const active = route.view === "course" || route.view === "import" || route.view === "teach" ? "courses" : route.view;
 
-  const startReview = useCallback((maybeTopicId) => {
-    const scopeId = typeof maybeTopicId === "number" ? maybeTopicId : null;
-    const scope = scopeId ? topics.filter(t => t.id === scopeId) : topics;
-    const queue = getDueCards(scope, { newAllowance: scopeId ? 0 : newAllowance(stats) });
-    if (!queue.length) return;
-    setReviewQueue(queue);
-    setSessionNonce(n => n + 1);
-    setView("review");
-  }, [topics, stats]);
-
-  const startSim = useCallback(() => { setSessionNonce(n => n + 1); setView("sim"); }, []);
-
-  const clearPickers = useCallback(() => { setColorPickId(null); setDeleteConfId(null); }, []);
-
-  const resetProgress = useCallback(() => {
-    const fresh = resetProgressStore();
-    setTopics(fresh.topics); setXp(fresh.xp); setStats(fresh.stats); setLog(fresh.log);
-    setTopicId(null); setView("home"); setHomeTab("topics"); setSettingsOpen(false);
-  }, []);
-
-  if (!ready) return <div className="af"/>;
-
-  const ctx = {
-    view, setView, homeTab, setHomeTab,
-    topics, updateTopics, topicId, goTopic,
-    xp, addXp, stats, setStats, log,
-    xpPopups, levelUpData, setLevelUpData,
-    applyRating, startReview, reviewQueue, startSim,
-    settingsOpen, openSettings: () => setSettingsOpen(true), closeSettings: () => setSettingsOpen(false), resetProgress,
-    colorPickId, setColorPickId, deleteConfId, setDeleteConfId, clearPickers,
-  };
+  let page;
+  switch (route.view) {
+    case "courses": page = <Courses/>; break;
+    case "course": page = <Course courseId={route.courseId} key={route.courseId}/>; break;
+    case "import": page = <AddMaterial courseId={route.courseId}/>; break;
+    case "teach": page = <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>; break;
+    case "map": page = <KnowledgeMap focusCourseId={route.courseId} focusConceptId={route.conceptId}/>; break;
+    case "progress": page = <Progress/>; break;
+    case "settings": page = <Settings/>; break;
+    default: page = <Today plan={plan}/>;
+  }
 
   return (
-    <AppCtx.Provider value={ctx}>
-      {view === "home" && <Home/>}
-      {view === "topic" && <TopicView/>}
-      {view === "review" && <ReviewSession key={`r${sessionNonce}`}/>}
-      {view === "flashcard" && <Flashcard key={topicId}/>}
-      {view === "quiz" && <Quiz key={topicId}/>}
-      {view === "typedQuiz" && <TypedQuiz key={topicId}/>}
-      {view === "sim" && <Sim key={`s${sessionNonce}`}/>}
-      {view === "addCards" && <AddCards/>}
-      <SettingsModal/>
-    </AppCtx.Provider>
+    <NavCtx.Provider value={nav}>
+      <div className="app">
+        <nav className="sidebar" aria-label="Main">
+          <div className="brand"><span className="brand-mark" aria-hidden="true"/>AeroFlash</div>
+          {NAV.map(n => (
+            <button key={n.id} className={`nav-item${active === n.id ? " on" : ""}`} onClick={() => nav.go(n.id)}>
+              <Icon name={n.icon}/>{n.label}
+              {n.id === "today" && plan?.tasks.length > 0 && <span className="nav-count">{plan.tasks.length}</span>}
+            </button>
+          ))}
+          <div className="nav-spacer"/>
+          <button className={`nav-item${active === "settings" ? " on" : ""}`} onClick={() => nav.go("settings")}>
+            <Icon name="settings"/>Settings
+          </button>
+        </nav>
+        <main className="main">{page}</main>
+      </div>
+      {session && <Session key={session.key} {...session}/>}
+    </NavCtx.Provider>
   );
+}
+
+export default function App() {
+  return <StoreProvider><Shell/></StoreProvider>;
 }
