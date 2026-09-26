@@ -135,10 +135,10 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
               <Notice>{concepts.map(c => c.name).join(", ")}. With the list showing, this is practice only and won't change your schedule.</Notice>
             </div>
           )}
-          <article className="index-card">
-            <div className="index-card-head"><span className="ability">{section?.title}</span></div>
-            <textarea className="ruled card-input" value={text} onChange={e => setText(e.target.value)} autoFocus aria-label="Your explanation"
-              style={{ minHeight: 34 * 10 }}
+          <article className="q-card">
+            <div className="q-head"><span className="q-ability">{section?.title}</span></div>
+            <textarea className="card-input" value={text} onChange={e => setText(e.target.value)} autoFocus aria-label="Your explanation"
+              style={{ minHeight: 320 }}
               placeholder="Start with the big idea, then walk through the pieces…"/>
           </article>
           <div className="row" style={{ marginTop: 16 }}>
@@ -177,7 +177,7 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
               <div key={s} className="stat"><div className="stat-value">{counts[s] || 0}</div><div className="stat-label">{STATUS_META[s].label.toLowerCase()}</div></div>
             ))}
           </div>
-          {result.summary && <p style={{ fontFamily: "var(--serif)", fontSize: 16, lineHeight: 1.6 }}>{result.summary}</p>}
+          {result.summary && <p style={{ fontSize: 16, lineHeight: 1.6 }}>{result.summary}</p>}
           {result.errors?.length > 0 && result.errors.map((e, i) => <div key={i} className="misconception"><strong>Error:</strong> {e}</div>)}
           <div className="panel list">
             {concepts.map(c => {

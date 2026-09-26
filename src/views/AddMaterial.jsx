@@ -4,10 +4,38 @@ import { ImportanceTag, Notice, Spinner } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import Markdown from "../ui/Markdown.jsx";
+import { abilityLabel } from "../ui/nav.js";
+import { DIMENSIONS } from "../lib/quality.js";
 import { index } from "../lib/model.js";
 import { aiBridge, aiAvailable, extractMaterial, generateTasks, buildImport, linkConcepts } from "../lib/ai.js";
 
-const STEPS = ["Source", "Choose concepts", "Create questions"];
+const STEPS = ["Source", "Choose concepts", "Review questions"];
+
+function QuestionRow({ q, onToggle, dropped }) {
+  const dimText = q.dims ? Object.entries(q.dims).map(([k, v]) => `${DIMENSIONS[k]}: ${v}/5`).join("\n") : "Checked by rules only";
+  return (
+    <div className={`review-q${q.selected ? "" : " off"}`}>
+      <input type="checkbox" checked={q.selected} onChange={onToggle} aria-label={q.selected ? "Leave this question out" : "Keep this question"}/>
+      <div style={{ minWidth: 0 }}>
+        <div className="row small" style={{ gap: 8, marginBottom: 4 }}>
+          <strong>{abilityLabel(q.ability)}</strong>
+          {q.revised && <span className="tag tag-sky">Improved by the reviewer</span>}
+          {q.score != null && <span className="muted" title={dimText}>Quality {q.score.toFixed(1)}</span>}
+        </div>
+        <Markdown>{q.prompt}</Markdown>
+        {dropped && q.reasons?.[0] && <div className="small review-reason">{q.reasons[0]}</div>}
+        {!dropped && q.warnings?.length > 0 && <div className="small muted" style={{ marginTop: 4 }}>{q.warnings.join(" ")}</div>}
+        <details className="small" style={{ marginTop: 6 }}>
+          <summary className="muted" style={{ cursor: "pointer" }}>Answer and key points</summary>
+          <div className="stack" style={{ gap: 6, marginTop: 6 }}>
+            <Markdown>{q.answer}</Markdown>
+            {q.points?.length > 0 && <ul style={{ margin: 0, paddingLeft: 18 }}>{q.points.map((p, i) => <li key={i}><Markdown>{p}</Markdown></li>)}</ul>}
+          </div>
+        </details>
+      </div>
+    </div>
+  );
+}
 
 export default function AddMaterial({ courseId }) {
   const { state, act } = useStore();
@@ -25,6 +53,7 @@ export default function AddMaterial({ courseId }) {
   const [error, setError] = useState("");
   const [extraction, setExtraction] = useState(null);
   const [result, setResult] = useState(null);
+  const [review, setReview] = useState(null); // { groups, written, reviewed, partial }
   const [linkState, setLinkState] = useState(null);
   const [hasKey, setHasKey] = useState(null);
   const [book, setBook] = useState(null); // { name, data, pages, outline, pick, from, to, loading }
@@ -99,14 +128,31 @@ export default function AddMaterial({ courseId }) {
     setBusy({ label: "Writing questions" });
     const res = await generateTasks({
       state, courseId, sections: extraction.sections,
-      onProgress: (p) => setBusy({ label: `Writing questions for "${p.section}"`, part: p.part, parts: p.parts }),
+      onProgress: (p) => setBusy({
+        label: p.step === "review" ? `Reviewing the questions for "${p.section}"` : `Writing questions for "${p.section}"`,
+        part: p.part, parts: p.parts,
+      }),
     });
-    if (!res.ok) { setBusy(null); setError(res.error); setStep(1); return; }
-    const label = [title.trim() || extraction.title, location.trim()].filter(Boolean).join(", ");
-    const payload = buildImport({ state, courseId, extraction, tasks: res.tasks, sourceLabel: label });
-    act("import", { payload });
     setBusy(null);
-    setResult({ ...payload, partial: res.partial });
+    if (!res.ok) { setError(res.error); setStep(1); return; }
+    setReview(res);
+  };
+
+  const toggleQuestion = (gi, list, qi) => setReview(r => ({
+    ...r,
+    groups: r.groups.map((g, i) => (i !== gi ? g : { ...g, [list]: g[list].map((q, j) => (j !== qi ? q : { ...q, selected: !q.selected })) })),
+  }));
+
+  const chosenQuestions = review ? review.groups.reduce((n, g) => n + [...g.kept, ...g.dropped].filter(q => q.selected).length, 0) : 0;
+  const chosenConcepts = review ? review.groups.filter(g => [...g.kept, ...g.dropped].some(q => q.selected)).length : 0;
+  const passed = review ? review.groups.reduce((n, g) => n + g.kept.length, 0) : 0;
+
+  const save = async () => {
+    const label = [title.trim() || extraction.title, location.trim()].filter(Boolean).join(", ");
+    const payload = buildImport({ state, courseId, extraction, groups: review.groups, sourceLabel: label });
+    act("import", { payload });
+    setResult({ ...payload, partial: review.partial });
+    setReview(null);
 
     // Connect the new concepts to everything else you know, in the background.
     const predicted = {
@@ -126,7 +172,7 @@ export default function AddMaterial({ courseId }) {
 
   // Keep an opened PDF around so the next chapter is one click away.
   const reset = () => {
-    setStep(0); setTitle(""); setLocation(""); setText(""); setFiles([]); setExtraction(null); setResult(null); setLinkState(null); setError("");
+    setStep(0); setTitle(""); setLocation(""); setText(""); setFiles([]); setExtraction(null); setResult(null); setReview(null); setLinkState(null); setError("");
     setBook(b => {
       if (!b?.outline) return b;
       const next = typeof b.pick === "number" ? b.outline.findIndex((o, i) => i > b.pick && o.depth <= b.outline[b.pick].depth) : -1;
@@ -173,7 +219,7 @@ export default function AddMaterial({ courseId }) {
           </div>
           <div className="field">
             <label htmlFor="am-text">Text</label>
-            <textarea id="am-text" className="textarea" style={{ minHeight: 240, fontFamily: "var(--serif)", fontSize: 15 }} value={text}
+            <textarea id="am-text" className="textarea" style={{ minHeight: 240, fontSize: 15 }} value={text}
               onChange={e => setText(e.target.value)} placeholder="Paste the chapter, transcript or your notes here"/>
           </div>
           <div className={`dropzone${drag ? " over" : ""}`} role="button" tabIndex={0}
@@ -279,31 +325,66 @@ export default function AddMaterial({ courseId }) {
           <div className="row" style={{ marginTop: 18 }}>
             <button className="btn btn-quiet" onClick={() => setStep(0)}>Back</button>
             <div className="grow"/>
-            <button className="btn btn-primary" disabled={!selectedCount} onClick={create}>Create questions for {selectedCount} concept{selectedCount === 1 ? "" : "s"}</button>
+            <button className="btn btn-primary" disabled={!selectedCount} onClick={create}>Write questions for {selectedCount} concept{selectedCount === 1 ? "" : "s"}</button>
+          </div>
+        </>
+      )}
+
+      {step === 2 && review && !busy && !result && (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <div className="h2-lg">{passed} of {review.written} questions passed the quality check</div>
+            <p className="muted" style={{ marginTop: 6, maxWidth: 640 }}>
+              Each question was scored on whether it's worth remembering, clear on its own, needs real recall, can be graded fairly, and is accurate.
+              Only questions scoring 4 or 5 on all five are kept, and at most 3 per core concept. Untick anything you still don't want, or keep a filtered one anyway.
+            </p>
+          </div>
+          {!review.reviewed && <div style={{ marginBottom: 14 }}><Notice tone="warn" icon="alert">The quality review couldn't run for part of this material, so only the rule checks were applied there. Look those questions over before adding them.</Notice></div>}
+          {review.partial && <div style={{ marginBottom: 14 }}><Notice tone="warn" icon="alert">Some sections didn't get questions: {review.partial}</Notice></div>}
+          {[...new Set(review.groups.map(g => g.sectionTitle))].map(sectionTitle => (
+            <div key={sectionTitle} className="extract-section">
+              <div className="extract-section-head"><div className="list-title">{sectionTitle}</div></div>
+              {review.groups.map((g, gi) => g.sectionTitle !== sectionTitle ? null : (
+                <div key={g.conceptKey} className="review-concept">
+                  <div className="row" style={{ gap: 8, marginBottom: 8 }}>
+                    <strong className="grow">{g.conceptName}</strong>
+                    <ImportanceTag importance={g.importance}/>
+                  </div>
+                  {g.kept.map((q, qi) => <QuestionRow key={q.id} q={q} onToggle={() => toggleQuestion(gi, "kept", qi)}/>)}
+                  {!g.kept.length && <p className="small muted" style={{ margin: "0 0 6px" }}>No question passed for this concept, so it won't be added unless you keep one below.</p>}
+                  {g.dropped.length > 0 && (
+                    <details className="review-dropped">
+                      <summary className="small muted">Filtered out ({g.dropped.length})</summary>
+                      {g.dropped.map((q, qi) => <QuestionRow key={q.id} q={q} dropped onToggle={() => toggleQuestion(gi, "dropped", qi)}/>)}
+                    </details>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+          <div className="row" style={{ marginTop: 18 }}>
+            <button className="btn btn-quiet" onClick={() => { setReview(null); setStep(1); }}>Back to concepts</button>
+            <div className="grow"/>
+            <button className="btn btn-primary" disabled={!chosenQuestions} onClick={save}>Add {chosenQuestions} question{chosenQuestions === 1 ? "" : "s"} for {chosenConcepts} concept{chosenConcepts === 1 ? "" : "s"}</button>
           </div>
         </>
       )}
 
       {result && !busy && (
-        <div className="card-stack">
-          <article className="index-card">
-            <div className="index-card-head"><span className="ability">Added to {course.name}</span></div>
-            <div className="ruled">
-              <div className="plan-title">{result.concepts.length} concepts, {result.items.length} questions</div>
-              <div className="plan-sub">
-                They'll be introduced gradually, up to {state.settings.maxNewPerDay} new concepts a day across your courses, in an order that puts prerequisites first.
-              </div>
-              {linkState === "working" && <div className="plan-sub row"><Spinner/>Looking for connections to your other courses…</div>}
-              {typeof linkState === "number" && <div className="plan-sub">{linkState ? `Found ${linkState} connection${linkState === 1 ? "" : "s"} to things you already know.` : "No strong connections to your other courses yet."}</div>}
-              {linkState === "failed" && <div className="plan-sub">Couldn't look for connections this time.</div>}
-            </div>
-            {result.partial && <div style={{ marginTop: 12 }}><Notice tone="warn" icon="alert">Some sections didn't get questions: {result.partial}</Notice></div>}
-            <div className="plan-foot">
-              <button className="btn btn-primary" onClick={() => nav.go("course", { courseId })}>View course</button>
-              <button className="btn" onClick={reset}>Add another chapter</button>
-            </div>
-          </article>
-        </div>
+        <article className="hero">
+          <div className="hero-label">Added to {course.name}</div>
+          <div className="hero-title">{result.concepts.length} concepts, {result.items.length} questions</div>
+          <p className="hero-sub">
+            They'll be introduced gradually, up to {state.settings.maxNewPerDay} new concepts a day across your courses, prerequisites first.
+          </p>
+          {linkState === "working" && <p className="hero-sub row"><Spinner/>Looking for connections to your other courses…</p>}
+          {typeof linkState === "number" && <p className="hero-sub">{linkState ? `Found ${linkState} connection${linkState === 1 ? "" : "s"} to things you already know.` : "No strong connections to your other courses yet."}</p>}
+          {linkState === "failed" && <p className="hero-sub">Couldn't look for connections this time.</p>}
+          <div className="hero-foot">
+            <button className="btn btn-primary" onClick={() => nav.go("course", { courseId })}>View course</button>
+            <button className="btn" onClick={reset}>Add another chapter</button>
+          </div>
+        </article>
       )}
     </div>
   );

@@ -2,11 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { rate, newSrs, retrievability, RATING } from "../src/lib/fsrs.js";
-import { emptyState, makeCourse, makeSection, makeConcept, makeItem, makeEdge, index } from "../src/lib/model.js";
+import { emptyState, makeCourse, makeSection, makeConcept, makeItem, makeEdge } from "../src/lib/model.js";
 import { buildPlan, interleave, forecastLoad, makeLoadAt } from "../src/lib/planner.js";
 import { conceptMastery, courseMastery } from "../src/lib/mastery.js";
 import { wouldCycle, mergeEdges, layeredLayout, topoOrder } from "../src/lib/graph.js";
-import { migrateLegacy } from "../src/lib/migrate.js";
 import { matchesAccepted, verdictFromChecks, suggestedRating, normalize } from "../src/lib/grade.js";
 import { dayKey, dayEndTs, addDays } from "../src/lib/time.js";
 
@@ -229,11 +228,11 @@ test("mastery needs unaided success on two different days", () => {
   assert.equal(conceptMastery(s2, c.id, NOW).status, "mastered");
 });
 
-test("hints and multiple-choice never count as mastery evidence", () => {
+test("hints and revealed answers never count as mastery evidence", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
   it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
-  s.attempts.push(attempt(c, it, -3, "correct", { aided: true }), attempt(c, it, -2, "correct", { mode: "recognition" }), attempt(c, it, -1, "correct"));
+  s.attempts.push(attempt(c, it, -3, "correct", { aided: true }), attempt(c, it, -2, "correct", { aided: true }), attempt(c, it, -1, "correct"));
   const m = conceptMastery(s, c.id, NOW);
   assert.equal(m.correctDays, 1);
   assert.notEqual(m.status, "mastered");
@@ -314,37 +313,4 @@ test("rubric checks map to verdicts and ratings", () => {
   assert.equal(suggestedRating("correct"), RATING.GOOD);
   assert.equal(suggestedRating("correct", { aided: true }), RATING.HARD);
   assert.equal(suggestedRating("incorrect"), RATING.AGAIN);
-});
-
-// ── migration ──────────────────────────────────────────────────────────────
-test("legacy topics, cards, schedules and history migrate without loss", () => {
-  const srs = { ...newSrs(), state: "review", stability: 12, difficulty: 5, lastReview: NOW - 5 * DAY, due: NOW + 4 * DAY, reps: 5, lapses: 1 };
-  const topics = [{
-    id: 111, name: "Pointers", image: "data:image/jpeg;base64,xx", cards: [
-      { id: 1, type: "basic", front: "What is a magic number?", back: "An unexplained numeric literal", wrong: ["x", "y", "z"], srs },
-      { id: 2, type: "cloze", front: "", back: "stack", text: "Local variables live on the {{c1::stack}}.", srs: newSrs() },
-      { id: 3, type: "basic", front: "", back: "" },
-    ],
-  }];
-  const log = {
-    entries: [
-      { ts: NOW - 5 * DAY, cardId: 1, topicId: 111, rating: 3, mode: "review" },
-      { ts: NOW - 4 * DAY, cardId: 1, topicId: 111, rating: 3, mode: "quiz" },
-      { ts: NOW - 3 * DAY, cardId: 99, topicId: 111, rating: 3, mode: "review" },
-    ],
-    daily: { "2026-09-20": { reviews: 3, correct: 3 } },
-  };
-  const s = migrateLegacy({ topics, log });
-  assert.equal(s.courses.length, 1);
-  assert.equal(s.courses[0].name, "Pointers");
-  assert.equal(s.items.length, 2);
-  assert.deepEqual(s.items[0].srs, srs);
-  assert.equal(s.items[1].answer, "stack");
-  assert.ok(s.items[1].prompt.includes("_____"));
-  assert.deepEqual(s.items[1].accept, ["stack"]);
-  assert.equal(s.attempts.length, 2);
-  assert.equal(s.attempts[1].mode, "recognition");
-  assert.equal(s.legacyDaily["2026-09-20"].reviews, 3);
-  const ix = index(s);
-  assert.equal(ix.itemsByConcept[s.concepts[0].id].length, 1);
 });

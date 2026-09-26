@@ -40,8 +40,7 @@ export default function Settings() {
   };
 
   const exportData = () => {
-    const { _migrated, ...data } = state;
-    const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(state)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `aeroflash-backup-${new Date().toISOString().slice(0, 10)}.json`;

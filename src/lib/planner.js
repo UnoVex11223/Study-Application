@@ -59,7 +59,7 @@ export function forecastLoad(state, { now = Date.now(), days = 14 } = {}) {
   const seen = new Array(days).fill(null).map(() => new Set());
   for (const it of state.items) {
     const srs = it.srs;
-    if (!srs || srs.state === "new" || srs.due == null) continue;
+    if (it.flag || !srs || srs.state === "new" || srs.due == null) continue;
     const c = ix.concept[it.conceptId];
     const course = c && ix.course[c.courseId];
     if (!c || c.suspended || !course || course.status === "paused") continue;
@@ -105,7 +105,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
   const byConcept = {};
   let laterToday = 0;
   for (const it of state.items) {
-    if (exclude.has(it.id)) continue;
+    if (exclude.has(it.id) || it.flag) continue;
     const srs = it.srs;
     if (!srs || srs.state === "new" || srs.due == null || srs.due > end) continue;
     const c = ix.concept[it.conceptId];
@@ -163,9 +163,9 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
     if (inPlan.has(cid) || !introduced.has(cid)) continue;
     const c = ix.concept[cid];
     if (!isEligible(ix, c) || ix.course[c.courseId].status !== "active") continue;
-    const seen = items.filter(i => i.srs && i.srs.state !== "new");
+    const seen = items.filter(i => !i.flag && i.srs && i.srs.state !== "new");
     const graduated = seen.length > 0 && seen.every(i => i.srs.state === "review" && i.srs.stability >= 2);
-    const next = items.find(i => (!i.srs || i.srs.state === "new") && !exclude.has(i.id));
+    const next = items.find(i => !i.flag && (!i.srs || i.srs.state === "new") && !exclude.has(i.id));
     if (graduated && next) deepen.push({ item: next, concept: c });
   }
   deepen.sort((a, b) => (IMPORTANCE[a.concept.importance].rank - IMPORTANCE[b.concept.importance].rank)
@@ -179,7 +179,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
     for (const sec of ix.sectionsByCourse[course.id] || []) {
       for (const c of ix.conceptsBySection[sec.id] || []) {
         if (c.suspended || introduced.has(c.id)) continue;
-        const items = (ix.itemsByConcept[c.id] || []).filter(i => !exclude.has(i.id));
+        const items = (ix.itemsByConcept[c.id] || []).filter(i => !i.flag && !exclude.has(i.id));
         if (!items.length) continue;
         const ready = (ix.prereqsOf[c.id] || []).every(e => {
           if ((e.confidence ?? 1) < PROVISIONAL) return true;
@@ -267,13 +267,13 @@ export function practiceTasks(state, { conceptId, sectionId, courseId, limit = 1
   const task = (it, c) => ({ itemId: it.id, conceptId: c.id, courseId: c.courseId, kind: it.srs?.state === "new" ? "new" : "practice", estSec: est[it.ability] ?? 60 });
   if (conceptId) {
     const c = ix.concept[conceptId];
-    return c ? (ix.itemsByConcept[conceptId] || []).map(it => task(it, c)) : [];
+    return c ? (ix.itemsByConcept[conceptId] || []).filter(it => !it.flag).map(it => task(it, c)) : [];
   }
   const concepts = sectionId ? (ix.conceptsBySection[sectionId] || []) : (ix.conceptsByCourse[courseId] || []);
   const picks = [];
   for (const c of concepts) {
     if (c.suspended) continue;
-    const items = ix.itemsByConcept[c.id] || [];
+    const items = (ix.itemsByConcept[c.id] || []).filter(i => !i.flag);
     const seen = items.filter(i => i.srs && i.srs.state !== "new");
     let pick, r = 2;
     if (seen.length) {

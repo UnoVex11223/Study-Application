@@ -80,6 +80,14 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
     setIdx(i => i + 1);
   };
 
+  // A reported question leaves the session (and future sessions) without a rating.
+  const onReport = (reason) => {
+    act("item/flag", { id: task.itemId, reason });
+    setQueue(q => [...q.slice(0, idx + 1), ...q.slice(idx + 1).filter(t => t.itemId !== task.itemId)]);
+    setResults(res => [...res, { task, reported: true }]);
+    setIdx(i => i + 1);
+  };
+
   const keepGoing = () => {
     const today = dayKey(Date.now(), state.settings.rolloverHour);
     const cur = state.days?.[today]?.extraSec || 0;
@@ -92,7 +100,8 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
 
   const summarize = () => {
     const firstTry = new Map();
-    for (const r of results) if (!firstTry.has(r.task.itemId)) firstTry.set(r.task.itemId, r);
+    for (const r of results) if (!r.reported && !firstTry.has(r.task.itemId)) firstTry.set(r.task.itemId, r);
+    const reported = results.filter(r => r.reported).length;
     const firsts = [...firstTry.values()];
     const unaided = firsts.filter(r => r.verdict === "correct" && !r.aided).length;
     const recovered = [], missed = [], started = [];
@@ -111,7 +120,7 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
       const cur = state.days?.[today]?.extraSec || 0;
       more = buildPlan({ ...state, days: { ...state.days, [today]: { extraSec: cur + 300 } } }).tasks.length;
     }
-    return { count: firsts.length, unaided, recovered, missed, started, more, minutes: formatMinutes(results.reduce((s, r) => s + Math.min(r.ms || 0, 300e3), 0) / 1000) };
+    return { count: firsts.length, reported, unaided, recovered, missed, started, more, minutes: formatMinutes(results.reduce((s, r) => s + Math.min(r.ms || 0, 300e3), 0) / 1000) };
   };
   const summary = done ? summarize() : null;
 
@@ -140,13 +149,13 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
               key={`${idx}-${task.itemId}`}
               task={task} item={item} concept={concept}
               section={ix.section[concept.sectionId]} course={ix.course[concept.courseId]}
-              aiReady={aiReady} retention={state.settings.retention} onDone={onDone}
+              aiReady={aiReady} retention={state.settings.retention} onDone={onDone} onReport={onReport}
             />
           )}
           {done && summary && (
             <div className="enter">
-              <article className="index-card">
-                <div className="index-card-head"><span className="ability">Session complete</span><span className="grow"/>{summary.minutes}</div>
+              <article className="hero">
+                <div className="row"><span className="hero-label grow">Session complete</span><span className="muted small">{summary.minutes}</span></div>
                 <div className="summary-grid">
                   <div><div className="v">{summary.count}</div><div className="muted small">questions</div></div>
                   <div><div className="v">{summary.count ? Math.round((summary.unaided / summary.count) * 100) : 0}%</div><div className="muted small">right first time, no help</div></div>
@@ -158,7 +167,8 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
                 {summary.missed.length > 0 && (
                   <p style={{ marginBottom: 10 }}><strong>Coming back soon:</strong> {summary.missed.map(c => c.name).join(", ")}.</p>
                 )}
-                {summary.count === 0 && <p className="muted">Nothing was answered this time.</p>}
+                {summary.reported > 0 && <p className="muted" style={{ marginBottom: 10 }}>{summary.reported} reported question{summary.reported === 1 ? " is" : "s are"} waiting on the Progress page to be fixed or restored.</p>}
+                {summary.count === 0 && !summary.reported && <p className="muted">Nothing was answered this time.</p>}
               </article>
               <div className="row" style={{ marginTop: 22 }}>
                 <button className="btn btn-primary btn-lg" onClick={exit} autoFocus>Done</button>

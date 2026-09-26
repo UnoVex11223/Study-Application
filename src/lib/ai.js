@@ -2,6 +2,7 @@
 // Electron's main process (see electron.cjs) so the API key never reaches the UI.
 
 import { index, makeSection, makeConcept, makeItem, makeEdge, ABILITIES, IMPORTANCE } from "./model.js";
+import { selectForConcept, lintQuestion } from "./quality.js";
 
 const api = () => (typeof window !== "undefined" && window.aeroflash?.ai) || null;
 
@@ -70,7 +71,23 @@ export async function extractMaterial({ state, courseId, title, location, text, 
   return { ok: true, ...out };
 }
 
-/** Step 2: write practice tasks (with rubrics) for the selected concepts, section by section. */
+const toQuestion = (t, id) => ({
+  id,
+  ability: t.ability,
+  prompt: String(t.prompt || "").trim(),
+  answer: String(t.model_answer || "").trim(),
+  accept: t.ability === "recall" ? (t.accept || []).map(x => String(x).trim()).filter(Boolean) : [],
+  points: (t.required_points || []).map(x => String(x).trim()).filter(Boolean),
+  misconceptions: (t.misconceptions || []).map(x => String(x).trim()).filter(Boolean),
+  hint: String(t.hint || "").trim(),
+});
+
+/**
+ * Step 2: write candidate questions for the chosen concepts, have an
+ * independent reviewer score them, and keep only the ones that pass the
+ * quality gate (see quality.js).
+ * Returns { ok, groups: [{ section, concept, kept, dropped }], written, reviewed, partial }.
+ */
 export async function generateTasks({ state, courseId, sections, onProgress }) {
   const a = api();
   if (!a) return { ok: false, error: "AI features need the desktop app." };
@@ -78,40 +95,71 @@ export async function generateTasks({ state, courseId, sections, onProgress }) {
   const batches = [];
   for (const s of sections) {
     const chosen = s.concepts.filter(c => c.selected);
-    for (let i = 0; i < chosen.length; i += 10) batches.push({ section: s, concepts: chosen.slice(i, i + 10) });
+    for (let i = 0; i < chosen.length; i += 8) batches.push({ section: s, concepts: chosen.slice(i, i + 8) });
   }
-  const tasks = [];
-  let failed = null;
+  const groups = [];
+  let failed = null, written = 0, reviewedAll = true;
   for (let bi = 0; bi < batches.length; bi++) {
     const { section, concepts } = batches[bi];
-    onProgress?.({ step: "tasks", part: bi + 1, parts: batches.length, section: section.title });
-    const res = wrap(await a.items({
-      courseName, sectionTitle: section.title,
-      concepts: concepts.map(c => ({ key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt })),
-    }));
+    const ctx = concepts.map(c => ({ key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt }));
+
+    onProgress?.({ step: "write", part: bi + 1, parts: batches.length, section: section.title });
+    const res = wrap(await a.items({ courseName, sectionTitle: section.title, concepts: ctx }));
     if (!res.ok) { failed = res.error; break; }
     const keys = new Set(concepts.map(c => c.key));
-    tasks.push(...res.data.tasks.filter(t => keys.has(t.concept_key) && t.prompt?.trim() && t.model_answer?.trim()));
+    const raw = res.data.tasks.filter(t => keys.has(t.concept_key) && ABILITIES[t.ability] && t.prompt?.trim() && t.model_answer?.trim());
+    const candidates = raw.map((t, i) => ({ ...toQuestion(t, `q${bi}_${i}`), conceptKey: t.concept_key }));
+    written += candidates.length;
+
+    onProgress?.({ step: "review", part: bi + 1, parts: batches.length, section: section.title });
+    let reviews = {};
+    const crit = a.critique ? wrap(await a.critique({
+      courseName, sectionTitle: section.title, concepts: ctx,
+      questions: candidates.map(q => ({ id: q.id, concept_key: q.conceptKey, ability: q.ability, prompt: q.prompt, model_answer: q.answer, accept: q.accept, required_points: q.points, misconceptions: q.misconceptions })),
+    })) : { ok: false };
+    if (crit.ok) reviews = Object.fromEntries(crit.data.reviews.map(r => [r.id, r]));
+    else reviewedAll = false;
+
+    for (const c of concepts) {
+      const mine = candidates.filter(q => q.conceptKey === c.key);
+      const { kept, dropped } = selectForConcept(mine, reviews, c.importance);
+      groups.push({
+        sectionTitle: section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance,
+        kept: kept.map(q => ({ ...q, selected: true })),
+        dropped: dropped.map(q => ({ ...q, selected: false })),
+      });
+    }
   }
-  if (!tasks.length && failed) return { ok: false, error: failed };
-  return { ok: true, tasks, partial: failed };
+  if (!groups.length && failed) return { ok: false, error: failed };
+  return { ok: true, groups, written, reviewed: reviewedAll, partial: failed };
 }
 
+// Questions that passed the gate carry a `warnings` array; ones you kept
+// despite the gate dropping them don't.
+const passedGate = (q) => Array.isArray(q.warnings);
+
 /**
- * Turn an extraction + generated tasks into records ready for the store.
- * Concepts without generated tasks get a basic "explain" task from their summary.
+ * Turn an extraction + reviewed questions into records ready for the store.
+ * Only questions still selected are added; a concept with no selected
+ * questions is left out (it would never come up in a session anyway).
  */
-export function buildImport({ state, courseId, extraction, tasks, sourceLabel = "" }) {
+export function buildImport({ state, courseId, extraction, groups, sourceLabel = "" }) {
   const ix = index(state);
   const existing = ix.conceptsByCourse[courseId] || [];
   const byName = new Map(existing.map(c => [c.name.trim().toLowerCase(), c.id]));
   let order = Math.max(-1, ...(ix.sectionsByCourse[courseId] || []).map(s => s.order)) + 1;
 
+  const chosenByKey = {};
+  for (const g of groups) {
+    const qs = [...g.kept, ...g.dropped].filter(q => q.selected);
+    if (qs.length) chosenByKey[g.conceptKey] = qs;
+  }
+
   const sections = [], concepts = [], items = [], edges = [];
   const keyToId = {};
 
   for (const s of extraction.sections) {
-    const chosen = s.concepts.filter(c => c.selected);
+    const chosen = s.concepts.filter(c => c.selected && chosenByKey[c.key]);
     if (!chosen.length) continue;
     const section = makeSection({ courseId, title: s.title, summary: s.summary || "", order: order++, sourceLabel });
     sections.push(section);
@@ -125,6 +173,15 @@ export function buildImport({ state, courseId, extraction, tasks, sourceLabel = 
       concepts.push(concept);
       keyToId[c.key] = concept.id;
       byName.set(concept.name.toLowerCase(), concept.id);
+      for (const q of chosenByKey[c.key]) {
+        items.push(makeItem({
+          conceptId: concept.id, ability: q.ability, prompt: q.prompt, answer: q.answer,
+          accept: q.ability === "recall" ? q.accept : [],
+          points: q.points.length ? q.points : [q.answer],
+          misconceptions: q.misconceptions, hint: q.hint,
+          quality: { score: q.score, dims: q.dims, revised: Boolean(q.revised), reviewed: q.dims != null, overruled: !passedGate(q) },
+        }));
+      }
     });
   }
 
@@ -141,28 +198,6 @@ export function buildImport({ state, courseId, extraction, tasks, sourceLabel = 
         }
       }
     }
-  }
-
-  for (const t of tasks) {
-    const conceptId = keyToId[t.concept_key];
-    if (!conceptId || !ABILITIES[t.ability]) continue;
-    const points = (t.required_points || []).map(p => p.trim()).filter(Boolean);
-    items.push(makeItem({
-      conceptId, ability: t.ability, prompt: t.prompt.trim(), answer: t.model_answer.trim(),
-      accept: t.ability === "recall" ? (t.accept || []).map(x => x.trim()).filter(Boolean) : [],
-      points: points.length ? points : [t.model_answer.trim()],
-      misconceptions: (t.misconceptions || []).map(m => m.trim()).filter(Boolean),
-      hint: (t.hint || "").trim(),
-    }));
-  }
-  const covered = new Set(items.map(i => i.conceptId));
-  for (const c of concepts) {
-    if (covered.has(c.id)) continue;
-    items.push(makeItem({
-      conceptId: c.id, ability: "explain",
-      prompt: `Explain **${c.name}** in your own words.`, answer: c.summary || c.name,
-      points: [c.summary || c.name],
-    }));
   }
   return { sections, concepts, items, edges };
 }
@@ -218,4 +253,23 @@ export async function teachBackWithAI({ title, concepts, text }) {
   const a = api();
   if (!a) return { ok: false, error: "AI features need the desktop app." };
   return wrap(await a.teachback({ title, concepts, text }));
+}
+
+/**
+ * Ask Claude for a better version of a question you reported. The proposal
+ * goes through the same rule checks before it's offered.
+ * Returns { ok, worthKeeping, reason, question, issues }.
+ */
+export async function rewriteQuestion({ item, concept, problem, note = "" }) {
+  const a = api();
+  if (!a?.rewrite) return { ok: false, error: "AI features need the desktop app." };
+  const res = wrap(await a.rewrite({
+    concept: { name: concept.name, summary: concept.summary, excerpt: concept.source?.excerpt || "" },
+    question: { ability: item.ability, prompt: item.prompt, answer: item.answer, points: item.points },
+    problem, note,
+  }));
+  if (!res.ok) return res;
+  const q = toQuestion(res.data.question, item.id);
+  const lint = lintQuestion(q);
+  return { ok: true, worthKeeping: res.data.worth_keeping, reason: res.data.reason, question: q, issues: lint.issues };
 }

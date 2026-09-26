@@ -26,6 +26,9 @@ const PATHS = {
   download: <><path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/></>,
   link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></>,
   pause: <path d="M9 5v14M15 5v14"/>,
+  flag: <><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></>,
+  wand: <><path d="M4 20L15 9"/><path d="M14 4v2M19 9h2M17.5 5.5l1.4-1.4M14 12v0M18 11l1.5 1.5"/></>,
+  undo: <><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></>,
 };
 
 export default function Icon({ name, size = 18, stroke = 1.7, className, style }) {

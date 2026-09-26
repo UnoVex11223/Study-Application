@@ -9,7 +9,7 @@
 //     correct, unaided answer (so the most recent attempt was correct)
 //   • if it has an application-type task (apply / distinguish / connect),
 //     at least one of those was answered correctly without help
-// Multiple-choice (recognition) answers and aided answers never count.
+// Aided answers (hint used or answer revealed) never count.
 
 import { index, IMPORTANCE, ABILITY_KEYS } from "./model.js";
 import { retrievability } from "./fsrs.js";
@@ -30,9 +30,9 @@ export const STATUS = {
 /** Detailed evidence for one concept. */
 export function conceptMastery(state, conceptId, now = Date.now()) {
   const ix = index(state);
-  const items = ix.itemsByConcept[conceptId] || [];
+  const items = (ix.itemsByConcept[conceptId] || []).filter(i => !i.flag);
   const attempts = ix.attemptsByConcept[conceptId] || [];
-  const graded = attempts.filter(a => a.verdict !== "ungraded" && a.mode !== "recognition");
+  const graded = attempts.filter(a => a.verdict !== "ungraded");
   const evidence = graded.filter(isEvidence);
   const days = new Set(evidence.map(a => a.day));
   const last = graded.reduce((m, a) => (!m || a.ts > m.ts ? a : m), null);
@@ -117,7 +117,7 @@ export function abilityBreakdown(state, { courseId = null, days = 60, now = Date
   const cutoff = now - days * 864e5;
   const out = Object.fromEntries(ABILITY_KEYS.map(k => [k, { attempts: 0, correct: 0 }]));
   for (const a of state.attempts) {
-    if (a.ts < cutoff || a.aided || a.verdict === "ungraded" || a.mode === "recognition") continue;
+    if (a.ts < cutoff || a.aided || a.verdict === "ungraded") continue;
     if (courseId && a.courseId !== courseId) continue;
     const o = out[a.ability];
     if (!o) continue;

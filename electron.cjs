@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, nativeTheme } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const Store = require("electron-store");
@@ -7,6 +7,32 @@ const pdf = require("./pdf-text.cjs");
 
 const store = new Store();
 const API_KEY = "af_api_key";
+
+// ── One-time clean start ──────────────────────────────────────────────────────
+// This version starts from an empty library. Anything stored by earlier
+// versions (the old flashcards and anything converted from them) is written to
+// a backup file in the app's data folder and then removed from the app.
+// Settings and the API key are kept. If the backup can't be written, nothing
+// is deleted.
+const CLEAN_START = "af_clean_start_v1";
+const OLD_KEYS = ["af_topics", "af_log", "af_stats", "af_xp", "af_schema_version", "af3_state"];
+function cleanStart() {
+  if (store.get(CLEAN_START)) return;
+  const old = Object.fromEntries(OLD_KEYS.filter((k) => store.has(k)).map((k) => [k, store.get(k)]));
+  if (Object.keys(old).length) {
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      fs.writeFileSync(path.join(app.getPath("userData"), `backup-before-clean-start-${stamp}.json`), JSON.stringify(old));
+    } catch {
+      return;
+    }
+    const settings = old.af3_state?.settings;
+    for (const k of OLD_KEYS) store.delete(k);
+    if (settings) store.set("af3_state", { version: 3, settings });
+  }
+  store.set(CLEAN_START, true);
+}
+cleanStart();
 
 // ── Store bridge ──────────────────────────────────────────────────────────────
 // The renderer can write the API key but never read it back.
@@ -146,7 +172,7 @@ ${escapeTag(text)}
   return structured({ tier: "deep", system: EXTRACT_SYSTEM, prompt, schema: EXTRACT_SCHEMA, maxTokens: 32000 });
 });
 
-// ── 2. Practice tasks with rubrics ───────────────────────────────────────────
+// ── 2. Question candidates with rubrics ───────────────────────────────────────────
 const ITEMS_SCHEMA = obj({
   tasks: {
     type: "array",
@@ -163,19 +189,29 @@ const ITEMS_SCHEMA = obj({
   },
 });
 
-const ITEMS_SYSTEM = `You write retrieval-practice tasks. The learner answers every task by typing from memory; there are never multiple-choice options. The goal is durable memory plus the ability to explain and use each idea without help.
+// Shared quality bar: the writer aims for it and the critic enforces it.
+const QUALITY_BAR = `QUALITY BAR — every question will be reviewed for years, so it must earn its place:
+- Worth remembering: tests an idea a practitioner uses or that later material depends on. Never trivia: exact numbers or dates that don't matter, names of minor things, the author's particular wording, or anything you'd just look up.
+- One thing, clearly: asks exactly one thing, unambiguously, and makes sense on its own months from now without the book. Never refer to "the text", "this chapter", "the author", a figure, or an example the learner won't have in front of them.
+- Real recall: answering requires producing the idea from memory. The prompt must not contain or hint at the answer. No yes/no or either/or questions, and nothing answerable by common sense or guessing.
+- Gradable: the key points let a grader mark a correct paraphrase right and a plausible wrong answer wrong. Points are specific, each necessary, and together sufficient. Recall questions list every acceptable short answer.
+- Accurate: the model answer is correct and consistent with the source.
+- Focused: an explain question should be answerable in 1–4 sentences, not an essay. Asking for a complete list of more than three items is almost never worth it.`;
+
+const ITEMS_SYSTEM = `You write retrieval-practice questions. The learner answers every question by typing from memory; there are never multiple-choice options. The goal is durable memory plus the ability to explain and use each idea without help.
 
 HOW MANY
-core concept: 2–3 tasks. supporting: 1–2. detail: 1.
-Across the section, write at most one "connect" task asking how 2–3 of the concepts work together; attach it to the most central one.
+Write candidates generously — a separate reviewer keeps only the best:
+core concept: 3–4 candidates. supporting: 2. detail: 1, and only if the detail is genuinely worth knowing.
+Across the section, write at most one "connect" question asking how 2–3 of the concepts work together; attach it to the most central one.
 
 ABILITIES
-- recall: produce a term, name or key fact. Exactly one short answer should be correct. Fill accept with every acceptable short answer (synonyms, abbreviations, alternate spellings). If the answer would be a sentence, it's an explain task instead.
+- recall: produce a term, name or key fact. Exactly one short answer should be correct. Fill accept with every acceptable short answer (synonyms, abbreviations, alternate spellings). If the answer would be a sentence, it's an explain question instead.
 - explain: what it is, how it works, or why it matters.
 - distinguish: the defining difference from a concept it's easily confused with.
 - apply: a NEW concrete scenario, example, code snippet or problem that isn't copied from the source, with a determinable answer (predict the output, choose and justify an approach, compute a value, find the bug).
 - connect: how several ideas work together.
-For core concepts, include at least one explain task and, when the concept can be used, one apply or distinguish task.
+For core concepts, include at least one explain question and, when the concept can be used, one apply or distinguish question.
 
 RUBRIC
 - required_points: 1–3 short, checkable ideas. A learner who states all of them has answered correctly, whatever their wording. Don't require textbook phrasing or incidental detail. For recall, one point naming the answer.
@@ -183,8 +219,9 @@ RUBRIC
 - model_answer: what an expert would say in 1–4 sentences, or a short code block.
 - hint: points toward the right area without revealing the answer.
 
+${QUALITY_BAR}
+
 WRITING
-- The prompt must not contain the answer or the term it asks for.
 - Vary phrasing; don't start every prompt the same way.
 - Markdown: fenced code blocks with a language tag, \`inline code\`, $...$ for math.`;
 
@@ -199,6 +236,90 @@ Section: ${sectionTitle}
 
 ${list}`;
   return structured({ tier: "deep", system: ITEMS_SYSTEM, prompt, schema: ITEMS_SCHEMA, maxTokens: 32000 });
+});
+
+// ── 2b. Quality review (an independent critic) ──────────────────────────────
+const REVISION = obj({
+  prompt: str(), model_answer: str(), accept: strList(), required_points: strList(), misconceptions: strList(), hint: str(),
+});
+const SCORE = { type: "integer", description: "1 to 5" };
+const CRITIQUE_SCHEMA = obj({
+  reviews: {
+    type: "array",
+    items: obj({
+      id: str("The question id"),
+      verdict: { type: "string", enum: ["keep", "revise", "drop"] },
+      scores: obj({ importance: SCORE, clarity: SCORE, retrieval: SCORE, gradability: SCORE, accuracy: SCORE }),
+      reason: str("One short sentence: the main problem, or why it's a strong question"),
+      revision: { ...REVISION, description: "The full revised question when verdict is revise; empty strings and arrays otherwise" },
+    }),
+  },
+});
+
+const CRITIQUE_SYSTEM = `You are the quality gate for a learner's long-term memory. Every question you let through will be reviewed for months or years: a weak question wastes real time and a wrong one teaches errors. Be strict — dropping a mediocre question is better than keeping it.
+
+Score each question from 1 to 5 on:
+- importance: 5 = a core idea a practitioner uses or later material depends on. 4 = a useful idea worth having at your fingertips. 3 = nice to know. 2 = trivia (exact numbers or dates, names of minor things, the author's wording). 1 = not worth remembering.
+- clarity: asks exactly one thing, unambiguously, and makes sense on its own months from now without the book.
+- retrieval: answering requires producing the idea from memory. Low if the prompt contains or hints at the answer, is yes/no or either/or, or can be answered by guessing or common sense.
+- gradability: the key points would let a grader mark a correct paraphrase right and a plausible wrong answer wrong. Points must be specific and necessary, and together sufficient. Recall questions must list every acceptable short answer.
+- accuracy: the model answer is correct and consistent with the source excerpt.
+
+Also check the batch as a whole: if two questions test the same thing in the same way, keep the better one and drop the other as redundant.
+
+Verdicts:
+- keep: every score is 4 or 5 as written.
+- revise: it tests something important (importance 4+) but has a fixable flaw. Write the complete improved question in revision and give the scores the REVISED question earns.
+- drop: importance 3 or lower, redundant, or not fixable.
+For keep and drop, leave every revision field empty.
+
+${QUALITY_BAR}`;
+
+ipcMain.handle("ai:critique", async (_e, { courseName, sectionTitle, concepts, questions }) => {
+  const ctx = concepts.map((c) => `<concept key="${c.key}" importance="${c.importance}">
+${c.name}: ${c.summary}${c.excerpt ? `\nsource: ${c.excerpt}` : ""}
+</concept>`).join("\n");
+  const qs = questions.map((q) => `<question id="${q.id}" concept="${q.concept_key}" type="${q.ability}">
+prompt: ${q.prompt}
+model_answer: ${q.model_answer}
+${q.accept?.length ? `accept: ${q.accept.join(" | ")}\n` : ""}key_points: ${(q.required_points || []).join(" | ")}
+${q.misconceptions?.length ? `misconceptions: ${q.misconceptions.join(" | ")}\n` : ""}</question>`).join("\n");
+  const prompt = `Course: ${courseName}
+Section: ${sectionTitle}
+
+${ctx}
+
+${qs}
+
+Review every question above.`;
+  return structured({ tier: "deep", system: CRITIQUE_SYSTEM, prompt, schema: CRITIQUE_SCHEMA, maxTokens: 24000 });
+});
+
+// ── 2c. Rewrite a question you reported ──────────────────────────────────────
+const REWRITE_SCHEMA = obj({
+  worth_keeping: { type: "boolean", description: "False if the concept this question tests isn't worth long-term review at all" },
+  reason: str("One sentence explaining the change, or why it should be deleted"),
+  question: obj({
+    ability: { type: "string", enum: ["recall", "explain", "distinguish", "apply", "connect"] },
+    prompt: str(), model_answer: str(), accept: strList(), required_points: strList(), misconceptions: strList(), hint: str(),
+  }),
+});
+
+const REWRITE_SYSTEM = `A learner flagged one of their review questions as a problem. Write a better question that tests the same idea, fixing the problem they reported (or the one you see). You may change the question type if another type tests the idea better. If the idea itself isn't worth long-term review, set worth_keeping to false and explain why.
+
+${QUALITY_BAR}`;
+
+ipcMain.handle("ai:rewrite", async (_e, { concept, question, problem, note }) => {
+  const prompt = `Concept: ${concept.name}
+${concept.summary ? `Summary: ${concept.summary}\n` : ""}${concept.excerpt ? `Source: ${concept.excerpt}\n` : ""}
+Current question (${question.ability}):
+${question.prompt}
+
+Model answer: ${question.answer}
+Key points: ${(question.points || []).join(" | ")}
+
+Reported problem: ${problem}${note ? `\nLearner's note: ${escapeTag(note)}` : ""}`;
+  return structured({ tier: "deep", system: REWRITE_SYSTEM, prompt, schema: REWRITE_SCHEMA, maxTokens: 4000 });
 });
 
 // ── 3. Rubric grading ────────────────────────────────────────────────────────
@@ -346,7 +467,7 @@ function createWindow() {
     height: 820,
     minWidth: 900,
     minHeight: 620,
-    backgroundColor: "#FBFAF7",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#15171C" : "#F2F3F6",
     autoHideMenuBar: true,
     ...(fs.existsSync(iconPath) && { icon: iconPath }),
     webPreferences: {

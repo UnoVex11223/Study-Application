@@ -49,6 +49,22 @@ New concepts are introduced from the **knowledge frontier**: a concept becomes e
 | Apply | Solve a new example, predict output, fix code | Key points (result + reasoning) |
 | Connect | Explain how ideas work together | Key points |
 
+## Question quality
+
+Only questions worth years of repetitions get in. Every candidate question passes three filters:
+
+1. **Rules** (no AI): drops questions that contain their own answer, yes/no questions, anything that refers to "the text", "this chapter" or a figure (it won't make sense later), recall answers that are really sentences, questions with no gradable key points, and near-duplicates.
+2. **Independent review**: a separate Claude pass scores each question 1–5 on *worth remembering*, *clear on its own*, *needs real recall*, *gradable* and *accurate*. A question is kept only if it scores 4 or 5 on all five. Fixable questions are rewritten by the reviewer (and re-scored); the rest are dropped with a reason.
+3. **Caps**: at most 3 questions for a core concept, 2 for a supporting one, 1 for a detail — the best-scoring, covering different question types first.
+
+Before anything is saved you see a **Review questions** step: what passed (with its score), what was filtered out and why, and you can untick or rescue any question. Concepts left with no good question aren't added.
+
+After import, quality keeps being enforced:
+- **Report question** (the flag on every question in a session) takes it out of your sessions immediately.
+- A question you miss **5 times**, or whose grading you overrule **twice**, is pulled automatically — that pattern usually means the question, not you, is the problem.
+- Pulled questions wait on the Progress page (and in the concept panel), where you can **rewrite with Claude** (the new version passes the same rule checks), restore, or delete.
+- Questions you write yourself get the same rule checks as advice while you type.
+
 ## Grading
 
 Every question carries a small rubric written when the question is created: **key points** a correct answer must contain, plus common **misconceptions** that make an answer wrong.
@@ -82,7 +98,7 @@ Pick a section and explain it from memory as if teaching it. Each concept is mar
 
 1. Paste text, drop `.md`/`.txt` notes, or drop the **book's PDF** and pick a chapter from its table of contents (page numbers are kept so each concept can cite its page).
 2. Claude splits it into sections and concepts and rates each concept's importance from real signals (definitions, worked examples, warnings, things later ideas depend on) — not word frequency. Anecdotes, boilerplate and navigation are dropped. Details start unticked; untick anything you don't want.
-3. Claude writes questions with rubrics for the chosen concepts, then looks for connections to your other courses in the background.
+3. Claude writes candidate questions with rubrics, an independent review scores them, and you confirm what passed (see Question quality). New concepts are then linked to your other courses in the background.
 
 If text lost something in copying (a figure, a garbled equation), you're told instead of getting a question built on missing information.
 
@@ -98,17 +114,17 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 
 Everything lives locally in one file on your machine (electron-store). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
 
-Data from the previous version (topics of flashcards) is migrated automatically the first time you open this version: each topic becomes a course, each card keeps its schedule and review history, and the old data is left in place on disk. Old multiple-choice answers are kept in history but don't count as mastery evidence.
+This version starts from an empty library. The first time it runs, anything saved by earlier versions (old flashcards and anything converted from them) is written to a `backup-before-clean-start-<date>.json` file in the app's data folder and then removed from the app. Settings and the API key are kept.
 
 ## For developers
 
 ```
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, migrate, model, ai
-src/state/        store (reducer + persistence)
-src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, AddMaterial, KnowledgeMap, Progress, TeachBack, Settings
-tests/            node --test (logic + main-process IPC with a stubbed API)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai
+src/state/        reducer (pure, tested) + store (persistence)
+src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, KnowledgeMap, Progress, TeachBack, Settings
+tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```
 
 `npm test`, `npm run lint`, `npm run build`, `npm run electron` (dev), `npm run dist` (package).

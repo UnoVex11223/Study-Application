@@ -35,7 +35,8 @@ export const COURSE_STATUS = {
   paused:   { label: "Paused",      blurb: "Hidden from daily sessions" },
 };
 
-export const COURSE_COLORS = ["#2F6FDB", "#2F8F62", "#B7791F", "#8A4FBF", "#C8463D", "#1F8A99", "#B04A82", "#5C6B7A"];
+// Muted, similar-lightness hues so no course shouts over another.
+export const COURSE_COLORS = ["#6F7FD4", "#5BA68A", "#C9A061", "#A286CC", "#D08A7E", "#5EA2BF", "#C087A8", "#8A93A6"];
 
 export const DEFAULT_SETTINGS = {
   dailyMinutes: 20,
@@ -53,8 +54,7 @@ export function emptyState() {
     version: SCHEMA_VERSION,
     courses: [], sections: [], concepts: [], items: [], edges: [], attempts: [],
     settings: { ...DEFAULT_SETTINGS },
-    days: {},          // per study day: { extraSec }
-    legacyDaily: {},   // review counts carried over from the old app, for the activity chart
+    days: {}, // per study day: { extraSec }
   };
 }
 

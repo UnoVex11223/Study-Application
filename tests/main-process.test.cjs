@@ -3,15 +3,24 @@
 const { test } = require("node:test");
 const Module = require("module");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const handlers = {};
-const storeData = { af_api_key: "sk-ant-test" };
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), "aeroflash-test-"));
+// Data left by earlier versions: removed on first launch, after a backup.
+const storeData = {
+  af_api_key: "sk-ant-test",
+  af_topics: [{ id: 1, name: "Old topic", cards: [] }],
+  af_log: { entries: [], daily: {} },
+  af3_state: { version: 3, settings: { dailyMinutes: 35 }, courses: [{ id: "c1" }], items: [{ id: "i1" }] },
+};
 const fakes = {
   electron: {
-    app: { whenReady: () => new Promise(() => {}), on() {}, isPackaged: false },
+    app: { whenReady: () => new Promise(() => {}), on() {}, isPackaged: false, getPath: () => userData },
     BrowserWindow: class {}, shell: { openExternal() {} },
     ipcMain: { handle: (name, fn) => { handlers[name] = fn; } },
   },
-  "electron-store": class { get(k, d) { return k in storeData ? storeData[k] : d; } set(k, v) { storeData[k] = v; } delete(k) { delete storeData[k]; } },
+  "electron-store": class { get(k, d) { return k in storeData ? storeData[k] : d; } has(k) { return k in storeData; } set(k, v) { storeData[k] = v; } delete(k) { delete storeData[k]; } },
 };
 const origLoad = Module._load;
 Module._load = function (req, ...rest) { return fakes[req] ?? origLoad.call(this, req, ...rest); };
@@ -28,6 +37,20 @@ const message = (text, model) => json(200, { id: "msg_1", type: "message", role:
   content: [{ type: "text", text }], usage: { input_tokens: 10, output_tokens: 10 } });
 
 require(path.join(__dirname, "..", "electron.cjs"));
+
+test("first launch clears old data after backing it up, keeping settings and the key", () => {
+  const assert = require("assert/strict");
+  assert.equal(storeData.af_topics, undefined);
+  assert.equal(storeData.af_log, undefined);
+  assert.deepEqual(storeData.af3_state, { version: 3, settings: { dailyMinutes: 35 } });
+  assert.equal(storeData.af_api_key, "sk-ant-test");
+  assert.equal(storeData.af_clean_start_v1, true);
+  const backups = fs.readdirSync(userData).filter(f => f.startsWith("backup-before-clean-start-"));
+  assert.equal(backups.length, 1);
+  const saved = JSON.parse(fs.readFileSync(path.join(userData, backups[0]), "utf8"));
+  assert.equal(saved.af_topics[0].name, "Old topic");
+  assert.equal(saved.af3_state.items.length, 1);
+});
 
 test("main process: IPC handlers, model fallback, streaming, errors, PDF", async () => {
   const assert = require("assert/strict");
@@ -83,7 +106,6 @@ test("main process: IPC handlers, model fallback, streaming, errors, PDF", async
   assert.deepEqual(nk, { ok: false, error: "no-key" });
 
   // PDF handlers.
-  const fs = require("fs");
   const data = fs.readFileSync(path.join(__dirname, "fixtures", "sample-book.pdf"));
   const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
   const o = await handlers["pdf:outline"]({}, ab);

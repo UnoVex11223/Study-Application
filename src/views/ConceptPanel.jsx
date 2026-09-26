@@ -5,6 +5,8 @@ import { useNav, abilityLabel, pct } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import Markdown from "../ui/Markdown.jsx";
 import ItemForm from "./ItemForm.jsx";
+import FixQuestion from "./FixQuestion.jsx";
+import { FLAG_REASONS } from "../lib/quality.js";
 import { index } from "../lib/model.js";
 import { conceptMastery, explainMastery, STATUS } from "../lib/mastery.js";
 import { practiceTasks } from "../lib/planner.js";
@@ -119,17 +121,20 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
         </div>
         <div className="stack" style={{ gap: 10 }}>
           {items.map(it => (
-            <div key={it.id} className="item-card">
+            <div key={it.id} className={`item-card${it.flag ? " flagged" : ""}`}>
               <div className="row small">
                 <strong>{abilityLabel(it.ability)}</strong>
                 <span className="muted grow">
-                  {it.srs?.state === "new" ? "Not asked yet" : it.srs?.due ? `Next ${relativeDays(it.srs.due)}` : ""}
+                  {it.flag ? "Out of sessions" : it.srs?.state === "new" ? "Not asked yet" : it.srs?.due ? `Next ${relativeDays(it.srs.due)}` : ""}
                   {it.srs?.lapses ? `, missed ${it.srs.lapses}×` : ""}
                 </span>
+                {it.quality?.score != null && <span className="muted" title="Score from the quality review (out of 5)">Quality {it.quality.score.toFixed(1)}</span>}
                 <button className="btn btn-quiet btn-sm btn-icon" title="Edit" onClick={() => setEditing(it)}><Icon name="edit" size={14}/></button>
                 <button className="btn btn-quiet btn-sm btn-icon" title="Delete question" onClick={() => act("item/delete", { id: it.id })}><Icon name="trash" size={14}/></button>
               </div>
+              {it.flag && <div className="small review-reason">{FLAG_REASONS[it.flag.reason] ?? "Flagged"}</div>}
               <Markdown>{it.prompt}</Markdown>
+              {it.flag && <FixQuestion item={it} concept={c}/>}
               <details>
                 <summary className="muted small" style={{ cursor: "pointer" }}>Answer and key points</summary>
                 <div className="stack" style={{ gap: 8, marginTop: 8 }}>

@@ -8,6 +8,7 @@ import { useKey, isTyping, abilityLabel, useNav } from "../ui/nav.js";
 import { matchesAccepted, verdictFromChecks, suggestedRating, VERDICT } from "../lib/grade.js";
 import { gradeWithAI, rubricFor } from "../lib/ai.js";
 import { previewIntervals, RATING_LABEL } from "../lib/fsrs.js";
+import { FLAG_REASONS } from "../lib/quality.js";
 
 const KIND_LABEL = {
   new: "New concept",
@@ -19,7 +20,7 @@ const KIND_LABEL = {
   requeue: "One more try",
 };
 
-export default function TaskView({ task, item, concept, section, course, aiReady, retention, onDone }) {
+export default function TaskView({ task, item, concept, section, course, aiReady, retention, onDone, onReport }) {
   const [phase, setPhase] = useState("answer"); // answer | grading | followup | selfcheck | feedback
   const [answer, setAnswer] = useState("");
   const [hint, setHint] = useState(false);
@@ -29,6 +30,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
   const [checks, setChecks] = useState({ points: [], misc: [] });
   const [error, setError] = useState("");
   const [overridden, setOverridden] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const started = useRef(0);
   const finished = useRef(false);
   const answerRef = useRef(null);
@@ -111,15 +113,27 @@ export default function TaskView({ task, item, concept, section, course, aiReady
         {concept.importance === "core" && <span className="tag tag-core">Core</span>}
       </div>
 
-      <article className="index-card">
-        <div className="index-card-head">
-          <span className="ability">{abilityLabel(item.ability)}</span>
-          <span className="grow" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {course?.name}{section ? ` / ${section.title}` : ""}
-          </span>
+      <article className="q-card">
+        <div className="q-head">
+          <span className="q-ability">{abilityLabel(item.ability)}</span>
           <span className="dot" style={{ background: course?.color }}/>
+          <span className="q-context grow">{course?.name}{section ? ` / ${section.title}` : ""}</span>
+          <button className={`q-flag${reporting ? " on" : ""}`} onClick={() => setReporting(r => !r)} title="Report this question" aria-label="Report this question" aria-expanded={reporting}>
+            <Icon name="flag" size={15}/>
+          </button>
         </div>
-        <div className="prompt ruled"><Markdown>{item.prompt}</Markdown></div>
+        <div className="q-prompt"><Markdown>{item.prompt}</Markdown></div>
+        {reporting && (
+          <div className="report-box enter">
+            <div className="small" style={{ marginBottom: 8 }}>What's wrong with this question? It will be taken out of your sessions until you fix or restore it.</div>
+            <div className="row-wrap">
+              {["unclear", "wrong", "trivial", "other"].map(r => (
+                <button key={r} className="btn btn-sm" onClick={() => onReport(r)}>{FLAG_REASONS[r]}</button>
+              ))}
+              <button className="btn btn-sm btn-quiet" onClick={() => setReporting(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
       </article>
 
       <div className="answer-area">
