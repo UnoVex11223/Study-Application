@@ -43,7 +43,8 @@ export const DEFAULT_SETTINGS = {
   maxNewPerDay: 6,
   rolloverHour: 4,
   retention: 0.9,
-  theme: "system",
+  theme: "dark",
+  themeVersion: 2,
 };
 
 let counter = 0;
@@ -62,6 +63,8 @@ export function emptyState() {
 export function normalizeState(s) {
   const base = emptyState();
   const out = { ...base, ...s, settings: { ...base.settings, ...(s?.settings || {}) } };
+  // The monochrome redesign defaults to the black theme once; later choices stick.
+  if (s?.settings && s.settings.themeVersion !== 2) out.settings = { ...out.settings, theme: "dark", themeVersion: 2 };
   for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }

@@ -331,3 +331,10 @@ test("AI grades are checked: wrong numbers and invented quotes can't pass", () =
   assert.deepEqual(significantNumbers("returns n-1 and 2 pointers"), []);
   assert.deepEqual(significantNumbers("[-112, 111]"), ["-112", "111"]);
 });
+
+test("stored settings from before the monochrome theme switch to Black once", async () => {
+  const { normalizeState } = await import("../src/lib/model.js");
+  assert.equal(normalizeState({ settings: { theme: "system", dailyMinutes: 30 } }).settings.theme, "dark");
+  assert.equal(normalizeState({ settings: { theme: "light", themeVersion: 2 } }).settings.theme, "light");
+  assert.equal(normalizeState({ settings: { theme: "system", dailyMinutes: 30 } }).settings.dailyMinutes, 30);
+});

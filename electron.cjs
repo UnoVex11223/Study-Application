@@ -462,6 +462,13 @@ ipcMain.handle("pdf:text", async (_e, { data, from, to }) => {
 });
 
 // ── Window ────────────────────────────────────────────────────────────────────
+// Match the app's theme so the window doesn't flash the wrong color on launch.
+function windowBackground() {
+  const theme = store.get("af3_state")?.settings?.theme ?? "dark";
+  const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
+  return dark ? "#090A0B" : "#FFFFFF";
+}
+
 function createWindow() {
   const iconPath = path.join(__dirname, "build", "study-app-icon.ico");
   const win = new BrowserWindow({
@@ -469,7 +476,7 @@ function createWindow() {
     height: 820,
     minWidth: 900,
     minHeight: 620,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#15171C" : "#F2F3F6",
+    backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     ...(fs.existsSync(iconPath) && { icon: iconPath }),
     webPreferences: {

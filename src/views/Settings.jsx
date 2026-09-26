@@ -95,7 +95,7 @@ export default function Settings() {
 
       <Section title="Appearance">
         <div className="seg">
-          {[["system", "Match system"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => (
+          {[["dark", "Black"], ["light", "White"], ["system", "Match system"]].map(([v, l]) => (
             <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
           ))}
         </div>

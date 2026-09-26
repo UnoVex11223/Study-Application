@@ -138,7 +138,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
           <h1>Knowledge map</h1>
           <div className="page-sub">
             {scope === "all"
-              ? "Everything you're learning, clustered by course. Blue lines connect ideas across courses."
+              ? "Everything you're learning, clustered by course. Brighter lines connect ideas across courses."
               : "Prerequisites flow left to right: each concept builds on the ones to its left."}
           </div>
         </div>
