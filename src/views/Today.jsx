@@ -68,7 +68,7 @@ export default function Today({ plan }) {
         <article className="hero" style={{ marginTop: 8 }}>
           <div className="hero-label">Get started</div>
           <div className="hero-title">Add what you're studying</div>
-          <p className="hero-sub">Create a course for a book or class, then add a chapter at a time as you work through it. AeroFlash keeps only the questions worth remembering and schedules short daily reviews so you keep them for good.</p>
+          <p className="hero-sub">Create a course for a book or class, then add a chapter at a time as you work through it. Engram keeps only the questions worth remembering and schedules short daily reviews so you keep them for good.</p>
           <div className="hero-foot"><button className="btn btn-primary btn-lg" onClick={() => nav.go("courses", { create: true })}><Icon name="plus" size={16}/>Create a course</button></div>
         </article>
       </div>

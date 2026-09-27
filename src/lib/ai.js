@@ -5,7 +5,7 @@ import { index, makeSection, makeConcept, makeItem, makeEdge, ABILITIES, IMPORTA
 import { selectForConcept, lintQuestion } from "./quality.js";
 import { verifyPoints } from "./grade.js";
 
-const api = () => (typeof window !== "undefined" && window.aeroflash?.ai) || null;
+const api = () => (typeof window !== "undefined" && window.engram?.ai) || null;
 
 export const aiBridge = () => Boolean(api());
 

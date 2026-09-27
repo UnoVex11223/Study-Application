@@ -1,6 +1,6 @@
-# AeroFlash — How It Works
+# Engram — How It Works
 
-AeroFlash is a desktop study app (Electron + React) for keeping what you learn in long-term memory across many subjects at once. You add material a chapter at a time; it pulls out the concepts worth remembering, writes questions you answer from memory, and schedules a short daily session sized to the time you have.
+Engram is a desktop study app (Electron + React) for keeping what you learn in long-term memory across many subjects at once. You add material a chapter at a time; it pulls out the concepts worth remembering, writes questions you answer from memory, and schedules a short daily session sized to the time you have.
 
 This file doubles as context you can paste into another AI when preparing material for the app.
 
@@ -114,7 +114,7 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 
 ## Data & privacy
 
-Everything lives locally in one file on your machine (electron-store). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
+Everything lives locally in one file on your machine (electron-store; on Windows `%APPDATA%\aeroflash\config.json`, the folder the app used before it was renamed to Engram). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
 
 Data saved before per-concept scheduling is converted on first load: each concept takes the schedule of whichever of its questions you reviewed most recently.
 

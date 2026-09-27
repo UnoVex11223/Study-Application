@@ -84,6 +84,11 @@ function parseBlocks(src) {
   return blocks;
 }
 
+/** One line of inline markdown (code, bold, italic, math) with no block wrapper. */
+export function InlineMarkdown({ children, className = "" }) {
+  return <span className={`md md-inline ${className}`}>{inline(String(children ?? "").replace(/\s+/g, " ").trim(), "i")}</span>;
+}
+
 export default function Markdown({ children, className = "" }) {
   const blocks = parseBlocks(children);
   return (

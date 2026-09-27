@@ -7,6 +7,7 @@ import ConceptPanel from "./ConceptPanel.jsx";
 import ItemForm from "./ItemForm.jsx";
 import { CourseForm } from "./Courses.jsx";
 import { index, COURSE_STATUS, ABILITIES } from "../lib/model.js";
+import { InlineMarkdown } from "../ui/Markdown.jsx";
 import { courseMastery, sectionMastery, abilityBreakdown } from "../lib/mastery.js";
 import { practiceTasks } from "../lib/planner.js";
 import { aiBridge } from "../lib/ai.js";
@@ -67,7 +68,7 @@ export default function Course({ courseId }) {
       {sections.length === 0 ? (
         <div className="panel empty">
           <h3>Add the first chapter</h3>
-          <p>Paste a chapter or lesson, or drop in your notes. AeroFlash pulls out the concepts that matter, writes questions for them, and introduces them a few a day.</p>
+          <p>Paste a chapter or lesson, or drop in your notes. Engram pulls out the concepts that matter, writes questions for them, and introduces them a few a day.</p>
           <div className="row" style={{ justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus" size={15}/>Add material</button>
             <button className="btn" onClick={() => setAdding({})}>Write a question yourself</button>
@@ -102,12 +103,20 @@ export default function Course({ courseId }) {
                     <div key={s.id} className="section-block">
                       <button className={`section-row${isOpen ? " open" : ""}`} onClick={() => toggle(s.id)} aria-expanded={isOpen}>
                         <Icon name="chevron" size={14} className="chev"/>
-                        <div style={{ minWidth: 0 }}>
+                        <div className="section-text">
                           <div className="list-title">{s.title}</div>
-                          <div className="list-meta">{sm.mastered} of {sm.basisCount} {sm.basisIsCore ? "core " : ""}mastered, {sm.introduced} of {sm.total} started{sm.slipping ? `, ${sm.slipping} slipping` : ""}</div>
+                          {s.summary && <div className="section-desc"><InlineMarkdown>{s.summary}</InlineMarkdown></div>}
+                          <div className="section-stats">
+                            <span>{sm.total} concept{sm.total === 1 ? "" : "s"}</span>
+                            <span>{sm.mastered}/{sm.basisCount} {sm.basisIsCore ? "core " : ""}mastered</span>
+                            <span>{sm.introduced}/{sm.total} started</span>
+                            {sm.slipping > 0 && <span>{sm.slipping} slipping</span>}
+                          </div>
                         </div>
-                        <Bar value={sm.masteryPct} tone="good"/>
-                        <span className="num small muted" style={{ textAlign: "right" }}>{pct(sm.masteryPct)}</span>
+                        <div className="section-progress">
+                          <span className="num">{pct(sm.masteryPct)}</span>
+                          <Bar value={sm.masteryPct} tone="good" thin/>
+                        </div>
                       </button>
                       {isOpen && (
                         <div style={{ paddingBottom: 8 }}>

@@ -6,7 +6,11 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const handlers = {};
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), "aeroflash-test-"));
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), "engram-test-"));
+// Earlier versions stored everything in <appData>/aeroflash; the renamed app keeps using it.
+const appData = fs.mkdtempSync(path.join(os.tmpdir(), "engram-appdata-"));
+fs.mkdirSync(path.join(appData, "aeroflash"));
+const setPaths = {};
 // Data left by earlier versions: removed on first launch, after a backup.
 const storeData = {
   af_api_key: "sk-ant-test",
@@ -16,7 +20,11 @@ const storeData = {
 };
 const fakes = {
   electron: {
-    app: { whenReady: () => new Promise(() => {}), on() {}, isPackaged: false, getPath: () => userData },
+    app: {
+      whenReady: () => new Promise(() => {}), on() {}, isPackaged: false,
+      getPath: (name) => (name === "appData" ? appData : userData),
+      setPath: (name, p) => { setPaths[name] = p; },
+    },
     BrowserWindow: class {}, shell: { openExternal() {} },
     ipcMain: { handle: (name, fn) => { handlers[name] = fn; } },
   },
@@ -115,4 +123,9 @@ test("main process: IPC handlers, model fallback, streaming, errors, PDF", async
   const bad = await handlers["pdf:outline"]({}, new ArrayBuffer(10));
   assert.equal(bad.ok, false);
   assert.equal(o.outline.length, 6);
+});
+
+test("after the rename, data stays in the existing aeroflash folder", () => {
+  const assert = require("assert/strict");
+  assert.equal(setPaths.userData, path.join(appData, "aeroflash"));
 });

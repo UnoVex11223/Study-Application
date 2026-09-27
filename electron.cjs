@@ -5,6 +5,11 @@ const Store = require("electron-store");
 const Anthropic = require("@anthropic-ai/sdk");
 const pdf = require("./pdf-text.cjs");
 
+// Your data stays in the folder earlier versions used (%APPDATA%\aeroflash on
+// Windows), so renaming the app never loses your library or API key.
+const LEGACY_DATA = path.join(app.getPath("appData"), "aeroflash");
+if (fs.existsSync(LEGACY_DATA)) app.setPath("userData", LEGACY_DATA);
+
 const store = new Store();
 const API_KEY = "af_api_key";
 
@@ -478,12 +483,13 @@ function windowBackground() {
 }
 
 function createWindow() {
-  const iconPath = path.join(__dirname, "build", "study-app-icon.ico");
+  const iconPath = path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png");
   const win = new BrowserWindow({
     width: 1240,
     height: 820,
     minWidth: 900,
     minHeight: 620,
+    title: "Engram",
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     ...(fs.existsSync(iconPath) && { icon: iconPath }),
@@ -503,5 +509,7 @@ function createWindow() {
   }
 }
 
+// Lets Windows group the taskbar button under Engram with its own icon.
+if (process.platform === "win32") app.setAppUserModelId("app.engram.desktop");
 app.whenReady().then(createWindow);
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });

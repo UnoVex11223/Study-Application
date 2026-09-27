@@ -1,6 +1,7 @@
 {
-  "name": "aeroflash",
-  "description": "AeroFlash: a study app for long-term retention",
+  "name": "engram",
+  "productName": "Engram",
+  "description": "Engram: a study app for long-term memory",
   "author": "UnoVex11223",
   "private": true,
   "version": "2.0.0",
@@ -27,6 +28,8 @@
     "react-dom": "^19.2.4"
   },
   "build": {
+    "appId": "app.engram.desktop",
+    "productName": "Engram",
     "files": [
       "dist/**",
       "build/**",
@@ -38,7 +41,13 @@
       "output": "release"
     },
     "win": {
-      "icon": "build/study-app-icon.ico"
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "icon": "build/icon.png"
     }
   },
   "devDependencies": {

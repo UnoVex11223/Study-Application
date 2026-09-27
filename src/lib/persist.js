@@ -6,7 +6,7 @@ import { emptyState, normalizeState } from "./model.js";
 
 const KEY = "af3_state";
 
-const bridge = () => (typeof window !== "undefined" && window.aeroflash?.store) || null;
+const bridge = () => (typeof window !== "undefined" && window.engram?.store) || null;
 
 async function get(key) {
   const b = bridge();
@@ -47,7 +47,7 @@ export function flush() {
 if (typeof window !== "undefined") window.addEventListener("beforeunload", flush);
 
 export const getApiKeySet = async () => {
-  const ai = typeof window !== "undefined" && window.aeroflash?.ai;
+  const ai = typeof window !== "undefined" && window.engram?.ai;
   if (ai?.status) { try { return (await ai.status()).hasKey; } catch { return false; } }
   return Boolean(await get("af_api_key"));
 };

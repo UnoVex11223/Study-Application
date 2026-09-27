@@ -3,7 +3,7 @@ import { useStore } from "../state/store.jsx";
 import { Bar, ImportanceTag, Notice, Spinner } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
-import Markdown from "../ui/Markdown.jsx";
+import Markdown, { InlineMarkdown } from "../ui/Markdown.jsx";
 import { abilityLabel } from "../ui/nav.js";
 import { DIMENSIONS } from "../lib/quality.js";
 import { index } from "../lib/model.js";
@@ -72,7 +72,7 @@ export default function AddMaterial({ courseId }) {
 
   const source = [text, ...files.map(f => `# ${f.name}\n\n${f.content}`)].filter(s => s.trim()).join("\n\n");
 
-  const pdfApi = typeof window !== "undefined" ? window.aeroflash?.pdf : null;
+  const pdfApi = typeof window !== "undefined" ? window.engram?.pdf : null;
 
   const openPdf = async (f) => {
     if (!pdfApi) { setError("PDF import works in the desktop app. Paste the chapter's text instead."); return; }
@@ -366,7 +366,7 @@ export default function AddMaterial({ courseId }) {
             <div key={si} className="extract-section">
               <div className="extract-section-head">
                 <div className="list-title">{s.title}</div>
-                {s.summary && <div className="list-meta">{s.summary}</div>}
+                {s.summary && <div className="section-desc"><InlineMarkdown>{s.summary}</InlineMarkdown></div>}
               </div>
               {s.concepts.map((c, ci) => (
                 <label key={c.key} className={`extract-concept${c.selected ? "" : " off"}`}>

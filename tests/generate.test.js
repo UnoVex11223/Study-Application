@@ -64,7 +64,7 @@ function stateWithCourse() {
 
 test("question groups are written in parallel and come back in section order", async () => {
   const { ai, stats } = fakeAi();
-  globalThis.window = { aeroflash: { ai } };
+  globalThis.window = { engram: { ai } };
   const { s, courseId } = stateWithCourse();
   const progress = [];
   const res = await generateTasks({ state: s, courseId, sections: [section("A", 8), section("B", 8), section("C", 8)], onProgress: p => progress.push(p) });
@@ -82,7 +82,7 @@ test("question groups are written in parallel and come back in section order", a
 
 test("a group that fails is retried once, and the rest are kept if it fails again", async () => {
   const { ai } = fakeAi({ failOnce: new Set(["A0"]) });
-  globalThis.window = { aeroflash: { ai } };
+  globalThis.window = { engram: { ai } };
   const { s, courseId } = stateWithCourse();
   const res = await generateTasks({ state: s, courseId, sections: [section("A", 4), section("B", 4)] });
   assert.equal(res.ok, true);
@@ -90,7 +90,7 @@ test("a group that fails is retried once, and the rest are kept if it fails agai
   assert.equal(res.groups.length, 8);
 
   const always = { ...ai, items: async (p) => (p.concepts[0].key === "A0" ? { ok: false, error: "Overloaded" } : ai.items(p)) };
-  globalThis.window = { aeroflash: { ai: always } };
+  globalThis.window = { engram: { ai: always } };
   const res2 = await generateTasks({ state: s, courseId, sections: [section("A", 4), section("B", 4)] });
   delete globalThis.window;
   assert.equal(res2.ok, true);

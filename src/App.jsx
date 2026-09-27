@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StoreProvider, useStore } from "./state/store.jsx";
 import { NavCtx } from "./ui/nav.js";
 import Icon from "./ui/Icon.jsx";
+import { Logo } from "./ui/ui.jsx";
 import { buildPlan } from "./lib/planner.js";
 import Today from "./views/Today.jsx";
 import Courses from "./views/Courses.jsx";
@@ -70,7 +71,7 @@ function Shell() {
     <NavCtx.Provider value={nav}>
       <div className="app">
         <nav className="sidebar" aria-label="Main">
-          <div className="brand"><span className="brand-mark" aria-hidden="true"/>AeroFlash</div>
+          <div className="brand"><Logo/>engram</div>
           {NAV.map(n => (
             <button key={n.id} className={`nav-item${active === n.id ? " on" : ""}`} onClick={() => nav.go(n.id)}>
               <Icon name={n.icon}/>{n.label}
