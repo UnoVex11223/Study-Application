@@ -34,7 +34,7 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
   const nav = useNav();
   const ix = index(state);
   const course = ix.course[courseId];
-  const sections = ix.sectionsByCourse[courseId] || [];
+  const sections = (ix.sectionsByCourse[courseId] || []).filter(s => !s.locked);
   const [sectionId, setSectionId] = useState(initialSection ?? sections[0]?.id);
   const [text, setText] = useState("");
   const [showNames, setShowNames] = useState(false);
@@ -51,6 +51,9 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
   const concepts = (ix.conceptsBySection[sectionId] || []).filter(c => !c.suspended);
 
   if (!course) return null;
+  if (!section) {
+    return <div className="page page-narrow"><button className="crumb" onClick={() => nav.go("course", { courseId })}><Icon name="back" size={14}/>{course.name}</button><p className="muted">Mark a chapter as read first; then you can teach it back.</p></div>;
+  }
 
   const apply = (statuses) => {
     const now = nav.now;

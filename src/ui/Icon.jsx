@@ -29,6 +29,9 @@ const PATHS = {
   flag: <><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></>,
   wand: <><path d="M4 20L15 9"/><path d="M14 4v2M19 9h2M17.5 5.5l1.4-1.4M14 12v0M18 11l1.5 1.5"/></>,
   undo: <><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></>,
+  lock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></>,
+  unlock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></>,
+  book: <><path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 1h13v-3"/><path d="M9 7h6"/></>,
 };
 
 export default function Icon({ name, size = 18, stroke = 1.7, className, style }) {

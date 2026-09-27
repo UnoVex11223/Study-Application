@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Bar, StatusDot, ImportanceTag, Notice } from "../ui/ui.jsx";
+import { Bar, StatusDot, ImportanceTag, Notice, Spinner } from "../ui/ui.jsx";
+import { useBookImport, jobProgress, bookBridge } from "../state/bookImport.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import ConceptPanel from "./ConceptPanel.jsx";
@@ -11,6 +12,50 @@ import { InlineMarkdown } from "../ui/Markdown.jsx";
 import { courseMastery, sectionMastery, abilityBreakdown } from "../lib/mastery.js";
 import { practiceTasks } from "../lib/planner.js";
 import { aiBridge } from "../lib/ai.js";
+
+/** Progress and controls for a book being imported into this course. */
+function JobBanner({ job }) {
+  const importer = useBookImport();
+  const p = jobProgress(job);
+  if (job.status === "running" || job.status === "paused") {
+    const paused = job.status === "paused";
+    return (
+      <div className="job-banner">
+        {paused ? <Icon name="pause" size={16}/> : <Spinner/>}
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div><strong>{paused ? "Import paused" : `Importing ${job.title}`}</strong>{paused && job.error ? <span className="muted">: {job.error}</span> : null}</div>
+          <div className="section-stats">
+            <span>{p.done} of {p.total} chapters ready</span>
+            {p.failed > 0 && <span>{p.failed} failed</span>}
+            {!paused && p.active && <span className="ell">now: {p.active.title}</span>}
+          </div>
+          <Bar value={p.total ? p.done / p.total : 0} thin/>
+        </div>
+        {paused
+          ? <button className="btn btn-sm btn-primary" onClick={() => importer.resume(job.id)}><Icon name="play" size={11}/>Resume</button>
+          : <button className="btn btn-sm" onClick={() => importer.pause(job.id)}><Icon name="pause" size={13}/>Pause</button>}
+      </div>
+    );
+  }
+  return (
+    <div className="job-banner">
+      <Icon name="check" size={16}/>
+      <div className="grow">
+        <strong>Imported {p.done} of {p.total} chapters</strong>
+        <div className="muted small">{p.failed ? `${p.failed} chapter${p.failed === 1 ? "" : "s"} failed; try again below. ` : ""}Chapters stay locked until you mark them read.</div>
+      </div>
+      {p.failed > 0 && <button className="btn btn-sm" onClick={() => importer.resume(job.id)}>Retry failed</button>}
+      <button className="btn btn-sm btn-quiet" onClick={() => importer.dismiss(job.id)}>Dismiss</button>
+    </div>
+  );
+}
+
+const CHAPTER_STATUS = {
+  pending: "Waiting",
+  reading: "Finding concepts…",
+  writing: "Writing questions…",
+  failed: "Failed",
+};
 
 export default function Course({ courseId }) {
   const { state, act } = useStore();
@@ -23,6 +68,7 @@ export default function Course({ courseId }) {
   const [adding, setAdding] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmSection, setConfirmSection] = useState(null);
+  const importer = useBookImport();
   const now = nav.now;
 
   if (!course) {
@@ -38,6 +84,9 @@ export default function Course({ courseId }) {
     if (tasks.length) nav.startSession({ tasks, mode: "practice", title });
   };
   const abilityRows = Object.entries(abilities).filter(([, v]) => v.attempts > 0);
+  const jobs = state.bookJobs.filter(j => j.courseId === courseId);
+  const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i })).filter(x => x.c.include && x.c.status !== "done"));
+  const lockedCount = sections.filter(s => s.locked).length;
 
   return (
     <div className="page">
@@ -60,17 +109,20 @@ export default function Course({ courseId }) {
         </div>
         <div className="row">
           <button className="btn" onClick={() => practice({ courseId }, course.name)} disabled={!m.introduced}><Icon name="play" size={12}/>Practice</button>
-          <button className="btn" onClick={() => nav.go("teach", { courseId })} disabled={!sections.length}><Icon name="pen" size={15}/>Teach back</button>
+          <button className="btn" onClick={() => nav.go("teach", { courseId })} disabled={!sections.some(s => !s.locked)}><Icon name="pen" size={15}/>Teach back</button>
           <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus" size={15}/>Add material</button>
         </div>
       </div>
 
-      {sections.length === 0 ? (
+      {jobs.map(job => <JobBanner key={job.id} job={job}/>)}
+
+      {sections.length === 0 && waiting.length === 0 ? (
         <div className="panel empty">
           <h3>Add the first chapter</h3>
           <p>Paste a chapter or lesson, or drop in your notes. Engram pulls out the concepts that matter, writes questions for them, and introduces them a few a day.</p>
           <div className="row" style={{ justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus" size={15}/>Add material</button>
+            <button className="btn" onClick={() => nav.go("book", { courseId })}><Icon name="book" size={15}/>Import a whole book</button>
             <button className="btn" onClick={() => setAdding({})}>Write a question yourself</button>
           </div>
           {!aiBridge() && <p className="small muted" style={{ marginTop: 16, marginBottom: 0 }}>Automatic extraction runs in the desktop app with an API key.</p>}
@@ -94,30 +146,40 @@ export default function Course({ courseId }) {
                 <button className="btn btn-sm btn-quiet" onClick={() => setAdding({})}><Icon name="plus" size={14}/>Add a question</button>
                 <button className="btn btn-sm btn-quiet" onClick={() => nav.go("map", { courseId })}><Icon name="map" size={14}/>Map</button>
               </div>
+              {lockedCount > 0 && (
+                <p className="muted small" style={{ margin: "-4px 0 12px" }}>
+                  {lockedCount} chapter{lockedCount === 1 ? " is" : "s are"} locked until you mark {lockedCount === 1 ? "it" : "them"} read. Nothing from a locked chapter comes up in sessions, and course totals count unlocked chapters only.
+                </p>
+              )}
               <div className="panel">
                 {sections.map(s => {
                   const sm = sectionMastery(state, s.id, now);
                   const isOpen = open.has(s.id);
                   const concepts = ix.conceptsBySection[s.id] || [];
                   return (
-                    <div key={s.id} className="section-block">
-                      <button className={`section-row${isOpen ? " open" : ""}`} onClick={() => toggle(s.id)} aria-expanded={isOpen}>
-                        <Icon name="chevron" size={14} className="chev"/>
-                        <div className="section-text">
-                          <div className="list-title">{s.title}</div>
-                          {s.summary && <div className="section-desc"><InlineMarkdown>{s.summary}</InlineMarkdown></div>}
-                          <div className="section-stats">
-                            <span>{sm.total} concept{sm.total === 1 ? "" : "s"}</span>
-                            <span>{sm.mastered}/{sm.basisCount} {sm.basisIsCore ? "core " : ""}mastered</span>
-                            <span>{sm.introduced}/{sm.total} started</span>
-                            {sm.slipping > 0 && <span>{sm.slipping} slipping</span>}
+                    <div key={s.id} className={`section-block${s.locked ? " locked" : ""}`}>
+                      <div className="section-head">
+                        <button className={`section-row${isOpen ? " open" : ""}`} onClick={() => toggle(s.id)} aria-expanded={isOpen}>
+                          <Icon name="chevron" size={14} className="chev"/>
+                          <div className="section-text">
+                            <div className="list-title section-title">{s.locked && <Icon name="lock" size={13}/>}{s.title}</div>
+                            {s.summary && <div className="section-desc"><InlineMarkdown>{s.summary}</InlineMarkdown></div>}
+                            <div className="section-stats">
+                              <span>{sm.total} concept{sm.total === 1 ? "" : "s"}</span>
+                              {s.locked ? <span>locked until you've read it</span> : <>
+                                <span>{sm.mastered}/{sm.basisCount} {sm.basisIsCore ? "core " : ""}mastered</span>
+                                <span>{sm.introduced}/{sm.total} started</span>
+                                {sm.slipping > 0 && <span>{sm.slipping} slipping</span>}
+                              </>}
+                            </div>
                           </div>
+                        </button>
+                        <div className="section-side">
+                          {s.locked
+                            ? <button className="btn btn-sm" onClick={() => act("section/lock", { id: s.id, locked: false })}><Icon name="check" size={13}/>Mark as read</button>
+                            : <><span className="num">{pct(sm.masteryPct)}</span><Bar value={sm.masteryPct} tone="good" thin/></>}
                         </div>
-                        <div className="section-progress">
-                          <span className="num">{pct(sm.masteryPct)}</span>
-                          <Bar value={sm.masteryPct} tone="good" thin/>
-                        </div>
-                      </button>
+                      </div>
                       {isOpen && (
                         <div style={{ paddingBottom: 8 }}>
                           {concepts.map(c => {
@@ -134,8 +196,13 @@ export default function Course({ courseId }) {
                             );
                           })}
                           <div className="row" style={{ padding: "8px 18px 4px 48px" }}>
-                            <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play" size={11}/>Practice section</button>
-                            <button className="btn btn-sm" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}><Icon name="pen" size={13}/>Teach it back</button>
+                            {!s.locked && <>
+                              <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play" size={11}/>Practice section</button>
+                              <button className="btn btn-sm" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}><Icon name="pen" size={13}/>Teach it back</button>
+                            </>}
+                            {!s.locked && s.pages && (
+                              <button className="btn btn-sm btn-quiet" title="Stop introducing new concepts from this chapter" onClick={() => act("section/lock", { id: s.id, locked: true })}><Icon name="lock" size={13}/>Lock</button>
+                            )}
                             <span className="muted small grow" style={{ textAlign: "right" }}>{s.sourceLabel}</span>
                             <button className="btn btn-quiet btn-sm btn-icon" title="Remove section" onClick={() => setConfirmSection(s.id)}><Icon name="trash" size={14}/></button>
                           </div>
@@ -151,6 +218,29 @@ export default function Course({ courseId }) {
                     </div>
                   );
                 })}
+                {waiting.map(({ job, c, i }) => (
+                  <div key={`${job.id}-${i}`} className="section-block waiting">
+                    <div className="section-head">
+                      <div className="section-row">
+                        {c.status === "reading" || c.status === "writing" ? <Spinner/> : <Icon name={c.status === "failed" ? "alert" : "lock"} size={13} className="chev"/>}
+                        <div className="section-text">
+                          <div className="list-title">{c.title}</div>
+                          <div className="section-stats">
+                            <span>pp. {c.from}–{c.to}</span>
+                            <span>{c.status === "pending" && job.status === "paused" ? "Paused" : CHAPTER_STATUS[c.status]}</span>
+                          </div>
+                          {c.status === "failed" && c.error && <div className="small review-reason">{c.error}</div>}
+                        </div>
+                      </div>
+                      <div className="section-side">
+                        <label className="chapter-read" title="Unlock this chapter as soon as it's imported">
+                          <input type="checkbox" checked={Boolean(c.read)} onChange={() => importer.setRead(job.id, i, !c.read)}/>
+                          <span className="small">Read</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -185,7 +275,7 @@ export default function Course({ courseId }) {
           ? <button className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(true)}><Icon name="trash" size={14}/>Delete course</button>
           : <>
               <span className="small">Delete {course.name} with all its concepts, questions and history?</span>
-              <button className="btn btn-sm btn-danger" onClick={() => { act("course/delete", { id: course.id }); nav.go("courses"); }}>Delete course</button>
+              <button className="btn btn-sm btn-danger" onClick={() => { jobs.forEach(j => bookBridge()?.remove(j.bookId)); act("course/delete", { id: course.id }); nav.go("courses"); }}>Delete course</button>
               <button className="btn btn-sm btn-quiet" onClick={() => setConfirmDelete(false)}>Cancel</button>
             </>}
       </div>

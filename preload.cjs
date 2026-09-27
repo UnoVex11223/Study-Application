@@ -19,4 +19,9 @@ contextBridge.exposeInMainWorld("engram", {
     outline: (data) => ipcRenderer.invoke("pdf:outline", data),
     text: (payload) => ipcRenderer.invoke("pdf:text", payload),
   },
+  book: {
+    save: (data) => ipcRenderer.invoke("book:save", data),
+    text: (payload) => ipcRenderer.invoke("book:text", payload),
+    remove: (bookId) => ipcRenderer.invoke("book:delete", bookId),
+  },
 });

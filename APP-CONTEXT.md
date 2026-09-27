@@ -106,6 +106,17 @@ If text lost something in copying (a figure, a garbled equation), you're told in
 
 You can also write questions yourself (Course → Add a question) with key points, accepted answers, misconceptions and a hint.
 
+### Importing a whole book
+
+**Courses → Import a book** takes the book's PDF and does every chapter at once:
+
+1. Chapters are found from the PDF's table of contents (chapters inside "Part" entries are picked out; preface, index, appendices and similar are unticked). A PDF without one lets you type each chapter's start page.
+2. Tick the chapters you've already read. Everything else is **locked**.
+3. The import runs in the background, in reading order. Each chapter's concepts are extracted knowing the earlier chapters', so later chapters point back at earlier ideas as prerequisites (the book's map) instead of recreating them. Question writing for up to two chapters runs alongside, and chapters appear on the course page as they finish. Closing the app pauses the import; it picks up where it left off (a chapter that was mid-way starts over). Two API failures in a row pause it with the error shown.
+4. **Mark as read** on a chapter unlocks it. A locked chapter never comes up in sessions, doesn't count in course totals, and its prerequisites don't hold back chapters you've read out of order. Unlocking doesn't dump the chapter on you: its concepts join the queue and are introduced a few a day like any other new material.
+
+Rough cost: 2–4 cents of API usage per page (about $10–15 for a 400-page book at Opus pricing), and about 1–2 minutes per chapter.
+
 ### Preparing material with another AI
 
 The extractor handles raw chapters well; the most useful prep is simply splitting a book by chapter and adding each one as you finish it. If you do pre-process, keep: definitions, explanations with the "why", worked examples (code included, with a sentence on what it demonstrates), explicit comparisons, and common mistakes. Drop exercises' instructions, cross-references and chapter intros.
@@ -125,8 +136,8 @@ This version starts from an empty library. The first time it runs, anything save
 ```
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai
-src/state/        reducer (pure, tested) + store (persistence)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai, book, bookRunner
+src/state/        reducer (pure, tested), store (persistence), bookImport (keeps book imports running)
 src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, KnowledgeMap, Progress, TeachBack, Settings
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```

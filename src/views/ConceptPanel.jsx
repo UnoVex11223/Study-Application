@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Drawer, StatusDot, ImportanceTag } from "../ui/ui.jsx";
+import { Drawer, StatusDot, ImportanceTag, Notice } from "../ui/ui.jsx";
 import { useNav, abilityLabel, pct } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import Markdown from "../ui/Markdown.jsx";
@@ -38,6 +38,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
   const dependents = ix.dependentsOf[c.id] || [];
   const related = ix.relatedOf[c.id] || [];
   const nextDue = c.srs && c.srs.state !== "new" ? c.srs.due : null;
+  const locked = ix.lockedConcepts.has(c.id);
 
   const practice = () => {
     const tasks = practiceTasks(state, { conceptId: c.id });
@@ -71,8 +72,9 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
         <p className="muted small">{explainMastery(m)}</p>
         {c.summary && <div className="model-answer"><Markdown>{c.summary}</Markdown></div>}
         {c.importanceReason && <p className="muted small">Why it matters: {c.importanceReason}</p>}
+        {locked && <Notice icon="lock">This concept is in a chapter you haven't marked as read, so it won't come up in sessions yet.</Notice>}
         <div className="row" style={{ marginTop: 4 }}>
-          <button className="btn btn-primary btn-sm" onClick={practice} disabled={!items.length}><Icon name="play" size={12}/>Practice now</button>
+          {!locked && <button className="btn btn-primary btn-sm" onClick={practice} disabled={!items.length}><Icon name="play" size={12}/>Practice now</button>}
           <button className="btn btn-sm" onClick={() => { onClose(); nav.go("map", { courseId: c.courseId, conceptId: c.id }); }}><Icon name="map" size={14}/>Show on map</button>
         </div>
       </section>

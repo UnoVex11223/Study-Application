@@ -36,6 +36,7 @@ export function reducer(state, action) {
         ...next,
         courses: next.courses.filter(c => c.id !== action.id),
         sections: next.sections.filter(s => s.courseId !== action.id),
+        bookJobs: next.bookJobs.filter(j => j.courseId !== action.id),
       };
     }
 
@@ -43,6 +44,28 @@ export function reducer(state, action) {
       return { ...state, sections: state.sections.map(s => (s.id === action.id ? { ...s, ...action.patch } : s)) };
     case "section/add":
       return { ...state, sections: [...state.sections, action.section] };
+    case "section/lock":
+      return { ...state, sections: state.sections.map(s => (s.id === action.id ? { ...s, locked: Boolean(action.locked), ...(action.locked ? {} : { readAt: action.now }) } : s)) };
+
+    // Whole-book imports.
+    case "book/start":
+      return {
+        ...state,
+        courses: action.course ? [...state.courses, action.course] : state.courses,
+        bookJobs: [...state.bookJobs, action.job],
+      };
+    case "book/patch":
+      return { ...state, bookJobs: state.bookJobs.map(j => (j.id === action.id ? { ...j, ...action.patch } : j)) };
+    case "book/chapter":
+      return {
+        ...state,
+        bookJobs: state.bookJobs.map(j => (j.id !== action.id ? j : {
+          ...j, chapters: j.chapters.map((c, i) => (i === action.index ? { ...c, ...action.patch } : c)),
+        })),
+      };
+    case "book/dismiss":
+      return { ...state, bookJobs: state.bookJobs.filter(j => j.id !== action.id) };
+
     case "section/delete": {
       const ids = state.concepts.filter(c => c.sectionId === action.id).map(c => c.id);
       const next = removeConcepts(state, ids);
@@ -52,13 +75,16 @@ export function reducer(state, action) {
     case "import": {
       const { sections = [], concepts = [], items = [], edges = [] } = action.payload;
       const merged = mergeEdges(state.edges, edges);
-      return {
+      const next = {
         ...state,
         sections: [...state.sections, ...sections],
         concepts: [...state.concepts, ...concepts],
         items: [...state.items, ...items],
         edges: [...state.edges, ...merged.accepted],
       };
+      // A book chapter's import and its "done" mark are saved together, so a
+      // restart can never import the same chapter twice.
+      return action.bookChapter ? reducer(next, { type: "book/chapter", ...action.bookChapter }) : next;
     }
 
     case "edges/add": {

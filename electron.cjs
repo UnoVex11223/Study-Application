@@ -109,6 +109,7 @@ const escapeTag = (s) => String(s ?? "").replace(/<\/(source|answer|known_concep
 // ── 1. Curriculum extraction ─────────────────────────────────────────────────
 const EXTRACT_SCHEMA = obj({
   title: str("Title for this material, e.g. 'Chapter 4: Pointers'"),
+  summary: str("One or two sentences on what this material covers as a whole"),
   sections: {
     type: "array",
     items: obj({
@@ -472,6 +473,33 @@ ipcMain.handle("pdf:outline", async (_e, data) => {
 });
 ipcMain.handle("pdf:text", async (_e, { data, from, to }) => {
   try { return { ok: true, ...(await pdf.pageText(data, from, to)) }; } catch (err) { return pdfError(err); }
+});
+
+// ── Whole books ───────────────────────────────────────────────────────────────
+// A book being imported is copied into the app's data folder so the import can
+// carry on after a restart. It's deleted when you dismiss the finished import.
+const booksDir = () => path.join(app.getPath("userData"), "books");
+const bookFile = (id) => path.join(booksDir(), `${String(id).replace(/[^\w-]/g, "")}.pdf`);
+
+ipcMain.handle("book:save", async (_e, data) => {
+  try {
+    const info = await pdf.outline(data);
+    const bookId = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    fs.mkdirSync(booksDir(), { recursive: true });
+    fs.writeFileSync(bookFile(bookId), Buffer.from(data));
+    return { ok: true, bookId, ...info };
+  } catch (err) { return pdfError(err); }
+});
+ipcMain.handle("book:text", async (_e, { bookId, from, to }) => {
+  try {
+    const file = bookFile(bookId);
+    if (!fs.existsSync(file)) return { ok: false, error: "The book's PDF is no longer available. Import the book again." };
+    return { ok: true, ...(await pdf.pageText(fs.readFileSync(file), from, to)) };
+  } catch (err) { return pdfError(err); }
+});
+ipcMain.handle("book:delete", (_e, bookId) => {
+  try { fs.rmSync(bookFile(bookId), { force: true }); } catch { /* already gone */ }
+  return { ok: true };
 });
 
 // ── Window ────────────────────────────────────────────────────────────────────

@@ -2,7 +2,8 @@
 // plus relation edges between concepts and an attempt log.
 //
 //   course   { id, name, color, status: active|maintain|paused, createdAt }
-//   section  { id, courseId, title, summary, order, sourceLabel }
+//   section  { id, courseId, title, summary, order, sourceLabel, locked, pages? }
+//            locked = a book chapter you haven't read yet: no new concepts from it.
 //   concept  { id, courseId, sectionId, name, summary, kind, importance: core|supporting|detail,
 //              order, source: { excerpt, location } | null, suspended, srs }
 //   item     { id, conceptId, ability, prompt, answer, accept[], points[], misconceptions[], hint,
@@ -62,6 +63,7 @@ export function emptyState() {
     courses: [], sections: [], concepts: [], items: [], edges: [], attempts: [],
     settings: { ...DEFAULT_SETTINGS },
     days: {}, // per study day: { extraSec }
+    bookJobs: [], // whole-book imports in progress (see state/bookImport.jsx)
   };
 }
 
@@ -71,9 +73,13 @@ export function normalizeState(s) {
   const out = { ...base, ...s, settings: { ...base.settings, ...(s?.settings || {}) } };
   // The monochrome redesign defaults to the black theme once; later choices stick.
   if (s?.settings && s.settings.themeVersion !== 2) out.settings = { ...out.settings, theme: "dark", themeVersion: 2 };
-  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts"]) {
+  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }
+  // A chapter that was mid-import when the app closed starts that chapter over.
+  out.bookJobs = out.bookJobs.map(j => (j.chapters.some(c => c.status === "reading" || c.status === "writing")
+    ? { ...j, chapters: j.chapters.map(c => (c.status === "reading" || c.status === "writing" ? { ...c, status: "pending" } : c)) }
+    : j));
   // v4: schedules moved from questions to concepts. A concept keeps the
   // schedule of whichever of its questions was reviewed most recently.
   const oldSrs = {};
@@ -97,7 +103,7 @@ export const makeCourse = (fields, existingCount = 0) => ({
   color: COURSE_COLORS[existingCount % COURSE_COLORS.length], createdAt: Date.now(), ...fields,
 });
 
-export const makeSection = (fields) => ({ id: uid("s"), title: "Section", summary: "", order: 0, sourceLabel: "", ...fields });
+export const makeSection = (fields) => ({ id: uid("s"), title: "Section", summary: "", order: 0, sourceLabel: "", locked: false, ...fields });
 
 export const makeConcept = (fields) => ({
   id: uid("k"), name: "", summary: "", kind: "definition", importance: "core",
@@ -121,6 +127,7 @@ export function index(state) {
   if (hit) return hit;
 
   const course = {}, section = {}, concept = {}, item = {};
+  const lockedConcepts = new Set();
   const sectionsByCourse = {}, conceptsBySection = {}, conceptsByCourse = {}, itemsByConcept = {};
   const attemptsByConcept = {}, prereqsOf = {}, dependentsOf = {}, relatedOf = {};
 
@@ -131,6 +138,7 @@ export function index(state) {
   }
   for (const k of state.concepts) {
     concept[k.id] = k; itemsByConcept[k.id] = [];
+    if (section[k.sectionId]?.locked) lockedConcepts.add(k.id);
     (conceptsBySection[k.sectionId] ||= []).push(k);
     (conceptsByCourse[k.courseId] ||= []).push(k);
   }
@@ -164,7 +172,7 @@ export function index(state) {
 
   const ix = {
     course, section, concept, item, sectionsByCourse, conceptsBySection, conceptsByCourse, itemsByConcept,
-    attemptsByConcept, itemStats, prereqsOf, dependentsOf, relatedOf,
+    attemptsByConcept, itemStats, prereqsOf, dependentsOf, relatedOf, lockedConcepts,
   };
   cache.set(state, ix);
   return ix;

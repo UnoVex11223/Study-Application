@@ -38,14 +38,19 @@ export function splitSource(text, max = 90000) {
  * Step 1: find sections and concepts. Returns
  * { ok, title, sections:[{title, summary, concepts:[{key,…}]}], gaps }
  */
-export async function extractMaterial({ state, courseId, title, location, text, onProgress }) {
+export async function extractMaterial({ state, courseId, title, location, text, onProgress, alsoKnown = [] }) {
   const a = api();
   if (!a) return { ok: false, error: "AI features need the desktop app." };
   const ix = index(state);
   const course = ix.course[courseId];
-  const known = (ix.conceptsByCourse[courseId] || []).map(c => ({ name: c.name, section: ix.section[c.sectionId]?.title }));
+  // Concepts already in the course (plus any the caller knows about, e.g. earlier
+  // chapters of a book still being imported) can be referenced as prerequisites
+  // and aren't extracted again.
+  const seen = new Set();
+  const known = [...(ix.conceptsByCourse[courseId] || []).map(c => ({ name: c.name, section: ix.section[c.sectionId]?.title })), ...alsoKnown]
+    .filter(k => { const n = k.name.trim().toLowerCase(); return !seen.has(n) && seen.add(n); });
   const chunks = splitSource(text);
-  const out = { title: title || "", sections: [], gaps: [] };
+  const out = { title: title || "", summary: "", sections: [], gaps: [] };
 
   for (let ci = 0; ci < chunks.length; ci++) {
     onProgress?.({ step: "extract", part: ci + 1, parts: chunks.length });
@@ -53,6 +58,7 @@ export async function extractMaterial({ state, courseId, title, location, text, 
     if (!res.ok) return out.sections.length ? { ok: true, ...out, partial: res.error } : res;
     const d = res.data;
     if (!out.title && d.title) out.title = d.title;
+    if (!out.summary && d.summary) out.summary = d.summary;
     const localKeys = new Set(d.sections.flatMap(s => s.concepts.map(c => c.key)));
     for (const s of d.sections) {
       const concepts = s.concepts
@@ -192,9 +198,9 @@ const passedGate = (q) => Array.isArray(q.warnings);
  * Only questions still selected are added; a concept with no selected
  * questions is left out (it would never come up in a session anyway).
  */
-export function buildImport({ state, courseId, extraction, groups, sourceLabel = "" }) {
+export function buildImport({ state, courseId, extraction, groups, sourceLabel = "", alsoKnown = [] }) {
   const ix = index(state);
-  const existing = ix.conceptsByCourse[courseId] || [];
+  const existing = [...(ix.conceptsByCourse[courseId] || []), ...alsoKnown];
   const byName = new Map(existing.map(c => [c.name.trim().toLowerCase(), c.id]));
   let order = Math.max(-1, ...(ix.sectionsByCourse[courseId] || []).map(s => s.order)) + 1;
 

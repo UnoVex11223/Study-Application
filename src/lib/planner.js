@@ -184,13 +184,16 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
     const list = [];
     for (const sec of ix.sectionsByCourse[course.id] || []) {
       for (const c of ix.conceptsBySection[sec.id] || []) {
-        if (c.suspended || introduced.has(c.id)) continue;
+        // Chapters you haven't read yet (locked) don't introduce anything.
+        if (c.suspended || introduced.has(c.id) || ix.lockedConcepts.has(c.id)) continue;
         const item = pickItem(ix, c, { exclude });
         if (!item) continue;
         const ready = (ix.prereqsOf[c.id] || []).every(e => {
           if ((e.confidence ?? 1) < PROVISIONAL) return true;
           const p = ix.concept[e.from];
-          if (!p || p.suspended || !(ix.itemsByConcept[p.id] || []).length) return true;
+          // A prerequisite in a chapter you haven't unlocked doesn't hold you back:
+          // reading out of order is your call.
+          if (!p || p.suspended || ix.lockedConcepts.has(p.id) || !(ix.itemsByConcept[p.id] || []).length) return true;
           if (!isEligible(ix, p)) return true;
           return introduced.has(p.id);
         });
@@ -267,7 +270,7 @@ export function practiceTasks(state, { conceptId, sectionId, courseId, limit = 1
   const concepts = sectionId ? (ix.conceptsBySection[sectionId] || []) : (ix.conceptsByCourse[courseId] || []);
   const picks = [];
   for (const c of concepts) {
-    if (c.suspended) continue;
+    if (c.suspended || ix.lockedConcepts.has(c.id)) continue;
     const pick = pickItem(ix, c);
     if (!pick) continue;
     const r = retrievability(c.srs, now) ?? 1.5; // not started yet: after the ones you're forgetting

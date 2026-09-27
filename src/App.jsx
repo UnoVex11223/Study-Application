@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { StoreProvider, useStore } from "./state/store.jsx";
 import { NavCtx } from "./ui/nav.js";
 import Icon from "./ui/Icon.jsx";
-import { Logo } from "./ui/ui.jsx";
+import { Logo, Bar } from "./ui/ui.jsx";
+import { BookImportProvider, jobProgress } from "./state/bookImport.jsx";
+import ImportBook from "./views/ImportBook.jsx";
 import { buildPlan } from "./lib/planner.js";
 import Today from "./views/Today.jsx";
 import Courses from "./views/Courses.jsx";
@@ -53,13 +55,14 @@ function Shell() {
 
   if (!state) return <div className="app-loading"/>;
 
-  const active = route.view === "course" || route.view === "import" || route.view === "teach" ? "courses" : route.view;
+  const active = ["course", "import", "teach", "book"].includes(route.view) ? "courses" : route.view;
 
   let page;
   switch (route.view) {
     case "courses": page = <Courses/>; break;
     case "course": page = <Course courseId={route.courseId} key={route.courseId}/>; break;
     case "import": page = <AddMaterial courseId={route.courseId}/>; break;
+    case "book": page = <ImportBook courseId={route.courseId}/>; break;
     case "teach": page = <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>; break;
     case "map": page = <KnowledgeMap focusCourseId={route.courseId} focusConceptId={route.conceptId}/>; break;
     case "progress": page = <Progress/>; break;
@@ -78,6 +81,16 @@ function Shell() {
               {n.id === "today" && plan?.tasks.length > 0 && <span className="nav-count">{plan.tasks.length}</span>}
             </button>
           ))}
+          {state.bookJobs.filter(j => j.status !== "done").map(j => {
+            const p = jobProgress(j);
+            return (
+              <button key={j.id} className="nav-job" onClick={() => nav.go("course", { courseId: j.courseId })} title={j.error || ""}>
+                <span className="nav-job-title"><Icon name="book" size={13}/><span className="ell">{j.title}</span></span>
+                <Bar value={p.total ? p.done / p.total : 0} thin/>
+                <span className="nav-job-meta">{j.status === "paused" ? "Paused" : "Importing"} · {p.done}/{p.total} chapters</span>
+              </button>
+            );
+          })}
           <div className="nav-spacer"/>
           <button className={`nav-item${active === "settings" ? " on" : ""}`} onClick={() => nav.go("settings")}>
             <Icon name="settings"/>Settings
@@ -91,5 +104,5 @@ function Shell() {
 }
 
 export default function App() {
-  return <StoreProvider><Shell/></StoreProvider>;
+  return <StoreProvider><BookImportProvider><Shell/></BookImportProvider></StoreProvider>;
 }

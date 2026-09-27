@@ -58,14 +58,20 @@ export default function Courses() {
           <h1>Courses</h1>
           <div className="page-sub">Everything you're learning. Pause or maintain a course to control how much of your daily time it gets.</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+        <div className="row">
+          <button className="btn" onClick={() => nav.go("book")}><Icon name="book" size={15}/>Import a book</button>
+          <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+        </div>
       </div>
 
       {courses.length === 0 ? (
         <div className="panel empty">
           <h3>No courses yet</h3>
-          <p>Create one for each book, class or subject you're working through.</p>
-          <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+          <p>Create one for each book, class or subject you're working through, or import a whole book from its PDF.</p>
+          <div className="row" style={{ justifyContent: "center" }}>
+            <button className="btn btn-primary" onClick={() => nav.go("book")}><Icon name="book" size={15}/>Import a book</button>
+            <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+          </div>
         </div>
       ) : (
         <div className="panel list">

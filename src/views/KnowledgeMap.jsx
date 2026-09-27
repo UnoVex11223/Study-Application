@@ -190,7 +190,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
                 const dim = neighbors && !neighbors.has(c.id);
                 const label = showAllLabels || c.id === focus || (neighbors?.has(c.id)) || (c.importance === "core" && view.k > 0.7);
                 return (
-                  <g key={c.id} className={`map-node${dim ? " dim" : ""}`} transform={`translate(${p.x},${p.y})`}
+                  <g key={c.id} className={`map-node${dim ? " dim" : ""}${ix.lockedConcepts.has(c.id) ? " locked" : ""}`} transform={`translate(${p.x},${p.y})`}
                     onPointerEnter={() => setHover(c.id)} onPointerLeave={() => setHover(null)}
                     onClick={() => setSelected(c.id)}>
                     <circle r={r + 5} fill="transparent"/>
@@ -214,6 +214,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
             <span><span className="dot" style={{ background: "var(--accent)" }}/>Learning</span>
             <span><span className="dot" style={{ background: "var(--warn)" }}/>Slipping</span>
             <span><span className="dot" style={{ border: "1.5px solid var(--ink-3)" }}/>Not started</span>
+            {ix.lockedConcepts.size > 0 && <span><span className="dot" style={{ border: "1.5px dashed var(--ink-3)", opacity: 0.6 }}/>Unread chapter</span>}
             <span><svg width="22" height="6"><path d="M0 3h22" stroke="var(--ink-3)" strokeDasharray="4 4"/></svg>Unconfirmed link</span>
           </div>
         </div>

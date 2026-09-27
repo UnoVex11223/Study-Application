@@ -255,6 +255,11 @@ export default function AddMaterial({ courseId }) {
         </div>
       )}
 
+      {step === 0 && aiBridge() && (
+        <p className="muted small" style={{ margin: "-6px 0 14px" }}>
+          Have the whole book as a PDF? <button className="link" onClick={() => nav.go("book", { courseId })}>Import every chapter at once</button> and unlock chapters as you read them.
+        </p>
+      )}
       {step === 0 && (
         <div className="panel panel-pad">
           <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>

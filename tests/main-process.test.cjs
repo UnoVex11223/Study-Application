@@ -123,6 +123,20 @@ test("main process: IPC handlers, model fallback, streaming, errors, PDF", async
   const bad = await handlers["pdf:outline"]({}, new ArrayBuffer(10));
   assert.equal(bad.ok, false);
   assert.equal(o.outline.length, 6);
+
+  // Whole books are kept in the data folder while they import.
+  const saved = await handlers["book:save"]({}, ab);
+  assert.equal(saved.ok, true);
+  assert.equal(saved.outline.length, 6);
+  const file = path.join(userData, "books", `${saved.bookId}.pdf`);
+  assert.ok(fs.existsSync(file));
+  const bt = await handlers["book:text"]({}, { bookId: saved.bookId, from: 3, to: 5 });
+  assert.ok(bt.ok && bt.text.startsWith("[Page 3]") && bt.text.includes("[Page 5]"));
+  await handlers["book:delete"]({}, saved.bookId);
+  assert.equal(fs.existsSync(file), false);
+  const gone = await handlers["book:text"]({}, { bookId: saved.bookId, from: 1, to: 1 });
+  assert.equal(gone.ok, false);
+  assert.equal((await handlers["book:text"]({}, { bookId: "../../etc/passwd", from: 1, to: 1 })).ok, false);
 });
 
 test("after the rename, data stays in the existing aeroflash folder", () => {

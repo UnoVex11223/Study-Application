@@ -105,8 +105,12 @@ export function aggregate(state, concepts, now = Date.now()) {
   };
 }
 
+/** Course totals count only chapters you've unlocked; `locked` says how many concepts wait in locked ones. */
 export function courseMastery(state, courseId, now = Date.now()) {
-  return aggregate(state, index(state).conceptsByCourse[courseId] || [], now);
+  const ix = index(state);
+  const all = ix.conceptsByCourse[courseId] || [];
+  const open = all.filter(c => !ix.lockedConcepts.has(c.id));
+  return { ...aggregate(state, open, now), locked: all.length - open.length };
 }
 
 export function sectionMastery(state, sectionId, now = Date.now()) {
