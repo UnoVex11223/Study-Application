@@ -12,7 +12,6 @@ import { FLAG_REASONS } from "../lib/quality.js";
 
 const KIND_LABEL = {
   new: "New concept",
-  deepen: "New question on a concept you know",
   learning: "Relearning",
   review: "Review",
   foundation: "Foundation check",
@@ -83,7 +82,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
 
   const verdict = grade ? (override ?? grade.verdict) : null;
   const suggested = verdict ? suggestedRating(verdict, { aided }) : null;
-  const ivls = previewIntervals(item.srs, now, { retention });
+  const ivls = previewIntervals(concept.srs, now, { retention });
 
   const rate = (rating) => {
     if (finished.current) return; // Enter on a focused button must not rate twice

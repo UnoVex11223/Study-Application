@@ -11,6 +11,7 @@ import Markdown from "../ui/Markdown.jsx";
 import { index } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
 import { aiAvailable, teachBackWithAI } from "../lib/ai.js";
+import { pickItem } from "../lib/planner.js";
 import { RATING } from "../lib/fsrs.js";
 
 const STATUS_META = {
@@ -58,21 +59,20 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
       const st = statuses[c.id];
       const m = conceptMastery(state, c.id, now);
       if (!m.started) continue;
-      const items = (ix.itemsByConcept[c.id] || []).filter(i => i.srs && i.srs.state !== "new");
-      if (!items.length) continue;
+      const item = pickItem(ix, c);
+      if (!item || !c.srs || c.srs.state === "new") continue;
       if (st === "covered") {
-        const due = items.filter(i => i.srs.due != null && i.srs.due <= now).sort((a, b) => a.srs.due - b.srs.due)[0];
-        if (due) {
-          act("attempt", { itemId: due.id, verdict: "correct", rating: RATING.GOOD, mode: "teachback", ms: 0 });
+        if (c.srs.due != null && c.srs.due <= now) {
+          act("attempt", { itemId: item.id, verdict: "correct", rating: RATING.GOOD, mode: "teachback", ms: 0 });
           credited++;
         }
       } else if (st === "wrong" || st === "missing") {
-        forward.push(...items.map(i => i.id));
-        if (st === "wrong") act("attempt", { itemId: items[0].id, verdict: "incorrect", rating: null, mode: "teachback", ms: 0 });
+        forward.push(c.id);
+        if (st === "wrong") act("attempt", { itemId: item.id, verdict: "incorrect", rating: null, mode: "teachback", ms: 0 });
       }
     }
-    if (forward.length) act("items/bringForward", { ids: forward });
-    setApplied({ credited, forward: new Set(forward.map(id => ix.item[id]?.conceptId)).size });
+    if (forward.length) act("concepts/bringForward", { ids: forward });
+    setApplied({ credited, forward: forward.length });
   };
 
   const check = async () => {

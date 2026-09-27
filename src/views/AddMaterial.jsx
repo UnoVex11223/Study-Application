@@ -397,6 +397,9 @@ export default function AddMaterial({ courseId }) {
               Each question was scored on whether it's worth remembering, clear on its own, needs real recall, can be graded fairly, and is accurate.
               Only questions scoring 4 or 5 on all five are kept, and at most 3 per core concept. Untick anything you still don't want, or keep a filtered one anyway.
             </p>
+            <p className="muted" style={{ marginTop: 6, maxWidth: 640 }}>
+              Reviews are scheduled per concept ({chosenConcepts} here), not per question. A concept's questions take turns at its reviews, so extra questions add variety, not review time.
+            </p>
           </div>
           {!review.reviewed && <div style={{ marginBottom: 14 }}><Notice tone="warn" icon="alert">The quality review couldn't run for part of this material, so only the rule checks were applied there. Look those questions over before adding them.</Notice></div>}
           {review.partial && <div style={{ marginBottom: 14 }}><Notice tone="warn" icon="alert">Some sections didn't get questions: {review.partial}</Notice></div>}

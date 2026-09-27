@@ -2,10 +2,11 @@
 // time budget, and decides how much new material you can afford today.
 //
 // How a day is built
-//  1. Reviews first. Everything due today is ranked by how close it is to being
-//     forgotten, weighted by importance (core > supporting > detail) and by how
-//     many other concepts build on it. One task per concept per day ("sibling
-//     burying"), so the same idea never shows up twice.
+//  1. Reviews first. Memory is scheduled per concept; a due concept is asked
+//     through one of its questions, taking turns (pickItem), so extra questions
+//     add variety without adding reviews. Everything due today is ranked by how
+//     close it is to being forgotten, weighted by importance (core > supporting
+//     > detail) and by how many other concepts build on it.
 //  2. Fill the time budget in that order. Whatever doesn't fit waits for a
 //     later day; its urgency keeps rising, so nothing is starved forever.
 //  3. New material only if there's room. New concepts come from the
@@ -56,21 +57,43 @@ export function forecastLoad(state, { now = Date.now(), days = 14 } = {}) {
   const { rolloverHour } = state.settings;
   const start = dayEndTs(now, rolloverHour) - DAY_MS;
   const sec = new Array(days).fill(0), count = new Array(days).fill(0);
-  const seen = new Array(days).fill(null).map(() => new Set());
-  for (const it of state.items) {
-    const srs = it.srs;
-    if (it.flag || !srs || srs.state === "new" || srs.due == null) continue;
-    const c = ix.concept[it.conceptId];
-    const course = c && ix.course[c.courseId];
-    if (!c || c.suspended || !course || course.status === "paused") continue;
+  for (const c of state.concepts) {
+    const srs = c.srs;
+    if (!srs || srs.state === "new" || srs.due == null || !isEligible(ix, c)) continue;
+    const item = pickItem(ix, c);
+    if (!item) continue;
     let d = Math.floor((srs.due - start) / DAY_MS);
     if (d < 0) d = 0;
-    if (d >= days || seen[d].has(it.conceptId)) continue;
-    seen[d].add(it.conceptId);
-    sec[d] += est[it.ability] ?? 60;
+    if (d >= days) continue;
+    sec[d] += est[item.ability] ?? 60;
     count[d]++;
   }
   return { sec, count };
+}
+
+/**
+ * Which of a concept's questions to ask. A new concept starts with its most
+ * basic question; during same-day relearning, the question you just missed
+ * comes back; otherwise the question asked longest ago (never-asked first),
+ * so every variant gets its turn.
+ */
+export function pickItem(ix, concept, { exclude } = {}) {
+  const items = (ix.itemsByConcept[concept.id] || []).filter(i => !i.flag && !exclude?.has(i.id));
+  if (!items.length) return null;
+  const srs = concept.srs;
+  if (!srs || srs.state === "new") return items[0];
+  if (srs.state === "learning" || srs.state === "relearning") {
+    const attempts = ix.attemptsByConcept[concept.id] || [];
+    for (let k = attempts.length - 1; k >= 0; k--) {
+      if (attempts[k].rating == null) continue;
+      const last = items.find(i => i.id === attempts[k].itemId);
+      if (last) return last;
+      break;
+    }
+  }
+  let best = items[0];
+  for (const it of items) if ((ix.itemStats[it.id]?.lastSeen ?? 0) < (ix.itemStats[best.id]?.lastSeen ?? 0)) best = it;
+  return best;
 }
 
 function isEligible(ix, concept) {
@@ -81,7 +104,7 @@ function isEligible(ix, concept) {
 
 /**
  * Build today's session.
- * @returns {{tasks, estSec, budgetSec, spentSec, deferred, newCount, deepenCount, newCap,
+ * @returns {{tasks, estSec, budgetSec, spentSec, deferred, newCount, newCap,
  *            throttle, laterToday, byCourse, dueConcepts}}
  */
 export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {}) {
@@ -98,30 +121,27 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
   const firstDay = {};
   for (const a of state.attempts) if (!firstDay[a.conceptId] || a.day < firstDay[a.conceptId]) firstDay[a.conceptId] = a.day;
   const introduced = new Set(Object.keys(firstDay));
-  for (const it of state.items) if (it.srs && it.srs.state !== "new") introduced.add(it.conceptId);
+  for (const c of state.concepts) if (c.srs && c.srs.state !== "new") introduced.add(c.id);
   const introducedToday = Object.values(firstDay).filter(d => d === today).length;
 
-  // ── 1. Due reviews, one per concept ────────────────────────────────────────
-  const byConcept = {};
+  // ── 1. Due reviews, one question per concept ───────────────────────────────
+  const dueNow = [];
   let laterToday = 0;
-  for (const it of state.items) {
-    if (exclude.has(it.id) || it.flag) continue;
-    const srs = it.srs;
+  for (const c of state.concepts) {
+    const srs = c.srs;
     if (!srs || srs.state === "new" || srs.due == null || srs.due > end) continue;
-    const c = ix.concept[it.conceptId];
     if (!isEligible(ix, c)) continue;
     const learning = srs.state === "learning" || srs.state === "relearning";
     if (learning && srs.due > now + 5 * 60000) { laterToday++; continue; }
-    const r = retrievability(srs, now) ?? 0;
-    const cur = byConcept[c.id];
-    const better = !cur || (learning && !cur.learning) || (learning === cur.learning && r < cur.r);
-    if (better) byConcept[c.id] = { item: it, concept: c, learning, r };
+    const item = pickItem(ix, c, { exclude });
+    if (!item) continue;
+    dueNow.push({ item, concept: c, learning, r: retrievability(srs, now) ?? 0 });
   }
 
-  const scored = Object.values(byConcept).map(x => {
+  const scored = dueNow.map(x => {
     const dependents = (ix.dependentsOf[x.concept.id] || []).length;
     const course = ix.course[x.concept.courseId];
-    const overdueDays = Math.max(0, (now - x.item.srs.due) / DAY_MS);
+    const overdueDays = Math.max(0, (now - x.concept.srs.due) / DAY_MS);
     const priority = x.learning ? 1000 + (1 - x.r)
       : (1 - x.r) * (IMPORTANCE[x.concept.importance]?.weight ?? 0.75)
         * (1 + 0.1 * Math.min(dependents, 5))
@@ -157,20 +177,6 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
 
   const inPlan = new Set(reviews.map(t => t.conceptId));
 
-  // Deepen: unseen tasks (e.g. applications) for concepts you've already learned.
-  const deepen = [];
-  for (const [cid, items] of Object.entries(ix.itemsByConcept)) {
-    if (inPlan.has(cid) || !introduced.has(cid)) continue;
-    const c = ix.concept[cid];
-    if (!isEligible(ix, c) || ix.course[c.courseId].status !== "active") continue;
-    const seen = items.filter(i => !i.flag && i.srs && i.srs.state !== "new");
-    const graduated = seen.length > 0 && seen.every(i => i.srs.state === "review" && i.srs.stability >= 2);
-    const next = items.find(i => !i.flag && (!i.srs || i.srs.state === "new") && !exclude.has(i.id));
-    if (graduated && next) deepen.push({ item: next, concept: c });
-  }
-  deepen.sort((a, b) => (IMPORTANCE[a.concept.importance].rank - IMPORTANCE[b.concept.importance].rank)
-    || (a.concept.createdAt - b.concept.createdAt));
-
   // Frontier: new concepts whose (confident) prerequisites are already started.
   const frontierByCourse = {};
   for (const course of state.courses) {
@@ -179,8 +185,8 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
     for (const sec of ix.sectionsByCourse[course.id] || []) {
       for (const c of ix.conceptsBySection[sec.id] || []) {
         if (c.suspended || introduced.has(c.id)) continue;
-        const items = (ix.itemsByConcept[c.id] || []).filter(i => !i.flag && !exclude.has(i.id));
-        if (!items.length) continue;
+        const item = pickItem(ix, c, { exclude });
+        if (!item) continue;
         const ready = (ix.prereqsOf[c.id] || []).every(e => {
           if ((e.confidence ?? 1) < PROVISIONAL) return true;
           const p = ix.concept[e.from];
@@ -188,7 +194,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
           if (!isEligible(ix, p)) return true;
           return introduced.has(p.id);
         });
-        if (ready) list.push({ concept: c, item: items[0], sectionOrder: sec.order });
+        if (ready) list.push({ concept: c, item, sectionOrder: sec.order });
       }
     }
     // Curriculum order, but core ideas of a section before its details.
@@ -210,19 +216,9 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
   const newPicks = [];
   const cursors = Object.fromEntries(courseOrder.map(id => [id, 0]));
   let remaining = budgetSec - used;
-  let deepenCap = Math.max(2, newCap);
-  let di = 0;
   let progress = true;
-  while (progress && remaining > 0) {
+  while (progress && remaining > 0 && newCap > 0) {
     progress = false;
-    if (di < deepen.length && deepenCap > 0) {
-      const d = deepen[di++];
-      const cost = est[d.item.ability] ?? 60;
-      if (cost <= remaining) {
-        newPicks.push({ itemId: d.item.id, conceptId: d.concept.id, courseId: d.concept.courseId, kind: "deepen", estSec: cost });
-        remaining -= cost; deepenCap--; progress = true;
-      }
-    }
     for (const courseId of courseOrder) {
       if (newCap <= 0) break;
       const list = frontierByCourse[courseId];
@@ -250,8 +246,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
 
   return {
     today, tasks, estSec, budgetSec, spentSec, deferred, laterToday, throttle,
-    newCount: newPicks.filter(t => t.kind === "new").length,
-    deepenCount: newPicks.filter(t => t.kind === "deepen").length,
+    newCount: newPicks.length,
     dueConcepts: scored.length,
     byCourse: Object.values(byCourse).sort((a, b) => b.count - a.count),
   };
@@ -259,12 +254,12 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
 
 /**
  * Extra practice on a chosen scope (a concept, a section, or a whole course).
- * One task per concept, weakest memory first; for a single concept, all of its tasks.
+ * One question per concept, weakest memory first; for a single concept, all of its questions.
  */
 export function practiceTasks(state, { conceptId, sectionId, courseId, limit = 15, now = Date.now() }) {
   const ix = index(state);
   const est = abilityTimes(state);
-  const task = (it, c) => ({ itemId: it.id, conceptId: c.id, courseId: c.courseId, kind: it.srs?.state === "new" ? "new" : "practice", estSec: est[it.ability] ?? 60 });
+  const task = (it, c) => ({ itemId: it.id, conceptId: c.id, courseId: c.courseId, kind: !c.srs || c.srs.state === "new" ? "new" : "practice", estSec: est[it.ability] ?? 60 });
   if (conceptId) {
     const c = ix.concept[conceptId];
     return c ? (ix.itemsByConcept[conceptId] || []).filter(it => !it.flag).map(it => task(it, c)) : [];
@@ -273,16 +268,10 @@ export function practiceTasks(state, { conceptId, sectionId, courseId, limit = 1
   const picks = [];
   for (const c of concepts) {
     if (c.suspended) continue;
-    const items = (ix.itemsByConcept[c.id] || []).filter(i => !i.flag);
-    const seen = items.filter(i => i.srs && i.srs.state !== "new");
-    let pick, r = 2;
-    if (seen.length) {
-      for (const it of seen) {
-        const ri = retrievability(it.srs, now) ?? 0;
-        if (ri < r) { r = ri; pick = it; }
-      }
-    } else if (items.length) { pick = items[0]; r = 1.5; }
-    if (pick) picks.push({ t: task(pick, c), r });
+    const pick = pickItem(ix, c);
+    if (!pick) continue;
+    const r = retrievability(c.srs, now) ?? 1.5; // not started yet: after the ones you're forgetting
+    picks.push({ t: task(pick, c), r });
   }
   return picks.sort((a, b) => a.r - b.r).slice(0, limit).map(p => p.t);
 }
@@ -314,9 +303,9 @@ export function interleave(reviews, fresh) {
 export function makeLoadAt(state) {
   const { rolloverHour } = state.settings;
   const counts = {};
-  for (const it of state.items) {
-    const d = it.srs?.due;
-    if (d == null || it.srs.state === "new") continue;
+  for (const c of state.concepts) {
+    const d = c.srs?.due;
+    if (d == null || c.srs.state === "new") continue;
     const k = dayKey(d, rolloverHour);
     counts[k] = (counts[k] || 0) + 1;
   }

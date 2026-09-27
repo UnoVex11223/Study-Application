@@ -33,10 +33,10 @@ function world({ courses = 1, sections = 1, conceptsPer = 5, abilities = ["recal
   return s;
 }
 
-/** Put every item into review state, due `dueOffsetDays` from NOW. */
+/** Put every concept into review state, due `dueOffsetDays` from NOW. */
 function makeAllDue(s, { dueOffsetDays = -1, stability = 5 } = {}) {
-  for (const it of s.items) {
-    it.srs = { ...newSrs(), state: "review", stability, difficulty: 5, lastReview: NOW - 6 * DAY, due: NOW + dueOffsetDays * DAY, reps: 3 };
+  for (const c of s.concepts) {
+    c.srs = { ...newSrs(), state: "review", stability, difficulty: 5, lastReview: NOW - 6 * DAY, due: NOW + dueOffsetDays * DAY, reps: 3 };
   }
 }
 
@@ -108,8 +108,7 @@ test("most-forgotten and most-important items come first when budget is tight", 
   makeAllDue(s);
   const [a, b, c] = s.concepts;
   a.importance = "detail"; b.importance = "core"; c.importance = "core";
-  const itemOf = (k) => s.items.find(i => i.conceptId === k.id);
-  itemOf(c).srs.lastReview = NOW - 60 * DAY; // much more forgotten
+  c.srs.lastReview = NOW - 60 * DAY; // much more forgotten
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.tasks[0].conceptId, c.id);
   assert.ok(!plan.tasks.some(t => t.conceptId === a.id) || plan.tasks.length === 3);
@@ -164,10 +163,10 @@ test("paused courses are excluded from reviews too", () => {
 test("a heavy upcoming week throttles new material", () => {
   const s = world({ conceptsPer: 200, minutes: 10, maxNew: 6 });
   // Lots of reviews spread over the next week, none due today.
-  s.items.forEach((it, i) => {
-    it.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: NOW - DAY, due: NOW + (1 + (i % 7)) * DAY, reps: 2 };
+  s.concepts.forEach((c, i) => {
+    c.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: NOW - DAY, due: NOW + (1 + (i % 7)) * DAY, reps: 2 };
   });
-  s.items.slice(0, 5).forEach(it => { it.srs = newSrs(); });
+  s.concepts.slice(0, 5).forEach(c => { c.srs = newSrs(); });
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.newCount, 0);
   assert.equal(plan.throttle, "forecast");
@@ -190,7 +189,7 @@ test("time already studied today reduces the remaining budget", () => {
 
 test("learning steps due soon always make it into the plan", () => {
   const s = world({ conceptsPer: 20, minutes: 0 });
-  s.items[0].srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW - 120e3, due: NOW - 60e3, reps: 4, lapses: 1 };
+  s.concepts[0].srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW - 120e3, due: NOW - 60e3, reps: 4, lapses: 1 };
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.tasks.length, 1);
   assert.equal(plan.tasks[0].kind, "learning");
@@ -221,7 +220,7 @@ function attempt(concept, item, dayOffset, verdict, extra = {}) {
 test("mastery needs unaided success on two different days", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
   s.attempts.push(attempt(c, it, -1, "correct"), attempt(c, it, -1, "correct"));
   assert.equal(conceptMastery(s, c.id, NOW).status, "practiced");
   const s2 = { ...s, attempts: [...s.attempts, attempt(c, it, 0, "correct")] };
@@ -231,7 +230,7 @@ test("mastery needs unaided success on two different days", () => {
 test("hints and revealed answers never count as mastery evidence", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
   s.attempts.push(attempt(c, it, -3, "correct", { aided: true }), attempt(c, it, -2, "correct", { aided: true }), attempt(c, it, -1, "correct"));
   const m = conceptMastery(s, c.id, NOW);
   assert.equal(m.correctDays, 1);
@@ -241,7 +240,7 @@ test("hints and revealed answers never count as mastery evidence", () => {
 test("concepts with an application task need a correct application to be mastered", () => {
   const s = world({ conceptsPer: 1, abilities: ["recall", "apply"] });
   const [c] = s.concepts; const [rec, app] = s.items;
-  for (const it of s.items) it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
   s.attempts.push(attempt(c, rec, -2, "correct"), attempt(c, rec, -1, "correct"));
   assert.equal(conceptMastery(s, c.id, NOW).status, "practiced");
   s.attempts.push(attempt(c, app, 0, "correct"));
@@ -252,7 +251,7 @@ test("concepts with an application task need a correct application to be mastere
 test("one good day after a miss isn't mastery; two good days in a row are", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 5, lapses: 2 };
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 5, lapses: 2 };
   s.attempts.push(attempt(c, it, -5, "correct"), attempt(c, it, -4, "correct"), attempt(c, it, -2, "incorrect"), attempt(c, it, -1, "correct"));
   const m = conceptMastery(s, c.id, NOW);
   assert.equal(m.status, "practiced");
@@ -263,7 +262,7 @@ test("one good day after a miss isn't mastery; two good days in a row are", () =
 test("a miss after success marks a concept as slipping", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW, due: NOW, reps: 3, lapses: 1 };
+  c.srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW, due: NOW, reps: 3, lapses: 1 };
   s.attempts.push(attempt(c, it, -3, "correct"), attempt(c, it, -2, "correct"), attempt(c, it, 0, "incorrect"));
   assert.equal(conceptMastery(s, c.id, NOW).status, "slipping");
 });

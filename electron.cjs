@@ -147,6 +147,12 @@ Each concept is one learnable idea.
   detail = incidental facts, specific numbers, historical asides.
   Be strict: usually only 30–50% of concepts are core.
 - Leave out entirely anything not worth remembering: anecdotes, motivation, navigation, exercise instructions, publisher or setup boilerplate, restatements.
+
+GRANULARITY
+A concept is an idea someone would explain as one unit, not a single fact. Every concept costs the learner reviews for years, so use the fewest concepts that cover what's worth remembering.
+- Fold closely related facts into the concept they belong to: its syntax and variants, the rules for using it, and the pitfalls the source warns about are one concept ("Pointer assignment"), not four.
+- Split only when two ideas can be understood, used or forgotten independently.
+- As a rough guide, a dense 20–30 page textbook chapter yields about 12–25 concepts and a short lesson 3–8. More than about 30 from one chapter almost always means the ideas are split too finely.
 - excerpt: copy a short passage exactly as written in the source.
 - location: text taken from a PDF contains [Page N] markers; give the page the concept comes from ("p. 243"). Otherwise use the nearest heading, or leave it empty.
 - prerequisites: only direct, genuine dependencies (B can't be understood without A). Reference a concept by its key in your output, or by the exact name of a concept in <known_concepts>.
@@ -204,6 +210,7 @@ const ITEMS_SYSTEM = `You write retrieval-practice questions. The learner answer
 HOW MANY
 Write candidates generously — a separate reviewer keeps only the best:
 core concept: 3–4 candidates. supporting: 2. detail: 1, and only if the detail is genuinely worth knowing.
+A concept's questions take turns at its reviews, so each should come at the idea differently (a different facet, a different use), never the same question reworded.
 Write at most one "connect" question for the concepts you're given, and only if 2–3 of them genuinely work together; attach it to the most central one.
 
 ABILITIES

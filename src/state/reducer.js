@@ -1,6 +1,6 @@
 // All state changes, as a pure reducer (unit-tested in tests/).
 import { emptyState, normalizeState, index } from "../lib/model.js";
-import { rate, newSrs } from "../lib/fsrs.js";
+import { rate, newSrs, RATING } from "../lib/fsrs.js";
 import { makeLoadAt } from "../lib/planner.js";
 import { mergeEdges } from "../lib/graph.js";
 import { dayKey } from "../lib/time.js";
@@ -86,21 +86,23 @@ export function reducer(state, action) {
     case "item/flag":
       return { ...state, items: state.items.map(i => (i.id === action.id ? { ...i, flag: { reason: action.reason, note: action.note || "", at: action.now } } : i)) };
     case "item/unflag":
-      return { ...state, items: state.items.map(i => (i.id === action.id ? { ...i, flag: null, flagCleared: action.now, lapsesAtClear: i.srs?.lapses ?? 0 } : i)) };
+      return { ...state, items: state.items.map(i => (i.id === action.id ? { ...i, flag: null, flagCleared: action.now } : i)) };
     case "item/replace":
-      // A rewritten question is a new question: fresh schedule, no flag.
+      // A rewritten question is a new question: its history starts over, no flag.
+      // The concept's memory schedule is unchanged.
       return {
         ...state,
         items: state.items.map(i => (i.id === action.id
-          ? { ...i, ...action.fields, srs: newSrs(), flag: null, flagCleared: action.now, quality: { ...(i.quality || {}), rewritten: true } }
+          ? { ...i, ...action.fields, flag: null, flagCleared: action.now, resetAt: action.now, quality: { ...(i.quality || {}), rewritten: true } }
           : i)),
       };
 
-    case "items/bringForward": {
+    // Teach-back gaps: concepts come back in your next session.
+    case "concepts/bringForward": {
       const ids = new Set(action.ids);
       return {
         ...state,
-        items: state.items.map(i => (ids.has(i.id) && i.srs.state !== "new" ? { ...i, srs: { ...i.srs, due: Math.min(i.srs.due ?? action.now, action.now) } } : i)),
+        concepts: state.concepts.map(c => (ids.has(c.id) && c.srs && c.srs.state !== "new" ? { ...c, srs: { ...c.srs, due: Math.min(c.srs.due ?? action.now, action.now) } } : c)),
       };
     }
 
@@ -110,9 +112,10 @@ export function reducer(state, action) {
       const item = ix.item[itemId];
       if (!item) return state;
       const concept = ix.concept[item.conceptId];
+      if (!concept) return state;
       const srs = rating
-        ? rate(item.srs, rating, now, { retention: state.settings.retention, loadAt: makeLoadAt(state) })
-        : item.srs;
+        ? rate(concept.srs ?? newSrs(), rating, now, { retention: state.settings.retention, loadAt: makeLoadAt(state) })
+        : concept.srs;
       const attempt = {
         ts: now, day: dayKey(now, state.settings.rolloverHour),
         itemId, conceptId: item.conceptId, courseId: concept?.courseId ?? null, ability: item.ability,
@@ -127,13 +130,19 @@ export function reducer(state, action) {
       // usually bad questions: pull them until you fix or restore them.
       let flag = item.flag || null;
       if (!flag) {
-        const since = item.flagCleared || 0;
-        const lapsesSince = srs.lapses - (item.lapsesAtClear ?? 0);
-        const disputes = attempts.filter(a => a.itemId === itemId && a.overridden && a.ts > since).length;
-        if (lapsesSince >= LEECH_LAPSES) flag = { reason: "leech", at: now };
+        const since = Math.max(item.flagCleared || 0, item.resetAt || 0);
+        const mine = attempts.filter(a => a.itemId === itemId && a.ts > since);
+        const missDays = new Set(mine.filter(a => a.rating === RATING.AGAIN).map(a => a.day)).size;
+        const disputes = mine.filter(a => a.overridden).length;
+        if (missDays >= LEECH_LAPSES) flag = { reason: "leech", at: now };
         else if (disputes >= DISPUTE_LIMIT) flag = { reason: "disputed", at: now };
       }
-      return { ...state, items: state.items.map(i => (i.id === itemId ? { ...i, srs, flag } : i)), attempts };
+      return {
+        ...state,
+        concepts: srs === concept.srs ? state.concepts : state.concepts.map(c => (c.id === concept.id ? { ...c, srs } : c)),
+        items: flag === item.flag ? state.items : state.items.map(i => (i.id === itemId ? { ...i, flag } : i)),
+        attempts,
+      };
     }
 
     case "day/extra": {

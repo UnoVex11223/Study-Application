@@ -46,10 +46,11 @@ export function conceptMastery(state, conceptId, now = Date.now()) {
   const hasTransferItem = items.some(i => TRANSFER.has(i.ability));
   const transferOk = evidence.some(a => TRANSFER.has(a.ability));
 
-  const rs = items.map(i => retrievability(i.srs, now)).filter(r => r != null);
-  const memory = rs.length ? rs.reduce((s, r) => s + r, 0) / rs.length : null;
-  const lapses = items.reduce((s, i) => s + (i.srs?.lapses || 0), 0);
-  const started = items.some(i => i.srs && i.srs.state !== "new") || attempts.length > 0;
+  const srs = ix.concept[conceptId]?.srs;
+  const memory = retrievability(srs, now);
+  const lapses = srs?.lapses || 0;
+  const scheduled = Boolean(srs && srs.state !== "new");
+  const started = scheduled || attempts.length > 0;
 
   let status;
   if (!started) status = "new";
@@ -58,7 +59,7 @@ export function conceptMastery(state, conceptId, now = Date.now()) {
   else if (days.size >= 1) status = "practiced";
   else status = "learning";
 
-  const due = items.some(i => i.srs && i.srs.state !== "new" && i.srs.due != null && i.srs.due <= now);
+  const due = scheduled && srs.due != null && srs.due <= now;
   return {
     status, memory, lapses, due, started,
     correctDays: days.size, needsTransfer: hasTransferItem && !transferOk, recentOk,

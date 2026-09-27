@@ -14,6 +14,13 @@ import { relativeDays } from "../lib/time.js";
 
 const REL_LABEL = { related: "Related", contrast: "Easily confused with", application: "Used together with" };
 
+// Questions take turns at the concept's reviews, so each shows how often it's been asked.
+function askedLine(st) {
+  if (!st?.seen) return "Not asked yet";
+  const misses = st.missDays.length;
+  return `Asked ${st.seen}×${misses ? `, missed on ${misses} day${misses === 1 ? "" : "s"}` : ""}`;
+}
+
 export default function ConceptPanel({ conceptId, onOpen, onClose }) {
   const { state, act } = useStore();
   const nav = useNav();
@@ -30,7 +37,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
   const prereqs = ix.prereqsOf[c.id] || [];
   const dependents = ix.dependentsOf[c.id] || [];
   const related = ix.relatedOf[c.id] || [];
-  const nextDue = items.filter(i => i.srs && i.srs.state !== "new" && i.srs.due != null).map(i => i.srs.due).sort((a, b) => a - b)[0];
+  const nextDue = c.srs && c.srs.state !== "new" ? c.srs.due : null;
 
   const practice = () => {
     const tasks = practiceTasks(state, { conceptId: c.id });
@@ -125,8 +132,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
               <div className="row small">
                 <strong>{abilityLabel(it.ability)}</strong>
                 <span className="muted grow">
-                  {it.flag ? "Out of sessions" : it.srs?.state === "new" ? "Not asked yet" : it.srs?.due ? `Next ${relativeDays(it.srs.due)}` : ""}
-                  {it.srs?.lapses ? `, missed ${it.srs.lapses}×` : ""}
+                  {it.flag ? "Out of sessions" : askedLine(ix.itemStats[it.id])}
                 </span>
                 {it.quality?.score != null && <span className="muted" title="Score from the quality review (out of 5)">Quality {it.quality.score.toFixed(1)}</span>}
                 <button className="btn btn-quiet btn-sm btn-icon" title="Edit" onClick={() => setEditing(it)}><Icon name="edit" size={14}/></button>

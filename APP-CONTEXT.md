@@ -11,12 +11,12 @@ This file doubles as context you can paste into another AI when preparing materi
 1. **Today** shows one session: a number of questions and an estimated time. It never asks for more than your daily budget (20 minutes by default, set in Settings).
 2. You answer each question by **typing from memory**. There is no multiple choice.
 3. Your answer is graded against the question's **key points** (see Grading), you see what you missed, and you rate how well you knew it (Again / Hard / Good / Easy, with a suggested rating preselected — press Enter to accept).
-4. The scheduler (FSRS) decides when each question comes back.
+4. The scheduler (FSRS) decides when each **concept** comes back. Memory is scheduled per concept, not per question: a concept's questions (recall, explain, apply…) take turns at its reviews, so extra questions add variety without adding review time.
 
 ### How the day stays manageable
 
 - **Time budget.** Everything due is ranked by how close it is to being forgotten, weighted by importance (core > supporting > detail) and by how many other concepts build on it. Questions are added in that order until the budget is full. Anything that doesn't fit waits for a later day, most urgent first.
-- **One question per concept per day.** Concepts have several questions (recall, explain, apply…); only one of them appears on a given day.
+- **One question per review.** When a concept is due, one of its questions is asked: a new concept starts with its most basic question, a question you just missed comes back while you relearn it, and otherwise the question asked longest ago goes next. Your answer reschedules the whole concept.
 - **New material only when there's room.** New concepts are added only if reviews fit, capped per day (6 by default), and paused automatically if reviews were deferred today or if the coming week is already heavy.
 - **Load balancing.** When a review is scheduled days out, it lands on the least-busy day in its window, so future days stay even.
 - **Course status.** Each course is *Active* (reviews + new concepts), *Maintaining* (reviews only) or *Paused* (left out). Taking on more subjects means setting older ones to Maintaining, not drowning in reviews.
@@ -61,7 +61,7 @@ Before anything is saved you see a **Review questions** step: what passed (with 
 
 After import, quality keeps being enforced:
 - **Report question** (the flag on every question in a session) takes it out of your sessions immediately.
-- A question you miss **5 times**, or whose grading you overrule **twice**, is pulled automatically — that pattern usually means the question, not you, is the problem.
+- A question you miss on **5 different days**, or whose grading you overrule **twice**, is pulled automatically — that pattern usually means the question, not you, is the problem.
 - Pulled questions wait on the Progress page (and in the concept panel), where you can **rewrite with Claude** (the new version passes the same rule checks), restore, or delete.
 - Questions you write yourself get the same rule checks as advice while you type.
 
@@ -82,7 +82,7 @@ If you miss a question whose prerequisite is shaky, the session adds a quick **f
 
 - **Started** (coverage): share of a course's concepts you've begun.
 - **Mastered**: a concept is mastered when your last two study days with it both ended in a correct unaided answer, and — if it has an application-type question — you've answered one correctly. Course and section percentages count **core** concepts only.
-- **Recall chance now**: FSRS's estimate of remembering it today.
+- **Recall chance now**: FSRS's estimate of remembering the concept today.
 
 Progress also shows success by question type (so you can see "strong recall, weak application"), answers recalled after a week or more, weak spots, and recurring misconceptions.
 
@@ -97,7 +97,7 @@ Pick a section and explain it from memory as if teaching it. Each concept is mar
 **Course → Add material**:
 
 1. Paste text, drop `.md`/`.txt` notes, or drop the **book's PDF** and pick a chapter from its table of contents (page numbers are kept so each concept can cite its page).
-2. Claude splits it into sections and concepts and rates each concept's importance from real signals (definitions, worked examples, warnings, things later ideas depend on) — not word frequency. Anecdotes, boilerplate and navigation are dropped. Details start unticked; untick anything you don't want.
+2. Claude splits it into sections and concepts and rates each concept's importance from real signals (definitions, worked examples, warnings, things later ideas depend on) — not word frequency. Anecdotes, boilerplate and navigation are dropped. Concepts are kept broad: closely related facts (syntax, rules, pitfalls of one idea) are one concept, so a dense chapter gives roughly 12–25. Details start unticked; untick anything you don't want.
 3. Claude writes candidate questions with rubrics, an independent review scores them, and you confirm what passed (see Question quality). New concepts are then linked to your other courses in the background.
 
 Question writing starts in the background as soon as the concepts are found, so most of it is done while you look the list over. Concepts are handled in groups of up to four, several groups at a time; ticking an extra concept only writes that one, and going back to the concept list doesn't redo finished work.
@@ -115,6 +115,8 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 ## Data & privacy
 
 Everything lives locally in one file on your machine (electron-store). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
+
+Data saved before per-concept scheduling is converted on first load: each concept takes the schedule of whichever of its questions you reviewed most recently.
 
 This version starts from an empty library. The first time it runs, anything saved by earlier versions (old flashcards and anything converted from them) is written to a `backup-before-clean-start-<date>.json` file in the app's data folder and then removed from the app. Settings and the API key are kept.
 

@@ -10,7 +10,7 @@ import Icon from "../ui/Icon.jsx";
 import TaskView from "./TaskView.jsx";
 import { index } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
-import { buildPlan } from "../lib/planner.js";
+import { buildPlan, pickItem } from "../lib/planner.js";
 import { aiAvailable } from "../lib/ai.js";
 import { dayKey, formatMinutes } from "../lib/time.js";
 import { RATING } from "../lib/fsrs.js";
@@ -31,10 +31,10 @@ function foundationFor(state, conceptId, queue, from) {
     if (!best || weakness > best.weakness) best = { id: e.from, weakness };
   }
   if (!best) return null;
-  const items = (ix.itemsByConcept[best.id] || []).filter(i => i.srs && i.srs.state !== "new");
-  if (!items.length) return null;
   const c = ix.concept[best.id];
-  return { itemId: items[0].id, conceptId: c.id, courseId: c.courseId, kind: "foundation", estSec: 40 };
+  const item = pickItem(ix, c);
+  if (!item) return null;
+  return { itemId: item.id, conceptId: c.id, courseId: c.courseId, kind: "foundation", estSec: 40 };
 }
 
 export default function Session({ tasks: initial, mode = "session", title = "Today's session", daily = false }) {
@@ -109,7 +109,7 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
     for (const r of firsts) {
       const c = ix.concept[r.task.conceptId];
       if (!c) continue;
-      const before = (sIx.itemsByConcept[c.id] || []).reduce((s, i) => s + (i.srs?.lapses || 0), 0);
+      const before = sIx.concept[c.id]?.srs?.lapses || 0;
       if (r.verdict === "correct" && !r.aided && before > 0 && r.task.kind !== "new") recovered.push(c);
       if (r.verdict !== "correct") missed.push(c);
       if (r.task.kind === "new") started.push(c);

@@ -21,6 +21,7 @@ export default function Course({ courseId }) {
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmSection, setConfirmSection] = useState(null);
   const now = nav.now;
 
   if (!course) {
@@ -126,8 +127,16 @@ export default function Course({ courseId }) {
                           <div className="row" style={{ padding: "8px 18px 4px 48px" }}>
                             <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play" size={11}/>Practice section</button>
                             <button className="btn btn-sm" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}><Icon name="pen" size={13}/>Teach it back</button>
-                            {s.sourceLabel && <span className="muted small grow" style={{ textAlign: "right" }}>{s.sourceLabel}</span>}
+                            <span className="muted small grow" style={{ textAlign: "right" }}>{s.sourceLabel}</span>
+                            <button className="btn btn-quiet btn-sm btn-icon" title="Remove section" onClick={() => setConfirmSection(s.id)}><Icon name="trash" size={14}/></button>
                           </div>
+                          {confirmSection === s.id && (
+                            <div className="row small" style={{ padding: "4px 18px 8px 48px" }}>
+                              <span className="grow">Remove {s.title} with its concepts, questions and history? You can add the material again afterwards.</span>
+                              <button className="btn btn-sm btn-danger" onClick={() => { act("section/delete", { id: s.id }); setConfirmSection(null); }}>Remove</button>
+                              <button className="btn btn-sm btn-quiet" onClick={() => setConfirmSection(null)}>Cancel</button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

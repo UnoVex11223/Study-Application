@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { lintQuestion, judge, selectForConcept, similarity, LEECH_LAPSES } from "../src/lib/quality.js";
 import { reducer } from "../src/state/reducer.js";
-import { emptyState, makeCourse, makeSection, makeConcept, makeItem } from "../src/lib/model.js";
+import { emptyState, makeCourse, makeSection, makeConcept, makeItem, index } from "../src/lib/model.js";
 import { buildPlan } from "../src/lib/planner.js";
 import { newSrs } from "../src/lib/fsrs.js";
 
@@ -90,7 +90,7 @@ function oneItemState() {
   const sec = makeSection({ courseId: course.id, title: "S" });
   const c = makeConcept({ courseId: course.id, sectionId: sec.id, name: "Pointer" });
   const it = makeItem({ conceptId: c.id, ability: "explain", prompt: "p", answer: "a", points: ["a"] });
-  it.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: Date.now() - 6 * 864e5, due: Date.now() - 1000, reps: 3, lapses: 0 };
+  c.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: Date.now() - 6 * 864e5, due: Date.now() - 1000, reps: 3, lapses: 0 };
   s.courses.push(course); s.sections.push(sec); s.concepts.push(c); s.items.push(it);
   return { s, it };
 }
@@ -126,11 +126,15 @@ test("questions missed 5 times or overruled twice are flagged automatically", ()
 });
 
 test("a rewritten question starts fresh", () => {
-  const { s, it } = oneItemState();
-  const flagged = reducer(s, { type: "item/flag", id: it.id, reason: "wrong", now: 1 });
-  const fixed = reducer(flagged, { type: "item/replace", id: it.id, fields: { prompt: "Better prompt here please", answer: "b", points: ["b"] }, now: 2 });
+  let { s, it } = oneItemState();
+  const t0 = Date.now();
+  s = reducer(s, { type: "attempt", itemId: it.id, verdict: "incorrect", rating: 1, now: t0 });
+  assert.equal(index(s).itemStats[it.id].seen, 1);
+  const flagged = reducer(s, { type: "item/flag", id: it.id, reason: "wrong", now: t0 + 1 });
+  const fixed = reducer(flagged, { type: "item/replace", id: it.id, fields: { prompt: "Better prompt here please", answer: "b", points: ["b"] }, now: t0 + 2 });
   assert.equal(fixed.items[0].flag, null);
-  assert.equal(fixed.items[0].srs.state, "new");
+  assert.deepEqual(index(fixed).itemStats[it.id], { seen: 0, lastSeen: 0, missDays: [] });
+  assert.equal(fixed.concepts[0].srs.state, s.concepts[0].srs.state, "the concept's memory schedule is kept");
   assert.equal(fixed.items[0].prompt, "Better prompt here please");
   assert.equal(fixed.items[0].quality.rewritten, true);
 });

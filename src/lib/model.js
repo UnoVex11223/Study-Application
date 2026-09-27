@@ -4,15 +4,21 @@
 //   course   { id, name, color, status: active|maintain|paused, createdAt }
 //   section  { id, courseId, title, summary, order, sourceLabel }
 //   concept  { id, courseId, sectionId, name, summary, kind, importance: core|supporting|detail,
-//              order, source: { excerpt, location } | null, suspended }
-//   item     { id, conceptId, ability, prompt, answer, accept[], points[], misconceptions[], hint, srs }
+//              order, source: { excerpt, location } | null, suspended, srs }
+//   item     { id, conceptId, ability, prompt, answer, accept[], points[], misconceptions[], hint,
+//              flag, flagCleared, resetAt }
+//
+// Memory is scheduled per CONCEPT (concept.srs). A concept's questions are
+// variants that take turns at its reviews, so extra questions add variety,
+// not review time. Per-question history (times asked, misses) comes from the
+// attempt log; see index().itemStats.
 //   edge     { id, type: prereq|related|contrast|application, from, to, why, confidence, origin }
 //            prereq edges mean "from must be learned before to".
 //   attempt  { ts, day, itemId, conceptId, courseId, ability, verdict, rating, aided, mode, ms, ... }
 
-import { newSrs } from "./fsrs.js";
+import { newSrs, RATING } from "./fsrs.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const ABILITIES = {
   recall:      { label: "Recall",      estSec: 25, rank: 0, blurb: "Produce a term, fact or definition from memory" },
@@ -68,7 +74,21 @@ export function normalizeState(s) {
   for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }
-  out.items = out.items.map(i => ({ accept: [], points: [], misconceptions: [], hint: "", ...i, srs: i.srs ?? newSrs() }));
+  // v4: schedules moved from questions to concepts. A concept keeps the
+  // schedule of whichever of its questions was reviewed most recently.
+  const oldSrs = {};
+  for (const i of out.items) {
+    const srs = i.srs;
+    if (!srs || srs.state === "new") continue;
+    const cur = oldSrs[i.conceptId];
+    if (!cur || (srs.lastReview ?? 0) > (cur.lastReview ?? 0)) oldSrs[i.conceptId] = srs;
+  }
+  out.concepts = out.concepts.map(c => (c.srs ? c : { ...c, srs: oldSrs[c.id] ?? newSrs() }));
+  out.items = out.items.map(i => {
+    const { srs, lapsesAtClear, ...rest } = i; // eslint-disable-line no-unused-vars
+    return { accept: [], points: [], misconceptions: [], hint: "", ...rest };
+  });
+  out.version = SCHEMA_VERSION;
   return out;
 }
 
@@ -81,12 +101,12 @@ export const makeSection = (fields) => ({ id: uid("s"), title: "Section", summar
 
 export const makeConcept = (fields) => ({
   id: uid("k"), name: "", summary: "", kind: "definition", importance: "core",
-  order: 0, source: null, suspended: false, createdAt: Date.now(), ...fields,
+  order: 0, source: null, suspended: false, createdAt: Date.now(), ...fields, srs: fields?.srs ?? newSrs(),
 });
 
 export const makeItem = (fields) => ({
   id: uid("i"), ability: "recall", prompt: "", answer: "", accept: [], points: [], misconceptions: [], hint: "",
-  createdAt: Date.now(), ...fields, srs: fields?.srs ?? newSrs(),
+  createdAt: Date.now(), ...fields,
 });
 
 export const makeEdge = (fields) => ({ id: uid("e"), type: "related", why: "", confidence: 0.8, origin: "ai", ...fields });
@@ -115,7 +135,18 @@ export function index(state) {
     (conceptsByCourse[k.courseId] ||= []).push(k);
   }
   for (const i of state.items) { item[i.id] = i; (itemsByConcept[i.conceptId] ||= []).push(i); }
-  for (const a of state.attempts) (attemptsByConcept[a.conceptId] ||= []).push(a);
+  // Per-question history: rated attempts since the question was last rewritten.
+  // A "miss" is a study day on which you answered Again at least once.
+  const itemStats = {};
+  for (const i of state.items) itemStats[i.id] = { seen: 0, lastSeen: 0, missDays: [] };
+  for (const a of state.attempts) {
+    (attemptsByConcept[a.conceptId] ||= []).push(a);
+    const st = itemStats[a.itemId];
+    if (!st || a.rating == null || a.ts <= (item[a.itemId].resetAt || 0)) continue;
+    st.seen++;
+    if (a.ts > st.lastSeen) st.lastSeen = a.ts;
+    if (a.rating === RATING.AGAIN && st.missDays.at(-1)?.day !== a.day) st.missDays.push({ day: a.day, ts: a.ts });
+  }
   for (const e of state.edges) {
     if (!concept[e.from] || !concept[e.to]) continue;
     if (e.type === "prereq") {
@@ -133,7 +164,7 @@ export function index(state) {
 
   const ix = {
     course, section, concept, item, sectionsByCourse, conceptsBySection, conceptsByCourse, itemsByConcept,
-    attemptsByConcept, prereqsOf, dependentsOf, relatedOf,
+    attemptsByConcept, itemStats, prereqsOf, dependentsOf, relatedOf,
   };
   cache.set(state, ix);
   return ix;
