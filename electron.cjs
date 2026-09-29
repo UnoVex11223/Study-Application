@@ -181,12 +181,10 @@ const escapeTag = (s) => String(s ?? "").replace(/<\/(source|answer|known_concep
 // ── 1. Curriculum extraction ─────────────────────────────────────────────────
 const EXTRACT_SCHEMA = obj({
   title: str("Title for this material, e.g. 'Chapter 4: Pointers'"),
-  summary: str("One or two sentences on what this material covers as a whole"),
   sections: {
     type: "array",
     items: obj({
       title: str(),
-      summary: str("One sentence on what this section covers"),
       concepts: {
         type: "array",
         items: obj({

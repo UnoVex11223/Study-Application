@@ -9,7 +9,6 @@ import ConceptPanel from "./ConceptPanel.jsx";
 import ItemForm from "./ItemForm.jsx";
 import { CourseForm } from "./Courses.jsx";
 import { index, COURSE_STATUS, ABILITIES } from "../lib/model.js";
-import { InlineMarkdown } from "../ui/Markdown.jsx";
 import { courseMastery, sectionMastery, abilityBreakdown } from "../lib/mastery.js";
 import { practiceTasks } from "../lib/planner.js";
 import { aiBridge, roomForQuestions } from "../lib/ai.js";
@@ -220,7 +219,6 @@ export default function Course({ courseId }) {
                           <Icon name="chevron" size={14} className="chev"/>
                           <div className="section-text">
                             <div className="list-title section-title">{s.locked && <Icon name="lock" size={13}/>}{s.title}</div>
-                            {s.summary && <div className="section-desc"><InlineMarkdown>{s.summary}</InlineMarkdown></div>}
                             <div className="section-stats">
                               <span>{sm.total} concept{sm.total === 1 ? "" : "s"}</span>
                               <span>{questionCount(concepts)} questions</span>
@@ -264,7 +262,7 @@ export default function Course({ courseId }) {
                             {!s.locked && s.pages && (
                               <button className="btn btn-sm btn-quiet" title="Stop introducing new concepts from this chapter" onClick={() => act("section/lock", { id: s.id, locked: true })}><Icon name="lock" size={13}/>Lock</button>
                             )}
-                            <span className="muted small grow" style={{ textAlign: "right" }}>{s.sourceLabel}</span>
+                            <span className="grow"/>
                             <button className="btn btn-quiet btn-sm btn-icon" title="Remove section" onClick={() => setConfirmSection(s.id)}><Icon name="trash" size={14}/></button>
                           </div>
                           {confirmSection === s.id && (

@@ -133,13 +133,13 @@ export default function Notes() {
           <label className="label" htmlFor="note-text">Capture a note</label>
           <textarea
             id="note-text" ref={taRef} className="textarea" rows={4} value={text}
-            placeholder="e.g. SQLite doesn't enforce foreign keys unless each connection runs PRAGMA foreign_keys = ON."
             onChange={e => setText(e.target.value)}
             onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}
             style={{ marginTop: 8 }}
           />
-          <div className="row" style={{ marginTop: 10, gap: 10 }}>
-            <input className="input grow" value={context} onChange={e => setContext(e.target.value)} placeholder="Project or topic (optional)" aria-label="Project or topic"
+          <label className="label" htmlFor="note-context" style={{ display: "block", marginTop: 14 }}>Project or topic <span className="muted" style={{ fontWeight: 400 }}>(optional)</span></label>
+          <div className="row" style={{ marginTop: 8, gap: 10 }}>
+            <input id="note-context" className="input grow" value={context} onChange={e => setContext(e.target.value)} aria-label="Project or topic"
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); capture(); } }}/>
             <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus" size={14}/>Add note</button>
           </div>

@@ -133,7 +133,7 @@ export default function ImportBook({ courseId: presetCourse }) {
             {target === "new" && (
               <div className="field" style={{ marginBottom: 0 }}>
                 <label htmlFor="bk-name">Course name</label>
-                <input id="bk-name" className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. C Programming: A Modern Approach"/>
+                <input id="bk-name" className="input" value={name} onChange={e => setName(e.target.value)}/>
               </div>
             )}
           </div>
@@ -149,11 +149,14 @@ export default function ImportBook({ courseId: presetCourse }) {
           {book.manual ? (
             <div className="panel panel-pad">
               <p className="muted small" style={{ marginTop: 0 }}>This PDF has no table of contents, so add each chapter's title and the PDF page it starts on (the page number your PDF viewer shows, not the one printed on the page). Each chapter runs until the next one starts.</p>
+              <div className="row small muted" style={{ gap: 8, marginBottom: 6 }}>
+                <span className="grow">Title</span><span style={{ width: 110 }}>Start page</span><span style={{ width: 30 }}/>
+              </div>
               <div className="stack" style={{ gap: 8 }}>
                 {starts.map((r, i) => (
                   <div key={i} className="row" style={{ gap: 8 }}>
-                    <input className="input grow" placeholder={`Chapter ${i + 1} title`} value={r.title} onChange={e => setStarts(s => s.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))}/>
-                    <input className="input" style={{ width: 110 }} type="number" min={1} max={book.pages} placeholder="Start page" value={r.from} onChange={e => setStarts(s => s.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))}/>
+                    <input className="input grow" aria-label={`Chapter ${i + 1} title`} value={r.title} onChange={e => setStarts(s => s.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))}/>
+                    <input className="input" style={{ width: 110 }} type="number" min={1} max={book.pages} aria-label={`Chapter ${i + 1} start page`} value={r.from} onChange={e => setStarts(s => s.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))}/>
                     <button className="btn btn-quiet btn-sm btn-icon" title="Remove" onClick={() => setStarts(s => s.filter((_, j) => j !== i))}><Icon name="x" size={14}/></button>
                   </div>
                 ))}

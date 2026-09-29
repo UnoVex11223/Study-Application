@@ -19,7 +19,7 @@ export function CourseForm({ course, onSave, onClose }) {
       <div className="field">
         <label htmlFor="course-name">Name</label>
         <input id="course-name" className="input" value={name} autoFocus onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && save()} placeholder="e.g. C Programming: A Modern Approach"/>
+          onKeyDown={e => e.key === "Enter" && save()}/>
         <span className="help">One course per book, class or subject. You'll add chapters to it as you go.</span>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>

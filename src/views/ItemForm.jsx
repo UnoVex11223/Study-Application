@@ -77,7 +77,7 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
               {sections.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
               <option value="__new">New section…</option>
             </select>
-            {sectionId === "__new" && <input className="input" placeholder="Section name" value={newSection} onChange={e => setNewSection(e.target.value)}/>}
+            {sectionId === "__new" && <input className="input" aria-label="New section name" value={newSection} onChange={e => setNewSection(e.target.value)} autoFocus/>}
           </div>
           <div className="field grow">
             <label htmlFor="if-concept">Concept</label>
@@ -85,7 +85,7 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
               {conceptsHere.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               <option value="__new">New concept…</option>
             </select>
-            {conceptId === "__new" && <input className="input" placeholder="Concept name, e.g. Magic number" value={conceptName} onChange={e => setConceptName(e.target.value)}/>}
+            {conceptId === "__new" && <input className="input" aria-label="New concept name" value={conceptName} onChange={e => setConceptName(e.target.value)}/>}
           </div>
         </div>
       )}

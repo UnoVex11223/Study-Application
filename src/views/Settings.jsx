@@ -108,12 +108,12 @@ export default function Settings() {
         {!aiBridge() && <div style={{ marginBottom: 12 }}><Notice>AI features run in the desktop app.</Notice></div>}
         <div className="row">
           <input className="input grow" type="password" value={key} onChange={e => { setKey(e.target.value); setKeySaved(false); }}
-            placeholder={hasKey ? "Key saved. Paste a new one to replace it." : "sk-ant-…"} aria-label="Anthropic API key"
+            aria-label="Anthropic API key"
             onKeyDown={e => e.key === "Enter" && key.trim() && saveKey()}/>
           <button className="btn btn-primary" onClick={saveKey} disabled={!key.trim()}>Save key</button>
           {hasKey && <button className="btn btn-danger" onClick={async () => { await setApiKey(null); setHasKey(false); }}>Remove</button>}
         </div>
-        {keySaved && <p className="small" style={{ color: "var(--good)", marginTop: 8 }}>Key saved.</p>}
+        {(keySaved || (hasKey && !key)) && <p className="small" style={{ color: "var(--good)", marginTop: 8 }}>{keySaved ? "Key saved." : "A key is saved. Paste a new one to replace it."}</p>}
         <p className="help" style={{ marginTop: 10 }}>Get a key at platform.claude.com under Settings → API keys.</p>
 
         <div className="label" style={{ marginTop: 20 }}>Book imports</div>

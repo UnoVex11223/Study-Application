@@ -141,8 +141,7 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
           <article className="q-card">
             <div className="q-head"><span className="q-ability">{section?.title}</span></div>
             <textarea className="card-input" value={text} onChange={e => setText(e.target.value)} autoFocus aria-label="Your explanation"
-              style={{ minHeight: 320 }}
-              placeholder="Start with the big idea, then walk through the pieces…"/>
+              style={{ minHeight: 320 }}/>
           </article>
           <div className="row" style={{ marginTop: 16 }}>
             <button className="btn btn-primary" disabled={text.trim().length < 40 || !concepts.length} onClick={check}>Check my explanation</button>

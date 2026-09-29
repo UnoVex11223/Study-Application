@@ -3,7 +3,7 @@ import { useStore } from "../state/store.jsx";
 import { Bar, ImportanceTag, Notice, Spinner } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
-import Markdown, { InlineMarkdown } from "../ui/Markdown.jsx";
+import Markdown from "../ui/Markdown.jsx";
 import { abilityLabel } from "../ui/nav.js";
 import { DIMENSIONS } from "../lib/quality.js";
 import { index } from "../lib/model.js";
@@ -265,17 +265,17 @@ export default function AddMaterial({ courseId }) {
           <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
             <div className="field grow">
               <label htmlFor="am-title">What is it?</label>
-              <input id="am-title" className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Chapter 11: Pointers"/>
+              <input id="am-title" className="input" value={title} onChange={e => setTitle(e.target.value)}/>
             </div>
             <div className="field" style={{ width: 200 }}>
               <label htmlFor="am-loc">Pages or timestamps</label>
-              <input id="am-loc" className="input" value={location} onChange={e => setLocation(e.target.value)} placeholder="pp. 241–262"/>
+              <input id="am-loc" className="input" value={location} onChange={e => setLocation(e.target.value)}/>
             </div>
           </div>
           <div className="field">
             <label htmlFor="am-text">Text</label>
             <textarea id="am-text" className="textarea" style={{ minHeight: 240, fontSize: 15 }} value={text}
-              onChange={e => setText(e.target.value)} placeholder="Paste the chapter, transcript or your notes here"/>
+              onChange={e => setText(e.target.value)}/>
           </div>
           <div className={`dropzone${drag ? " over" : ""}`} role="button" tabIndex={0}
             onClick={() => fileRef.current?.click()}
@@ -371,7 +371,6 @@ export default function AddMaterial({ courseId }) {
             <div key={si} className="extract-section">
               <div className="extract-section-head">
                 <div className="list-title">{s.title}</div>
-                {s.summary && <div className="section-desc"><InlineMarkdown>{s.summary}</InlineMarkdown></div>}
               </div>
               {s.concepts.map((c, ci) => (
                 <label key={c.key} className={`extract-concept${c.selected ? "" : " off"}`}>

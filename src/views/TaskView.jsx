@@ -139,7 +139,6 @@ export default function TaskView({ task, item, concept, section, course, aiReady
         <textarea
           ref={answerRef} className="answer-box" value={answer} onChange={e => setAnswer(e.target.value)}
           disabled={phase !== "answer"} aria-label="Your answer"
-          placeholder={item.ability === "recall" ? "Type the answer" : "Answer in your own words"}
         />
         {hint && item.hint && <div className="hint-box"><Markdown>{item.hint}</Markdown></div>}
         {phase === "answer" && (
