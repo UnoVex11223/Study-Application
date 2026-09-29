@@ -49,7 +49,7 @@ export default function Courses() {
   };
 
   const order = { active: 0, maintain: 1, paused: 2 };
-  const courses = [...state.courses].sort((a, b) => order[a.status] - order[b.status] || a.createdAt - b.createdAt);
+  const courses = state.courses.filter(c => c.kind !== "notes").sort((a, b) => order[a.status] - order[b.status] || a.createdAt - b.createdAt);
 
   return (
     <div className="page">

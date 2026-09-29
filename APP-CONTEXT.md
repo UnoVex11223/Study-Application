@@ -55,7 +55,7 @@ Only questions worth years of repetitions get in. Every candidate question passe
 
 1. **Rules** (no AI): drops questions that contain their own answer, yes/no questions, anything that refers to "the text", "this chapter" or a figure (it won't make sense later), recall answers that are really sentences, questions with no gradable key points, and near-duplicates.
 2. **Independent review**: a separate Claude pass scores each question 1–5 on *worth remembering*, *clear on its own*, *needs real recall*, *gradable* and *accurate*. A question is kept only if it scores 4 or 5 on all five. Fixable questions are rewritten by the reviewer (and re-scored); the rest are dropped with a reason.
-3. **Caps**: at most 3 questions for a core concept, 2 for a supporting one, 1 for a detail — the best-scoring, covering different question types first.
+3. **Caps**: up to 4 questions for a core concept, 3 for a supporting one, 1 for a detail — the best-scoring, covering different question types first. Because a concept's questions take turns at its reviews, more good variants cost no review time; they keep you from memorizing one prompt's wording.
 
 Before anything is saved you see a **Review questions** step: what passed (with its score), what was filtered out and why, and you can untick or rescue any question. Concepts left with no good question aren't added.
 
@@ -64,6 +64,7 @@ After import, quality keeps being enforced:
 - A question you miss on **5 different days**, or whose grading you overrule **twice**, is pulled automatically — that pattern usually means the question, not you, is the problem.
 - Pulled questions wait on the Progress page (and in the concept panel), where you can **rewrite with Claude** (the new version passes the same rule checks), restore, or delete.
 - Questions you write yourself get the same rule checks as advice while you type.
+- **More questions** (on a course's Sections header, or inside a chapter) tops up concepts that have fewer than their target: Claude sees the questions a concept already has and writes ones that come at the idea from another side, through the same review and caps. What passes is added automatically.
 
 ## Grading
 
@@ -117,6 +118,20 @@ You can also write questions yourself (Course → Add a question) with key point
 
 Rough cost: 2–4 cents of API usage per page (about $10–15 for a 400-page book at Opus pricing), and about 1–2 minutes per chapter.
 
+### Notes
+
+**Notes** (in the sidebar, or Ctrl+Shift+N from anywhere) is for what you pick up outside a course: projects, documentation, work.
+
+- **Capture** a note in the box (with an optional project or topic), or **upload** .md/.txt files; each bullet or paragraph becomes a note, with its heading as context. Keep one running notes file per project and upload it whenever you've added to it: notes you've added before are recognized and skipped.
+- **Process** the inbox: Claude checks each note against everything you study and decides:
+  - *new idea* → a concept in the Notes space, filed under a topic ("SQLite", "Git"…), linked to related concepts from your courses on the map;
+  - *the same idea as a concept you already have* → extra questions on that concept (built from your note), no new concept;
+  - *skip* → to-dos, project-specific details, anything that looks like a secret, or too vague to recover an idea — with the reason, and **Keep anyway**.
+  Terse notes are completed so they stand alone and marked *filled in by Claude — check it*; a note that's wrong is corrected and says so.
+- **Review** before saving, like adding material.
+
+Notes are reviewed and introduced like everything else, but they're their own space: they never add concepts to a course, so course totals aren't stretched by things outside the material.
+
 ### Preparing material with another AI
 
 The extractor handles raw chapters well; the most useful prep is simply splitting a book by chapter and adding each one as you finish it. If you do pre-process, keep: definitions, explanations with the "why", worked examples (code included, with a sentence on what it demonstrates), explicit comparisons, and common mistakes. Drop exercises' instructions, cross-references and chapter intros.
@@ -136,9 +151,9 @@ This version starts from an empty library. The first time it runs, anything save
 ```
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai, book, bookRunner
-src/state/        reducer (pure, tested), store (persistence), bookImport (keeps book imports running)
-src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, KnowledgeMap, Progress, TeachBack, Settings
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai, book, bookRunner, notes
+src/state/        reducer (pure, tested), store (persistence), bookImport (keeps book imports running), background (question top-ups)
+src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, KnowledgeMap, Progress, TeachBack, Settings
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```
 

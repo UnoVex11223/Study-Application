@@ -18,7 +18,10 @@
 import { normalize } from "./grade.js";
 
 export const PASS_SCORE = 4;
-export const QUESTION_CAP = { core: 3, supporting: 2, detail: 1 };
+// Questions per concept. Memory is scheduled per concept and its questions take
+// turns, so more (good) variants cost no review time and keep you from
+// memorizing one prompt's wording.
+export const QUESTION_CAP = { core: 4, supporting: 3, detail: 1 };
 export const DIMENSIONS = {
   importance: "Worth remembering",
   clarity: "Clear on its own",
@@ -154,9 +157,11 @@ const avg = (dims) => {
  * Run the whole gate for one concept's candidates.
  * candidates: [{ id, ability, prompt, answer, accept, points, misconceptions, hint }]
  * reviews: { [id]: review } from the critic, or {} if unavailable.
+ * existing: questions the concept already has (topping up): they count toward
+ * the cap, new ones mustn't duplicate them, and missing question types go first.
  * Returns { kept: [...], dropped: [...] } — each entry { ...question, id, score, dims, revised, reasons }.
  */
-export function selectForConcept(candidates, reviews, importance = "supporting") {
+export function selectForConcept(candidates, reviews, importance = "supporting", { existing = [], extra = 0 } = {}) {
   const judged = candidates.map(c => ({ c, j: judge(c, reviews[c.id] ?? null) }));
   const dropped = [];
   const passing = [];
@@ -168,10 +173,11 @@ export function selectForConcept(candidates, reviews, importance = "supporting")
   // Best first; unscored (critic unavailable) rank in the middle.
   passing.sort((a, b) => (b.score ?? 3.5) - (a.score ?? 3.5));
 
-  const cap = QUESTION_CAP[importance] ?? 2;
+  const full = (QUESTION_CAP[importance] ?? 2) + extra;
+  const cap = Math.max(0, full - existing.length);
   const kept = [];
   const tryAdd = (e) => {
-    const lint = lintQuestion(e, { others: kept });
+    const lint = lintQuestion(e, { others: [...existing, ...kept] });
     if (!lint.ok) {
       dropped.push({ ...e, reasons: [lint.issues.find(i => i.severity === "block").message] });
       return false;
@@ -180,7 +186,7 @@ export function selectForConcept(candidates, reviews, importance = "supporting")
     return true;
   };
   // First pass: one per question type, so a concept gets both recall and use.
-  const seenAbility = new Set();
+  const seenAbility = new Set(existing.map(q => q.ability));
   const rest = [];
   for (const e of passing) {
     if (kept.length < cap && !seenAbility.has(e.ability)) {
@@ -188,7 +194,7 @@ export function selectForConcept(candidates, reviews, importance = "supporting")
     } else rest.push(e);
   }
   for (const e of rest) {
-    if (kept.length >= cap) { dropped.push({ ...e, reasons: [`This ${importance} concept already has its ${cap} best question${cap === 1 ? "" : "s"}.`] }); continue; }
+    if (kept.length >= cap) { dropped.push({ ...e, reasons: [`This ${importance} concept already has its ${full} best question${full === 1 ? "" : "s"}.`] }); continue; }
     tryAdd(e);
   }
   return { kept, dropped };

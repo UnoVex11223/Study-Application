@@ -1,7 +1,8 @@
 // Core data model: courses → sections → concepts → practice items,
 // plus relation edges between concepts and an attempt log.
 //
-//   course   { id, name, color, status: active|maintain|paused, createdAt }
+//   course   { id, name, color, status: active|maintain|paused, createdAt, kind? }
+//            kind "notes" = the Notes space: your own notes, organized by topic, not a curriculum.
 //   section  { id, courseId, title, summary, order, sourceLabel, locked, pages? }
 //            locked = a book chapter you haven't read yet: no new concepts from it.
 //   concept  { id, courseId, sectionId, name, summary, kind, importance: core|supporting|detail,
@@ -64,6 +65,7 @@ export function emptyState() {
     settings: { ...DEFAULT_SETTINGS },
     days: {}, // per study day: { extraSec }
     bookJobs: [], // whole-book imports in progress (see state/bookImport.jsx)
+    notes: [], // your own notes, raw (see lib/notes.js); what they became lives in the Notes space
   };
 }
 
@@ -73,7 +75,7 @@ export function normalizeState(s) {
   const out = { ...base, ...s, settings: { ...base.settings, ...(s?.settings || {}) } };
   // The monochrome redesign defaults to the black theme once; later choices stick.
   if (s?.settings && s.settings.themeVersion !== 2) out.settings = { ...out.settings, theme: "dark", themeVersion: 2 };
-  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs"]) {
+  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }
   // A chapter that was mid-import when the app closed starts that chapter over.

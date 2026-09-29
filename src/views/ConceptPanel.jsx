@@ -72,6 +72,8 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
         <p className="muted small">{explainMastery(m)}</p>
         {c.summary && <div className="model-answer"><Markdown>{c.summary}</Markdown></div>}
         {c.importanceReason && <p className="muted small">Why it matters: {c.importanceReason}</p>}
+        {c.filledIn && <Notice icon="info">Your note was brief, so Claude filled in details. Check them against a source you trust, and edit the questions if anything's off.</Notice>}
+        {c.corrected && <Notice tone="warn" icon="alert">Your original note needed a correction: {c.corrected}</Notice>}
         {locked && <Notice icon="lock">This concept is in a chapter you haven't marked as read, so it won't come up in sessions yet.</Notice>}
         <div className="row" style={{ marginTop: 4 }}>
           {!locked && <button className="btn btn-primary btn-sm" onClick={practice} disabled={!items.length}><Icon name="play" size={12}/>Practice now</button>}
@@ -158,7 +160,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
 
       {c.source?.excerpt && (
         <section>
-          <h2 className="h">Source</h2>
+          <h2 className="h">{c.noteId ? "Your note" : "Source"}</h2>
           <div className="source-quote">{c.source.excerpt}</div>
           {(c.source.location || c.source.label) && <div className="muted small" style={{ marginTop: 6 }}>{[c.source.label, c.source.location].filter(Boolean).join(", ")}</div>}
         </section>

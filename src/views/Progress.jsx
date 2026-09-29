@@ -136,7 +136,7 @@ export default function Progress() {
           <div className="panel">
             <div className="panel-head"><h2>Courses</h2></div>
             <div className="list">
-              {state.courses.map(c => {
+              {state.courses.filter(c => c.kind !== "notes").map(c => {
                 const m = courseMastery(state, c.id, now);
                 return (
                   <button key={c.id} className="list-row" onClick={() => nav.go("course", { courseId: c.id })}>

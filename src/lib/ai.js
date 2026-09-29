@@ -2,7 +2,7 @@
 // Electron's main process (see electron.cjs) so the API key never reaches the UI.
 
 import { index, makeSection, makeConcept, makeItem, makeEdge, ABILITIES, IMPORTANCE } from "./model.js";
-import { selectForConcept, lintQuestion } from "./quality.js";
+import { selectForConcept, lintQuestion, QUESTION_CAP } from "./quality.js";
 import { verifyPoints } from "./grade.js";
 
 const api = () => (typeof window !== "undefined" && window.engram?.ai) || null;
@@ -17,6 +17,13 @@ export async function aiAvailable() {
 
 const NO_KEY = "Add an Anthropic API key in Settings to use this.";
 const wrap = (res) => (res?.ok ? res : { ok: false, error: res?.error === "no-key" ? NO_KEY : res?.error || "Something went wrong." });
+
+/** Call one of the main process's AI handlers by name. */
+export async function callAi(method, payload) {
+  const a = api();
+  if (!a?.[method]) return { ok: false, error: "AI features need the desktop app." };
+  try { return wrap(await a[method](payload)); } catch (err) { return { ok: false, error: err?.message || "Something went wrong." }; }
+}
 
 /** Split long material on headings/paragraphs into chunks the model can handle well. */
 export function splitSource(text, max = 90000) {
@@ -95,10 +102,10 @@ const toQuestion = (t, id) => ({
  * quality gate (see quality.js).
  * Returns { ok, groups: [{ section, concept, kept, dropped }], written, reviewed, partial }.
  */
-export async function generateTasks({ state, courseId, sections, onProgress }) {
+export async function generateTasks({ state, courseId, sections, onProgress, courseName: nameOverride }) {
   const a = api();
   if (!a) return { ok: false, error: "AI features need the desktop app." };
-  const courseName = index(state).course[courseId]?.name ?? "";
+  const courseName = nameOverride ?? index(state).course[courseId]?.name ?? "";
   const batches = splitBatches(sections);
   if (!batches.length) return { ok: false, error: "Pick at least one concept." };
 
@@ -106,29 +113,19 @@ export async function generateTasks({ state, courseId, sections, onProgress }) {
   // side instead of one after another. Most of the wait is the model writing
   // text, so this cuts a chapter's wait roughly by the number of groups.
   const runBatch = async ({ section, concepts }, bi) => {
-    const ctx = concepts.map(c => ({ key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt }));
-    const res = wrap(await a.items({ courseName, sectionTitle: section.title, concepts: ctx }));
-    if (!res.ok) return { ok: false, error: res.error };
-    const keys = new Set(concepts.map(c => c.key));
-    const raw = res.data.tasks.filter(t => keys.has(t.concept_key) && ABILITIES[t.ability] && t.prompt?.trim() && t.model_answer?.trim());
-    const candidates = raw.map((t, i) => ({ ...toQuestion(t, `q${bi}_${i}`), conceptKey: t.concept_key }));
-
-    let reviews = {};
-    const crit = a.critique ? wrap(await a.critique({
-      courseName, sectionTitle: section.title, concepts: ctx,
-      questions: candidates.map(q => ({ id: q.id, concept_key: q.conceptKey, ability: q.ability, prompt: q.prompt, model_answer: q.answer, accept: q.accept, required_points: q.points, misconceptions: q.misconceptions })),
-    })) : { ok: false };
-    if (crit.ok) reviews = Object.fromEntries(crit.data.reviews.map(r => [r.id, r]));
-
+    const r = await writeAndReview({ a, courseName, sectionTitle: section.title, concepts, tag: `q${bi}` });
+    if (!r.ok) return r;
     const groups = concepts.map(c => {
-      const { kept, dropped } = selectForConcept(candidates.filter(q => q.conceptKey === c.key), reviews, c.importance);
+      // Concepts that already have questions (e.g. a note matching one you study) count those.
+      const { kept, dropped } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.key), r.reviews, c.importance,
+        { existing: c.existingItems || [], extra: c.extra || 0 });
       return {
-        sectionTitle: section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: crit.ok,
+        sectionTitle: section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: r.reviewed,
         kept: kept.map(q => ({ ...q, selected: true })),
         dropped: dropped.map(q => ({ ...q, selected: false })),
       };
     });
-    return { ok: true, groups, written: candidates.length, reviewed: crit.ok };
+    return { ok: true, groups, written: r.candidates.length, reviewed: r.reviewed };
   };
 
   const attempt = (b, bi) => runBatch(b, bi).catch(err => ({ ok: false, error: err?.message || "Something went wrong." }));
@@ -177,6 +174,110 @@ export function splitBatches(sections, size = GROUP_SIZE) {
   return batches;
 }
 
+/**
+ * Write candidates for up to a few concepts and have the critic review them.
+ * concepts: [{ key, name, summary, kind, importance, excerpt, existing?: [prompt], want? }]
+ * Returns { ok, candidates: [{ ...question, conceptKey }], reviews, reviewed }.
+ */
+async function writeAndReview({ a, courseName, sectionTitle, concepts, tag }) {
+  const ctx = concepts.map(c => {
+    const existing = c.existing ?? c.existingItems?.map(i => i.prompt) ?? [];
+    return { key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt,
+      ...(existing.length ? { existing, want: c.want ?? 2 } : {}) };
+  });
+  const res = wrap(await a.items({ courseName, sectionTitle, concepts: ctx }));
+  if (!res.ok) return { ok: false, error: res.error };
+  const keys = new Set(concepts.map(c => c.key));
+  const raw = res.data.tasks.filter(t => keys.has(t.concept_key) && ABILITIES[t.ability] && t.prompt?.trim() && t.model_answer?.trim());
+  const candidates = raw.map((t, i) => ({ ...toQuestion(t, `${tag}_${i}`), conceptKey: t.concept_key }));
+
+  let reviews = {};
+  const crit = a.critique ? wrap(await a.critique({
+    courseName, sectionTitle, concepts: ctx,
+    questions: candidates.map(q => ({ id: q.id, concept_key: q.conceptKey, ability: q.ability, prompt: q.prompt, model_answer: q.answer, accept: q.accept, required_points: q.points, misconceptions: q.misconceptions })),
+  })) : { ok: false };
+  if (crit.ok) reviews = Object.fromEntries(crit.data.reviews.map(r => [r.id, r]));
+  return { ok: true, candidates, reviews, reviewed: crit.ok };
+}
+
+/** A question that passed (or was kept past) the gate, as a stored item. */
+export function itemFromQuestion(conceptId, q, extra = {}) {
+  return makeItem({
+    conceptId, ability: q.ability, prompt: q.prompt, answer: q.answer,
+    accept: q.ability === "recall" ? q.accept : [],
+    points: q.points.length ? q.points : [q.answer],
+    misconceptions: q.misconceptions, hint: q.hint,
+    quality: { score: q.score, dims: q.dims, revised: Boolean(q.revised), reviewed: q.dims != null, overruled: !Array.isArray(q.warnings) },
+    ...extra,
+  });
+}
+
+/** Concepts that have room for more questions, with how many more each can take. */
+export function roomForQuestions(state, conceptIds) {
+  const ix = index(state);
+  return conceptIds.map(id => ix.concept[id]).filter(c => c && !c.suspended).map(c => {
+    const existing = (ix.itemsByConcept[c.id] || []).filter(i => !i.flag);
+    return { concept: c, existing, room: Math.max(0, (QUESTION_CAP[c.importance] ?? 2) - existing.length) };
+  }).filter(t => t.room > 0);
+}
+
+/**
+ * Top up concepts that have fewer questions than their target with new
+ * variants that test other facets. Same writer, critic and gate as new
+ * material; what passes is added without a review step. Items are handed to
+ * onItems as each group finishes, so partial progress is kept.
+ * extraSource: { [conceptId]: text } — e.g. a note that should shape new questions.
+ */
+export async function moreQuestions({ state, conceptIds, onItems, onProgress, extraSource = {} }) {
+  const a = api();
+  if (!a) return { ok: false, error: "AI features need the desktop app." };
+  const ix = index(state);
+  const targets = roomForQuestions(state, conceptIds);
+  if (!targets.length) return { ok: true, added: 0, concepts: 0 };
+
+  // Groups of up to GROUP_SIZE concepts from the same section.
+  const bySection = new Map();
+  for (const t of targets) {
+    const list = bySection.get(t.concept.sectionId) || [];
+    list.push(t);
+    bySection.set(t.concept.sectionId, list);
+  }
+  const batches = [];
+  for (const list of bySection.values()) for (let i = 0; i < list.length; i += GROUP_SIZE) batches.push(list.slice(i, i + GROUP_SIZE));
+
+  let done = 0, added = 0, failed = null;
+  const touched = new Set();
+  onProgress?.({ done, total: batches.length, added });
+  const run = async (batch, bi) => {
+    const first = batch[0].concept;
+    const concepts = batch.map(({ concept: c, existing, room }) => ({
+      key: c.id, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance,
+      excerpt: [c.source?.excerpt, extraSource[c.id]].filter(Boolean).join("\n"),
+      existing: existing.map(i => i.prompt), want: Math.min(room + 2, 4),
+    }));
+    const r = await writeAndReview({
+      a, courseName: ix.course[first.courseId]?.name ?? "", sectionTitle: ix.section[first.sectionId]?.title ?? "",
+      concepts, tag: `m${bi}`,
+    });
+    if (!r.ok) return r;
+    const items = [];
+    for (const { concept: c, existing } of batch) {
+      const { kept } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.id), r.reviews, c.importance, { existing });
+      for (const q of kept) { items.push(itemFromQuestion(c.id, q, { topUp: true })); touched.add(c.id); }
+    }
+    return { ok: true, items };
+  };
+  const attempt = (b, bi) => run(b, bi).catch(err => ({ ok: false, error: err?.message || "Something went wrong." }));
+  const settle = (r) => {
+    if (r.ok) { if (r.items.length) onItems?.(r.items); added += r.items.length; } else failed = r.error;
+    done++;
+    onProgress?.({ done, total: batches.length, added });
+  };
+  await inParallel(batches, PARALLEL_GROUPS, async (b, bi) => settle(await attempt(b, bi)));
+  if (!added && failed) return { ok: false, error: failed };
+  return { ok: true, added, concepts: touched.size, partial: failed };
+}
+
 /** Run fn over items with at most `limit` in flight at once. */
 export async function inParallel(items, limit, fn) {
   let next = 0;
@@ -188,10 +289,6 @@ export async function inParallel(items, limit, fn) {
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
-
-// Questions that passed the gate carry a `warnings` array; ones you kept
-// despite the gate dropping them don't.
-const passedGate = (q) => Array.isArray(q.warnings);
 
 /**
  * Turn an extraction + reviewed questions into records ready for the store.
@@ -228,15 +325,7 @@ export function buildImport({ state, courseId, extraction, groups, sourceLabel =
       concepts.push(concept);
       keyToId[c.key] = concept.id;
       byName.set(concept.name.toLowerCase(), concept.id);
-      for (const q of chosenByKey[c.key]) {
-        items.push(makeItem({
-          conceptId: concept.id, ability: q.ability, prompt: q.prompt, answer: q.answer,
-          accept: q.ability === "recall" ? q.accept : [],
-          points: q.points.length ? q.points : [q.answer],
-          misconceptions: q.misconceptions, hint: q.hint,
-          quality: { score: q.score, dims: q.dims, revised: Boolean(q.revised), reviewed: q.dims != null, overruled: !passedGate(q) },
-        }));
-      }
+      for (const q of chosenByKey[c.key]) items.push(itemFromQuestion(concept.id, q));
     });
   }
 

@@ -127,7 +127,7 @@ export default function ImportBook({ courseId: presetCourse }) {
               <label htmlFor="bk-course">Add to</label>
               <select id="bk-course" className="select" value={target} onChange={e => setTarget(e.target.value)}>
                 <option value="new">A new course</option>
-                {state.courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {state.courses.filter(c => c.kind !== "notes").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             {target === "new" && (

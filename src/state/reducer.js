@@ -63,6 +63,21 @@ export function reducer(state, action) {
           ...j, chapters: j.chapters.map((c, i) => (i === action.index ? { ...c, ...action.patch } : c)),
         })),
       };
+    // Notes.
+    case "notes/add":
+      return { ...state, notes: [...state.notes, ...action.notes] };
+    case "notes/remove":
+      return { ...state, notes: state.notes.filter(n => n.id !== action.id) };
+    case "notes/requeue": // "Keep anyway" on a skipped note, or retry
+      return { ...state, notes: state.notes.map(n => (n.id === action.id ? { ...n, status: "inbox", force: Boolean(action.force), reason: "" } : n)) };
+    case "notes/import": {
+      const { course, noteUpdates = [], ...payload } = action.payload;
+      let next = course ? { ...state, courses: [...state.courses, course] } : state;
+      next = reducer(next, { type: "import", payload });
+      const patches = new Map(noteUpdates.map(u => [u.id, u.patch]));
+      return { ...next, notes: next.notes.map(n => (patches.has(n.id) ? { ...n, ...patches.get(n.id) } : n)) };
+    }
+
     case "book/dismiss":
       return { ...state, bookJobs: state.bookJobs.filter(j => j.id !== action.id) };
 
@@ -103,6 +118,12 @@ export function reducer(state, action) {
 
     case "item/add":
       return { ...state, items: [...state.items, action.item] };
+    case "items/add": {
+      // Only for concepts that still exist (a top-up may finish after a delete).
+      const ids = new Set(state.concepts.map(c => c.id));
+      const items = action.items.filter(i => ids.has(i.conceptId));
+      return items.length ? { ...state, items: [...state.items, ...items] } : state;
+    }
     case "item/update":
       return { ...state, items: state.items.map(i => (i.id === action.id ? { ...i, ...action.patch } : i)) };
     case "item/delete":

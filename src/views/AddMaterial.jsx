@@ -13,7 +13,7 @@ const STEPS = ["Source", "Choose concepts", "Review questions"];
 
 const selectedKeys = (ex) => ex.sections.flatMap(s => s.concepts.filter(c => c.selected).map(c => c.key));
 
-function QuestionRow({ q, onToggle, dropped }) {
+export function QuestionRow({ q, onToggle, dropped }) {
   const dimText = q.dims ? Object.entries(q.dims).map(([k, v]) => `${DIMENSIONS[k]}: ${v}/5`).join("\n") : "Checked by rules only";
   return (
     <div className={`review-q${q.selected ? "" : " off"}`}>

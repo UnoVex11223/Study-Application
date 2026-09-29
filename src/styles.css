@@ -501,3 +501,13 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .nav-job-title { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .nav-job-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ── Notes ─────────────────────────────────────────────────────────────── */
+.notes-top { align-items: stretch; }
+.notes-drop { display: grid; align-content: center; justify-items: center; gap: 8px; text-align: center; cursor: pointer; min-height: 100%; }
+.note-result { display: grid; gap: 12px; }
+.note-source { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-left: 2px solid var(--rule-strong); color: var(--ink-2); }
+.note-source .md { flex: 1; min-width: 0; }
+.note-concept { border-top: 1px solid var(--rule); padding-top: 12px; }
+.note-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-outcome { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; color: var(--ink-3); }

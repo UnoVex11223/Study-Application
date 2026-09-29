@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Bar, StatusDot, ImportanceTag, Notice, Spinner } from "../ui/ui.jsx";
+import { Bar, StatusDot, ImportanceTag, Notice, Spinner, Modal } from "../ui/ui.jsx";
+import { useBackground } from "../state/background.jsx";
 import { useBookImport, jobProgress, bookBridge } from "../state/bookImport.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
@@ -11,7 +12,7 @@ import { index, COURSE_STATUS, ABILITIES } from "../lib/model.js";
 import { InlineMarkdown } from "../ui/Markdown.jsx";
 import { courseMastery, sectionMastery, abilityBreakdown } from "../lib/mastery.js";
 import { practiceTasks } from "../lib/planner.js";
-import { aiBridge } from "../lib/ai.js";
+import { aiBridge, roomForQuestions } from "../lib/ai.js";
 
 /** Progress and controls for a book being imported into this course. */
 function JobBanner({ job }) {
@@ -50,6 +51,54 @@ function JobBanner({ job }) {
   );
 }
 
+/** Confirm topping up a chapter's or course's questions. */
+function TopUpModal({ scope, onClose, onStart }) {
+  const { state } = useStore();
+  const room = roomForQuestions(state, scope.conceptIds);
+  const n = room.length, adds = room.reduce((sum, t) => sum + t.room, 0);
+  const minutes = Math.max(1, Math.round(n / 16)), dollars = Math.max(1, Math.round(n * 0.02));
+  return (
+    <Modal title="Write more questions" onClose={onClose} footer={<>
+      <button className="btn btn-quiet" onClick={onClose}>Cancel</button>
+      <button className="btn btn-primary" disabled={!n} onClick={() => { onStart(room.map(t => t.concept.id)); onClose(); }}>Write more questions</button>
+    </>}>
+      {n ? (
+        <div className="stack" style={{ gap: 10 }}>
+          <p style={{ margin: 0 }}><strong>{n} concept{n === 1 ? "" : "s"}</strong> in {scope.label} {n === 1 ? "has" : "have"} fewer questions than the target (4 for core concepts, 3 for supporting, 1 for details): room for up to {adds} more.</p>
+          <p className="muted" style={{ margin: 0 }}>Claude writes questions that come at each idea from another side. They go through the same quality check and are added automatically. A concept's questions take turns at its reviews, so this adds variety, not review time.</p>
+          <p className="muted small" style={{ margin: 0 }}>About {minutes} minute{minutes === 1 ? "" : "s"} in the background, roughly ${dollars} of API usage.</p>
+        </div>
+      ) : <p style={{ margin: 0 }}>Every concept in {scope.label} already has its full set of questions.</p>}
+    </Modal>
+  );
+}
+
+/** Progress for a question top-up running on this course. */
+function TopUpBanner({ task, onDismiss }) {
+  if (task.status === "running") {
+    return (
+      <div className="job-banner">
+        <Spinner/>
+        <div className="grow" style={{ minWidth: 0 }}>
+          <strong>Writing more questions for {task.label}</strong>
+          <div className="section-stats"><span>{task.done} of {task.total || "…"} groups</span><span>{task.added} added so far</span></div>
+          <Bar value={task.total ? task.done / task.total : 0} thin/>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="job-banner">
+      <Icon name={task.status === "failed" ? "alert" : "check"} size={16}/>
+      <div className="grow">
+        <strong>{task.status === "failed" ? `Couldn't write more questions for ${task.label}` : `Added ${task.added} question${task.added === 1 ? "" : "s"} to ${task.concepts ?? 0} concept${task.concepts === 1 ? "" : "s"} in ${task.label}`}</strong>
+        {task.error && <div className="muted small">{task.status === "failed" ? task.error : `Some groups failed: ${task.error}. Running it again fills the gaps.`}</div>}
+      </div>
+      <button className="btn btn-sm btn-quiet" onClick={onDismiss}>Dismiss</button>
+    </div>
+  );
+}
+
 const CHAPTER_STATUS = {
   pending: "Waiting",
   reading: "Finding concepts…",
@@ -69,6 +118,8 @@ export default function Course({ courseId }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmSection, setConfirmSection] = useState(null);
   const importer = useBookImport();
+  const bg = useBackground();
+  const [topUpScope, setTopUpScope] = useState(null);
   const now = nav.now;
 
   if (!course) {
@@ -87,6 +138,10 @@ export default function Course({ courseId }) {
   const jobs = state.bookJobs.filter(j => j.courseId === courseId);
   const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i })).filter(x => x.c.include && x.c.status !== "done"));
   const lockedCount = sections.filter(s => s.locked).length;
+  const topUps = bg.tasks.filter(t => t.courseId === courseId);
+  const topUpRunning = topUps.some(t => t.status === "running");
+  const questionCount = (conceptList) => conceptList.reduce((n, c) => n + (ix.itemsByConcept[c.id] || []).filter(i => !i.flag).length, 0);
+  const startTopUp = (label, sectionId) => (conceptIds) => bg.topUp({ label, courseId, sectionId, conceptIds });
 
   return (
     <div className="page">
@@ -115,6 +170,7 @@ export default function Course({ courseId }) {
       </div>
 
       {jobs.map(job => <JobBanner key={job.id} job={job}/>)}
+      {topUps.map(t => <TopUpBanner key={t.id} task={t} onDismiss={() => bg.dismiss(t.id)}/>)}
 
       {sections.length === 0 && waiting.length === 0 ? (
         <div className="panel empty">
@@ -143,6 +199,7 @@ export default function Course({ courseId }) {
             <div>
               <div className="row" style={{ marginBottom: 12 }}>
                 <h2 className="h grow" style={{ margin: 0 }}>Sections</h2>
+                {aiBridge() && <button className="btn btn-sm btn-quiet" disabled={topUpRunning} onClick={() => setTopUpScope({ label: course.name, conceptIds: (ix.conceptsByCourse[courseId] || []).map(c => c.id), start: startTopUp(course.name, null) })}><Icon name="sparkle" size={14}/>More questions</button>}
                 <button className="btn btn-sm btn-quiet" onClick={() => setAdding({})}><Icon name="plus" size={14}/>Add a question</button>
                 <button className="btn btn-sm btn-quiet" onClick={() => nav.go("map", { courseId })}><Icon name="map" size={14}/>Map</button>
               </div>
@@ -166,6 +223,7 @@ export default function Course({ courseId }) {
                             {s.summary && <div className="section-desc"><InlineMarkdown>{s.summary}</InlineMarkdown></div>}
                             <div className="section-stats">
                               <span>{sm.total} concept{sm.total === 1 ? "" : "s"}</span>
+                              <span>{questionCount(concepts)} questions</span>
                               {s.locked ? <span>locked until you've read it</span> : <>
                                 <span>{sm.mastered}/{sm.basisCount} {sm.basisIsCore ? "core " : ""}mastered</span>
                                 <span>{sm.introduced}/{sm.total} started</span>
@@ -200,6 +258,9 @@ export default function Course({ courseId }) {
                               <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play" size={11}/>Practice section</button>
                               <button className="btn btn-sm" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}><Icon name="pen" size={13}/>Teach it back</button>
                             </>}
+                            {aiBridge() && (
+                              <button className="btn btn-sm" disabled={topUpRunning} onClick={() => setTopUpScope({ label: s.title, conceptIds: concepts.map(c => c.id), start: startTopUp(s.title, s.id) })}><Icon name="sparkle" size={13}/>More questions</button>
+                            )}
                             {!s.locked && s.pages && (
                               <button className="btn btn-sm btn-quiet" title="Stop introducing new concepts from this chapter" onClick={() => act("section/lock", { id: s.id, locked: true })}><Icon name="lock" size={13}/>Lock</button>
                             )}
@@ -283,6 +344,7 @@ export default function Course({ courseId }) {
       {conceptId && <ConceptPanel conceptId={conceptId} onOpen={setConceptId} onClose={() => setConceptId(null)}/>}
       {editing && <CourseForm course={course} onClose={() => setEditing(false)} onSave={(patch) => { act("course/update", { id: course.id, patch }); setEditing(false); }}/>}
       {adding && <ItemForm courseId={courseId} onClose={() => setAdding(null)}/>}
+      {topUpScope && <TopUpModal scope={topUpScope} onClose={() => setTopUpScope(null)} onStart={topUpScope.start}/>}
     </div>
   );
 }

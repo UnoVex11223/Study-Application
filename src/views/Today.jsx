@@ -54,7 +54,7 @@ export default function Today({ plan }) {
     .sort((a, b) => b.m.lapses - a.m.lapses)
     .slice(0, 5);
 
-  const courses = state.courses.filter(c => c.status !== "paused");
+  const courses = state.courses.filter(c => c.status !== "paused" && c.kind !== "notes");
   const flagged = state.items.filter(i => i.flag).length;
   const dateLabel = new Date(now).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const doneToday = plan.tasks.length === 0 && plan.spentSec > 0;
@@ -153,8 +153,8 @@ export default function Today({ plan }) {
                   </button>
                 );
               })}
-              {state.courses.length > courses.length && (
-                <div className="list-row static muted small">{state.courses.length - courses.length} paused course{state.courses.length - courses.length === 1 ? "" : "s"} not shown</div>
+              {state.courses.filter(c => c.status === "paused" && c.kind !== "notes").length > 0 && (
+                <div className="list-row static muted small">{state.courses.filter(c => c.status === "paused" && c.kind !== "notes").length} paused course(s) not shown</div>
               )}
             </div>
           </div>

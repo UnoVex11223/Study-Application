@@ -97,3 +97,47 @@ test("a group that fails is retried once, and the rest are kept if it fails agai
   assert.equal(res2.partial, "Overloaded");
   assert.deepEqual(res2.groups.map(g => g.conceptKey), ["B0", "B1", "B2", "B3"]);
 });
+
+test("topping up adds new variants only where a concept is below its target", async () => {
+  const { moreQuestions } = await import("../src/lib/ai.js");
+  const { makeSection, makeConcept, makeItem } = await import("../src/lib/model.js");
+  const { reducer } = await import("../src/state/reducer.js");
+  const { s, courseId } = stateWithCourse();
+  const sec = makeSection({ courseId, title: "Ch 1" });
+  const core = makeConcept({ courseId, sectionId: sec.id, name: "Pointer", importance: "core" });
+  const full = makeConcept({ courseId, sectionId: sec.id, name: "Full", importance: "detail" });
+  s.sections.push(sec); s.concepts.push(core, full);
+  s.items.push(makeItem({ conceptId: core.id, ability: "explain", prompt: "Why does Pointer matter when designing a program's memory layout?", answer: "a", points: ["a"] }));
+  s.items.push(makeItem({ conceptId: full.id, ability: "recall", prompt: "Name it", answer: "Full", accept: ["Full"] }));
+
+  const seen = [];
+  const ai = {
+    items: async ({ concepts }) => {
+      seen.push(...concepts);
+      return { ok: true, data: { tasks: concepts.flatMap(c => [
+        { concept_key: c.key, ability: "explain", prompt: "Why does Pointer matter when designing a program's memory layout?", model_answer: "dup", accept: [], required_points: ["dup"], misconceptions: [], hint: "" },
+        { concept_key: c.key, ability: "apply", prompt: "What does `*p = 7;` change when `p` holds the address of `x`?", model_answer: "x becomes 7", accept: [], required_points: ["x becomes 7"], misconceptions: [], hint: "" },
+        { concept_key: c.key, ability: "distinguish", prompt: "How does declaring `int *p` differ from writing `*p` in an expression?", model_answer: "declaration vs dereference", accept: [], required_points: ["Declaration makes a pointer; expression dereferences"], misconceptions: [], hint: "" },
+        { concept_key: c.key, ability: "recall", prompt: "Which operator gives the address of a variable in C?", model_answer: "&", accept: ["&", "address-of operator"], required_points: ["&"], misconceptions: [], hint: "" },
+        { concept_key: c.key, ability: "explain", prompt: "Why must a pointer be initialized before it is dereferenced?", model_answer: "undefined behavior", accept: [], required_points: ["Uninitialized pointers point anywhere"], misconceptions: [], hint: "" },
+      ]) } };
+    },
+    critique: async ({ questions }) => ({ ok: true, data: { reviews: questions.map(q => ({
+      id: q.id, verdict: "keep", scores: { importance: 5, clarity: 5, retrieval: 5, gradability: 5, accuracy: 5 }, reason: "",
+      revision: { prompt: "", model_answer: "", accept: [], required_points: [], misconceptions: [], hint: "" },
+    })) } }),
+  };
+  globalThis.window = { engram: { ai } };
+  let state = s;
+  const res = await moreQuestions({ state, conceptIds: [core.id, full.id], onItems: (items) => { state = reducer(state, { type: "items/add", items }); } });
+  delete globalThis.window;
+
+  assert.equal(res.ok, true);
+  assert.equal(res.added, 3, "core target is 4; it had 1");
+  assert.deepEqual(seen.map(c => c.key), [core.id], "a concept at its target isn't sent");
+  assert.equal(seen[0].existing.length, 1);
+  const prompts = state.items.filter(i => i.conceptId === core.id).map(i => i.prompt);
+  assert.equal(prompts.length, 4);
+  assert.equal(new Set(prompts).size, 4, "the repeated question was dropped");
+  assert.ok(state.items.filter(i => i.conceptId === core.id).slice(1).every(i => i.topUp));
+});

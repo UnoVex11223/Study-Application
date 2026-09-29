@@ -63,13 +63,14 @@ test("selection caps questions per concept, preferring variety and higher scores
     q({ id: "c", ability: "apply", prompt: "Rewrite `for (i = 0; i < 12; i++)` so the loop bound says what 12 means.", points: ["Introduces a named constant for 12"] }),
     q({ id: "d", ability: "recall", prompt: "What term describes an unexplained numeric literal in source code?", answer: "Magic number", accept: ["magic number"] }),
     q({ id: "e", ability: "explain", prompt: "Is this trivia?" }),
+    q({ id: "f", ability: "explain", prompt: "How does a named constant make a later change to the value safer?" }),
   ];
-  const reviews = { a: review("keep", {}), b: review("keep", { clarity: 4 }), c: review("keep", {}), d: review("keep", { importance: 4 }), e: review("drop", { importance: 2 }) };
+  const reviews = { a: review("keep", {}), b: review("keep", { clarity: 4 }), c: review("keep", {}), d: review("keep", { importance: 4 }), e: review("drop", { importance: 2 }), f: review("keep", { clarity: 4, retrieval: 4 }) };
   const { kept, dropped } = selectForConcept(cands, reviews, "core");
-  assert.equal(kept.length, 3);
+  assert.equal(kept.length, 4);
   assert.deepEqual(new Set(kept.map(k => k.ability)), new Set(["explain", "apply", "recall"]));
   assert.ok(dropped.find(d => d.id === "e"));
-  assert.ok(dropped.find(d => d.id === "b").reasons[0].includes("already has"));
+  assert.ok(dropped.find(d => d.id === "f").reasons[0].includes("already has its 4"));
   const detail = selectForConcept(cands.slice(0, 3), reviews, "detail");
   assert.equal(detail.kept.length, 1);
 });
@@ -138,3 +139,23 @@ test("a rewritten question starts fresh", () => {
   assert.equal(fixed.items[0].prompt, "Better prompt here please");
   assert.equal(fixed.items[0].quality.rewritten, true);
 });
+
+test("topping up counts existing questions, skips their duplicates and fills missing types first", () => {
+  const existing = [
+    q({ ability: "explain", prompt: "Why do C programmers name numeric constants instead of writing them inline?" }),
+    q({ ability: "explain", prompt: "What goes wrong when one unexplained literal is repeated across a codebase?" }),
+  ];
+  const cands = [
+    q({ id: "dup", ability: "explain", prompt: "Why do C programmers name numeric constants instead of writing them inline?" }),
+    q({ id: "x", ability: "explain", prompt: "How does a named constant make a later change to the value safer?" }),
+    q({ id: "ap", ability: "apply", prompt: "Rewrite `for (i = 0; i < 12; i++)` so the loop bound says what 12 means.", points: ["Introduces a named constant for 12"] }),
+    q({ id: "rc", ability: "recall", prompt: "What term describes an unexplained numeric literal in source code?", answer: "Magic number", accept: ["magic number"] }),
+  ];
+  const reviews = Object.fromEntries(cands.map(c => [c.id, review("keep", {})]));
+  const { kept, dropped } = selectForConcept(cands, reviews, "core", { existing });
+  assert.equal(kept.length, 2, "4 allowed, 2 already there");
+  assert.deepEqual(kept.map(k => k.id).sort(), ["ap", "rc"]);
+  assert.ok(dropped.find(d => d.id === "dup"));
+  assert.equal(selectForConcept(cands, reviews, "supporting", { existing: [...existing, existing[0]] }).kept.length, 0);
+});
+

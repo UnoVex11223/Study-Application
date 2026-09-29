@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("engram", {
     grade: (payload) => ipcRenderer.invoke("ai:grade", payload),
     link: (payload) => ipcRenderer.invoke("ai:link", payload),
     teachback: (payload) => ipcRenderer.invoke("ai:teachback", payload),
+    notes: (payload) => ipcRenderer.invoke("ai:notes", payload),
   },
   pdf: {
     outline: (data) => ipcRenderer.invoke("pdf:outline", data),

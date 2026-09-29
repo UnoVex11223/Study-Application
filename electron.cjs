@@ -104,7 +104,7 @@ async function structured({ tier, system, prompt, schema, maxTokens }) {
 const str = (description) => (description ? { type: "string", description } : { type: "string" });
 const strList = (description) => ({ type: "array", items: { type: "string" }, ...(description ? { description } : {}) });
 const obj = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-const escapeTag = (s) => String(s ?? "").replace(/<\/(source|answer|known_concepts)>/gi, "</ $1>");
+const escapeTag = (s) => String(s ?? "").replace(/<\/(source|answer|known_concepts|note)>/gi, "</ $1>");
 
 // ── 1. Curriculum extraction ─────────────────────────────────────────────────
 const EXTRACT_SCHEMA = obj({
@@ -215,8 +215,9 @@ const ITEMS_SYSTEM = `You write retrieval-practice questions. The learner answer
 
 HOW MANY
 Write candidates generously — a separate reviewer keeps only the best:
-core concept: 3–4 candidates. supporting: 2. detail: 1, and only if the detail is genuinely worth knowing.
-A concept's questions take turns at its reviews, so each should come at the idea differently (a different facet, a different use), never the same question reworded.
+core concept: 5–6 candidates. supporting: 3–4. detail: 1, and only if the detail is genuinely worth knowing.
+A concept's questions take turns at its reviews, so each should come at the idea differently (a different facet, a different use, a different ability), never the same question reworded. Varied questions are what make the knowledge stick beyond the wording of one prompt.
+If a concept lists already_asked questions, it already has those: write only as many new candidates as its "write" line asks for, each clearly different from the ones already asked.
 Write at most one "connect" question for the concepts you're given, and only if 2–3 of them genuinely work together; attach it to the most central one.
 
 ABILITIES
@@ -243,7 +244,7 @@ ipcMain.handle("ai:items", async (_e, { courseName, sectionTitle, concepts }) =>
   const list = concepts.map((c) => `<concept key="${c.key}" importance="${c.importance}" kind="${c.kind}">
 name: ${c.name}
 summary: ${c.summary}
-${c.excerpt ? `source: ${c.excerpt}` : ""}
+${c.excerpt ? `source: ${c.excerpt}` : ""}${c.existing?.length ? `\nalready_asked:\n${c.existing.map(p => `- ${p.replace(/\s+/g, " ").slice(0, 300)}`).join("\n")}\nwrite: ${c.want ?? 2} new candidates` : ""}
 </concept>`).join("\n");
   const prompt = `Course: ${courseName}
 Section: ${sectionTitle}
@@ -298,11 +299,14 @@ prompt: ${q.prompt}
 model_answer: ${q.model_answer}
 ${q.accept?.length ? `accept: ${q.accept.join(" | ")}\n` : ""}key_points: ${(q.required_points || []).join(" | ")}
 ${q.misconceptions?.length ? `misconceptions: ${q.misconceptions.join(" | ")}\n` : ""}</question>`).join("\n");
+  const inUse = concepts.filter((c) => c.existing?.length).map((c) => `<in_use concept="${c.key}">
+${c.existing.map(p => `- ${p.replace(/\s+/g, " ").slice(0, 300)}`).join("\n")}
+</in_use>`).join("\n");
   const prompt = `Course: ${courseName}
 Section: ${sectionTitle}
 
 ${ctx}
-
+${inUse ? `\nQuestions already in use (not for review; drop new questions that repeat them):\n${inUse}\n` : ""}
 ${qs}
 
 Review every question above.`;
@@ -424,6 +428,73 @@ ${fresh.map(fmt).join("\n")}
 EXISTING concepts:
 ${existing.map(fmt).join("\n") || "(none)"}`;
   return structured({ tier: "deep", system: LINK_SYSTEM, prompt, schema: LINK_SCHEMA, maxTokens: 8000 });
+});
+
+// ── 4b. Notes ────────────────────────────────────────────────────────────────
+const NOTES_SCHEMA = obj({
+  notes: {
+    type: "array",
+    items: obj({
+      note_id: str(),
+      outcome: { type: "string", enum: ["keep", "skip"] },
+      reason: str("For skip: one short sentence on why. For keep: empty"),
+      concepts: {
+        type: "array",
+        items: obj({
+          key: str("Short id within this note, e.g. c1"),
+          name: str("Short noun phrase a practitioner would use"),
+          summary: str("1–3 sentences stating the idea precisely and correctly"),
+          kind: { type: "string", enum: ["definition", "mechanism", "distinction", "procedure", "principle", "fact"] },
+          importance: { type: "string", enum: ["core", "supporting", "detail"] },
+          topic: str("General subject to file it under, e.g. 'SQLite', 'Git', 'HTTP', 'C'"),
+          filled_in: { type: "boolean", description: "True if the summary adds facts the note didn't state" },
+          corrected: str("If the note is wrong or misleading, what was wrong; otherwise empty"),
+          same_as: str("Id of a known concept that is the SAME idea, or empty"),
+          related: {
+            type: "array",
+            items: obj({
+              id: str("Known concept id"),
+              type: { type: "string", enum: ["related", "contrast", "application"] },
+              why: str("One sentence that helps the learner see the connection"),
+            }),
+          },
+        }),
+      },
+    }),
+  },
+});
+
+const NOTES_SYSTEM = `You turn a learner's own notes (jotted while building projects, reading documentation or working) into ideas worth keeping in long-term memory, and you match them against what the learner already studies.
+
+For each note, decide:
+- keep: it states, or clearly points to, knowledge a practitioner benefits from knowing without looking it up: how something works, why it works that way, a gotcha, a rule, a technique, a distinction.
+- skip: to-dos and reminders, project-specific facts that won't matter elsewhere (file paths, variable or server names, dates), personal or administrative text, anything containing credentials, keys, tokens or passwords (never copy a secret into your output), and notes too vague to recover any definite idea. Give a short reason.
+If a note has force="true", keep it and extract the best idea you can.
+
+For a kept note, extract its concepts: usually one; split only when the note holds genuinely separate ideas (at most 3).
+- summary: state the idea precisely and correctly, faithful to the note. If the note is terse, complete it with well-established facts so it stands on its own, and set filled_in to true. If the note is wrong or misleading, write the correct idea and say what was wrong in corrected.
+- importance: core = broadly useful fundamentals; supporting = useful specifics; detail = narrow facts.
+- topic: the general subject, as a short name (a technology, tool or field). Reuse an existing topic when one fits. The note's context is a hint; a project name is rarely a good topic.
+- same_as: if a known concept is the SAME idea (not merely related), give its id. The note will then add practice to that concept instead of creating a duplicate.
+- related: up to 2 known concepts that are genuinely connected (not the same_as one), each with a sentence on why.
+Match on meaning, never on shared words alone.`;
+
+ipcMain.handle("ai:notes", async (_e, { notes, topics = [], known = [] }) => {
+  const knownList = known.map((k) => `${k.id} | ${k.name} | ${k.course} | ${k.summary}`).join("\n");
+  const noteList = notes.map((n) => `<note id="${n.id}" force="${n.force ? "true" : "false"}"${n.context ? ` context="${String(n.context).replace(/"/g, "'")}"` : ""}>
+${escapeTag(n.text)}
+</note>`).join("\n");
+  const prompt = `<existing_topics>
+${topics.join("\n") || "(none yet)"}
+</existing_topics>
+
+<known_concepts>
+id | name | course | summary
+${knownList || "(none yet)"}
+</known_concepts>
+
+${noteList}`;
+  return structured({ tier: "deep", system: NOTES_SYSTEM, prompt, schema: NOTES_SCHEMA, maxTokens: 16000 });
 });
 
 // ── 5. Teach-back ────────────────────────────────────────────────────────────
