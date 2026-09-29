@@ -157,6 +157,14 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 
 ---
 
+## Knowledge map
+
+A sky of solar systems. Each book or course is a star with its name at the centre; its chapters are orbits (the first chapter innermost, chapters you haven't read as dashed orbits) and its concepts are planets on them, sized by importance: a filled planet with a glow is mastered, filled is being learned, amber and pulsing is slipping, a hollow ring hasn't been started, grey is in a chapter you haven't read. Orbits are tilted, and inner ones turn faster (roughly Kepler's law); the whole sky turns slowly, starting from where the real clock puts it.
+
+Links between concepts stretch between planets: links between books are always shown (fainter when there are many); links inside a book appear when you point at or open one of its planets, or when the map shows a single course. Pointing at a planet brings the sky to a stop so it's easy to click; clicking glides the camera to it and opens its panel beside the map (you can keep clicking other planets); clicking a book's name zooms to its system. Pick a single course to see just its system, or switch it to **Prerequisites** for the left-to-right chart of what builds on what.
+
+Drawn on a canvas, so large libraries stay smooth: it opens instantly and redraws hundreds of moving planets in a few milliseconds. The layout itself is in `src/lib/orbits.js` (pure, unit-tested).
+
 ## Data & privacy
 
 Everything lives locally in one file on your machine, and a copy is saved automatically once a day in a `backups` folder next to it (the last 14 are kept; Settings → Your data → Open folder). The API key is encrypted with your user account (Windows DPAPI / macOS Keychain) and isn't included in backups. The data file is `config.json` in `%APPDATA%\aeroflash` on a computer that ran earlier versions (kept so nothing moves when the app is renamed) and in `%APPDATA%\Tenax` on a fresh install. Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
@@ -185,7 +193,7 @@ This version starts from an empty library. The first time it runs, anything save
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates
 sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, sync (merging)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, sync (merging)
 src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
 src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, KnowledgeMap, Progress, TeachBack, Settings
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)

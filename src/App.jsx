@@ -21,7 +21,7 @@ import Settings from "./views/Settings.jsx";
 import TeachBack from "./views/TeachBack.jsx";
 import Session from "./views/Session.jsx";
 
-// Studying first, then looking back; the shelf sits at the bottom with Settings.
+// Studying first, then looking back, then the shelf; Settings sits at the bottom.
 const NAV_GROUPS = [
   [
     { id: "today", label: "Today", icon: "today" },
@@ -32,9 +32,11 @@ const NAV_GROUPS = [
     { id: "progress", label: "Progress", icon: "progress" },
     { id: "map", label: "Knowledge map", icon: "map" },
   ],
+  [
+    { id: "shelf", label: "Shelf", icon: "shelf" },
+  ],
 ];
 const NAV_BOTTOM = [
-  { id: "shelf", label: "Shelf", icon: "shelf" },
   { id: "settings", label: "Settings", icon: "settings" },
 ];
 
