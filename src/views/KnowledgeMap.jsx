@@ -9,7 +9,7 @@ import { conceptMastery } from "../lib/mastery.js";
 import { layeredLayout } from "../lib/graph.js";
 
 const STATUS_FILL = {
-  mastered: "var(--good)", practiced: "var(--sky)", learning: "var(--sky)", slipping: "var(--warn)", new: "var(--surface)",
+  mastered: "var(--good)", practiced: "var(--accent)", learning: "var(--accent)", slipping: "var(--warn)", new: "var(--surface)",
 };
 const RADIUS = { core: 7, supporting: 5.5, detail: 4.5 };
 const MAX_LABEL = 30;
@@ -138,7 +138,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
           <h1>Knowledge map</h1>
           <div className="page-sub">
             {scope === "all"
-              ? "Everything you're learning, clustered by course. Blue lines connect ideas across courses."
+              ? "Everything you're learning, clustered by course. Brighter lines connect ideas across courses."
               : "Prerequisites flow left to right: each concept builds on the ones to its left."}
           </div>
         </div>
@@ -190,7 +190,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
                 const dim = neighbors && !neighbors.has(c.id);
                 const label = showAllLabels || c.id === focus || (neighbors?.has(c.id)) || (c.importance === "core" && view.k > 0.7);
                 return (
-                  <g key={c.id} className={`map-node${dim ? " dim" : ""}`} transform={`translate(${p.x},${p.y})`}
+                  <g key={c.id} className={`map-node${dim ? " dim" : ""}${ix.lockedConcepts.has(c.id) ? " locked" : ""}`} transform={`translate(${p.x},${p.y})`}
                     onPointerEnter={() => setHover(c.id)} onPointerLeave={() => setHover(null)}
                     onClick={() => setSelected(c.id)}>
                     <circle r={r + 5} fill="transparent"/>
@@ -211,9 +211,10 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
           </div>
           <div className="map-legend">
             <span><span className="dot" style={{ background: "var(--good)" }}/>Mastered</span>
-            <span><span className="dot" style={{ background: "var(--sky)" }}/>Learning</span>
+            <span><span className="dot" style={{ background: "var(--accent)" }}/>Learning</span>
             <span><span className="dot" style={{ background: "var(--warn)" }}/>Slipping</span>
             <span><span className="dot" style={{ border: "1.5px solid var(--ink-3)" }}/>Not started</span>
+            {ix.lockedConcepts.size > 0 && <span><span className="dot" style={{ border: "1.5px dashed var(--ink-3)", opacity: 0.6 }}/>Unread chapter</span>}
             <span><svg width="22" height="6"><path d="M0 3h22" stroke="var(--ink-3)" strokeDasharray="4 4"/></svg>Unconfirmed link</span>
           </div>
         </div>

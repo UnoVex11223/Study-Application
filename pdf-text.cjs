@@ -40,8 +40,10 @@ async function outline(data) {
     flat[i].end = next ? next.page - 1 : doc.numPages;
   }
   const pages = doc.numPages;
+  const meta = await doc.getMetadata().catch(() => null);
+  const title = String(meta?.info?.Title || "").trim();
   await doc.close();
-  return { pages, outline: flat };
+  return { pages, outline: flat, title };
 }
 
 /** Text of pages [from, to] (1-based, inclusive) with "[Page n]" markers. */

@@ -1,16 +1,25 @@
 import { useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Drawer, StatusDot, ImportanceTag } from "../ui/ui.jsx";
+import { Drawer, StatusDot, ImportanceTag, Notice } from "../ui/ui.jsx";
 import { useNav, abilityLabel, pct } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import Markdown from "../ui/Markdown.jsx";
 import ItemForm from "./ItemForm.jsx";
+import FixQuestion from "./FixQuestion.jsx";
+import { FLAG_REASONS } from "../lib/quality.js";
 import { index } from "../lib/model.js";
 import { conceptMastery, explainMastery, STATUS } from "../lib/mastery.js";
 import { practiceTasks } from "../lib/planner.js";
 import { relativeDays } from "../lib/time.js";
 
 const REL_LABEL = { related: "Related", contrast: "Easily confused with", application: "Used together with" };
+
+// Questions take turns at the concept's reviews, so each shows how often it's been asked.
+function askedLine(st) {
+  if (!st?.seen) return "Not asked yet";
+  const misses = st.missDays.length;
+  return `Asked ${st.seen}×${misses ? `, missed on ${misses} day${misses === 1 ? "" : "s"}` : ""}`;
+}
 
 export default function ConceptPanel({ conceptId, onOpen, onClose }) {
   const { state, act } = useStore();
@@ -28,7 +37,8 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
   const prereqs = ix.prereqsOf[c.id] || [];
   const dependents = ix.dependentsOf[c.id] || [];
   const related = ix.relatedOf[c.id] || [];
-  const nextDue = items.filter(i => i.srs && i.srs.state !== "new" && i.srs.due != null).map(i => i.srs.due).sort((a, b) => a - b)[0];
+  const nextDue = c.srs && c.srs.state !== "new" ? c.srs.due : null;
+  const locked = ix.lockedConcepts.has(c.id);
 
   const practice = () => {
     const tasks = practiceTasks(state, { conceptId: c.id });
@@ -62,8 +72,11 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
         <p className="muted small">{explainMastery(m)}</p>
         {c.summary && <div className="model-answer"><Markdown>{c.summary}</Markdown></div>}
         {c.importanceReason && <p className="muted small">Why it matters: {c.importanceReason}</p>}
+        {c.filledIn && <Notice icon="info">Your note was brief, so Claude filled in details. Check them against a source you trust, and edit the questions if anything's off.</Notice>}
+        {c.corrected && <Notice tone="warn" icon="alert">Your original note needed a correction: {c.corrected}</Notice>}
+        {locked && <Notice icon="lock">This concept is in a chapter you haven't marked as read, so it won't come up in sessions yet.</Notice>}
         <div className="row" style={{ marginTop: 4 }}>
-          <button className="btn btn-primary btn-sm" onClick={practice} disabled={!items.length}><Icon name="play" size={12}/>Practice now</button>
+          {!locked && <button className="btn btn-primary btn-sm" onClick={practice} disabled={!items.length}><Icon name="play" size={12}/>Practice now</button>}
           <button className="btn btn-sm" onClick={() => { onClose(); nav.go("map", { courseId: c.courseId, conceptId: c.id }); }}><Icon name="map" size={14}/>Show on map</button>
         </div>
       </section>
@@ -119,17 +132,19 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
         </div>
         <div className="stack" style={{ gap: 10 }}>
           {items.map(it => (
-            <div key={it.id} className="item-card">
+            <div key={it.id} className={`item-card${it.flag ? " flagged" : ""}`}>
               <div className="row small">
                 <strong>{abilityLabel(it.ability)}</strong>
                 <span className="muted grow">
-                  {it.srs?.state === "new" ? "Not asked yet" : it.srs?.due ? `Next ${relativeDays(it.srs.due)}` : ""}
-                  {it.srs?.lapses ? `, missed ${it.srs.lapses}×` : ""}
+                  {it.flag ? "Out of sessions" : askedLine(ix.itemStats[it.id])}
                 </span>
+                {it.quality?.score != null && <span className="muted" title="Score from the quality review (out of 5)">Quality {it.quality.score.toFixed(1)}</span>}
                 <button className="btn btn-quiet btn-sm btn-icon" title="Edit" onClick={() => setEditing(it)}><Icon name="edit" size={14}/></button>
                 <button className="btn btn-quiet btn-sm btn-icon" title="Delete question" onClick={() => act("item/delete", { id: it.id })}><Icon name="trash" size={14}/></button>
               </div>
+              {it.flag && <div className="small review-reason">{FLAG_REASONS[it.flag.reason] ?? "Flagged"}</div>}
               <Markdown>{it.prompt}</Markdown>
+              {it.flag && <FixQuestion item={it} concept={c}/>}
               <details>
                 <summary className="muted small" style={{ cursor: "pointer" }}>Answer and key points</summary>
                 <div className="stack" style={{ gap: 8, marginTop: 8 }}>
@@ -145,7 +160,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
 
       {c.source?.excerpt && (
         <section>
-          <h2 className="h">Source</h2>
+          <h2 className="h">{c.noteId ? "Your note" : "Source"}</h2>
           <div className="source-quote">{c.source.excerpt}</div>
           {(c.source.location || c.source.label) && <div className="muted small" style={{ marginTop: 6 }}>{[c.source.label, c.source.location].filter(Boolean).join(", ")}</div>}
         </section>

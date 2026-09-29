@@ -1,4 +1,5 @@
 import { useStore } from "../state/store.jsx";
+import { useSync } from "../state/sync.jsx";
 import { Bar, StatusDot, Notice } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
@@ -41,7 +42,8 @@ function Week({ state, now }) {
 }
 
 export default function Today({ plan }) {
-  const { state, act } = useStore();
+  const { state } = useStore();
+  const sync = useSync();
   const nav = useNav();
   const ix = index(state);
   const now = nav.now;
@@ -54,7 +56,9 @@ export default function Today({ plan }) {
     .sort((a, b) => b.m.lapses - a.m.lapses)
     .slice(0, 5);
 
-  const courses = state.courses.filter(c => c.status !== "paused");
+  const courses = state.courses.filter(c => c.status !== "paused" && c.kind !== "notes");
+  const flagged = state.items.filter(i => i.flag).length;
+  const inbox = state.notes.filter(n => n.status === "inbox").length;
   const dateLabel = new Date(now).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const doneToday = plan.tasks.length === 0 && plan.spentSec > 0;
 
@@ -64,16 +68,17 @@ export default function Today({ plan }) {
     return (
       <div className="page page-narrow">
         <div className="page-head"><div><h1>Today</h1><div className="page-sub">{dateLabel}</div></div></div>
-        <div className="card-stack" style={{ marginTop: 18 }}>
-          <article className="index-card">
-            <div className="index-card-head"><span className="ability">Get started</span></div>
-            <div className="ruled">
-              <div className="plan-title">Add what you're studying.</div>
-              <div className="plan-sub">Create a course for a book or class, then add a chapter at a time as you work through it. AeroFlash finds the concepts worth remembering and schedules short daily reviews so you keep them for good.</div>
-            </div>
-            <div className="plan-foot"><button className="btn btn-primary btn-lg" onClick={() => nav.go("courses", { create: true })}><Icon name="plus" size={16}/>Create a course</button></div>
-          </article>
-        </div>
+        <article className="hero" style={{ marginTop: 8 }}>
+          <div className="hero-label">Get started</div>
+          <div className="hero-title">Add what you're studying</div>
+          <p className="hero-sub">Create a course for a book or class, then add a chapter at a time as you work through it. Tenax keeps only the questions worth remembering and schedules short daily reviews so you keep them for good.</p>
+          <div className="hero-foot" style={{ flexWrap: "wrap" }}>
+            <button className="btn btn-primary btn-lg" onClick={() => nav.go("courses", { create: true })}><Icon name="plus" size={16}/>Create a course</button>
+            {sync?.status && !sync.status.enabled && (
+              <button className="btn btn-lg" onClick={() => nav.go("settings")}>Sync from another computer</button>
+            )}
+          </div>
+        </article>
       </div>
     );
   }
@@ -84,63 +89,58 @@ export default function Today({ plan }) {
         <div><h1>Today</h1><div className="page-sub">{dateLabel}</div></div>
       </div>
 
-      {state._migrated && (
-        <div style={{ marginBottom: 22 }}>
-          <Notice tone="sky">
-            Your flashcards from the previous version were imported with their schedules and review history. Each topic is now a course; add the original chapters or notes to get explain and apply questions.{" "}
-            <button className="link" onClick={() => act("migrated/dismiss")}>Got it</button>
-          </Notice>
-        </div>
-      )}
-
       <div className="grid-2">
         <div>
-          <div className="card-stack">
-            <article className="index-card">
-              <div className="index-card-head">
-                <span className="ability">{doneToday ? "Done for today" : "Today's session"}</span>
-                <span className="grow"/>
-                {plan.spentSec > 0 && <span>{formatMinutes(plan.spentSec)} studied today</span>}
-              </div>
-              <div className="ruled">
-                {plan.tasks.length > 0 ? (
-                  <>
-                    <div className="plan-title">{plan.tasks.length} question{plan.tasks.length === 1 ? "" : "s"}, about {formatMinutes(plan.estSec)}</div>
-                    <div className="plan-courses">
-                      {plan.byCourse.map(b => (
-                        <div key={b.courseId} className="plan-course">
-                          <span className="dot" style={{ background: ix.course[b.courseId]?.color }}/>
-                          <span>{ix.course[b.courseId]?.name}</span>
-                          <span className="num">{b.count}{b.fresh ? `, ${b.fresh} new` : ""}</span>
-                        </div>
-                      ))}
+          <article className="hero">
+            <div className="row">
+              <span className="hero-label grow">{doneToday ? "Done for today" : "Today's session"}</span>
+              {plan.spentSec > 0 && <span className="muted small">{formatMinutes(plan.spentSec)} studied today</span>}
+            </div>
+            {plan.tasks.length > 0 ? (
+              <>
+                <div className="hero-title">{plan.tasks.length} question{plan.tasks.length === 1 ? "" : "s"}</div>
+                <p className="hero-sub">About {formatMinutes(plan.estSec)} of your {state.settings.dailyMinutes}-minute daily budget</p>
+                <div className="stackbar" style={{ marginTop: 16 }} aria-hidden="true">
+                  {plan.byCourse.map(b => (
+                    <span key={b.courseId} style={{ width: `${Math.min(100, (b.estSec / Math.max(1, state.settings.dailyMinutes * 60)) * 100)}%`, background: ix.course[b.courseId]?.color }}/>
+                  ))}
+                </div>
+                <div className="plan-courses">
+                  {plan.byCourse.map(b => (
+                    <div key={b.courseId} className="plan-course">
+                      <span className="dot" style={{ background: ix.course[b.courseId]?.color }}/>
+                      <span className="grow">{ix.course[b.courseId]?.name}</span>
+                      <span className="num muted">{b.count}{b.fresh ? `, ${b.fresh} new` : ""}</span>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="plan-title">{doneToday ? "You're done for today." : hasContent ? "Nothing is due right now." : "No questions yet."}</div>
-                    <div className="plan-sub">
-                      {doneToday
-                        ? "Everything important is scheduled. Tomorrow's session will pick up where this one left off."
-                        : hasContent
-                          ? "Add the next chapter of something you're reading to bring in new concepts."
-                          : "Add material to one of your courses to generate questions."}
-                    </div>
-                  </>
-                )}
-              </div>
-              {plan.tasks.length > 0 && (
-                <>
-                  <div className="plan-foot">
-                    <button className="btn btn-primary btn-lg" onClick={start}><Icon name="play" size={14}/>Start session</button>
-                    <span className="muted small">Budget {state.settings.dailyMinutes} min a day</span>
-                  </div>
-                  {planNote(plan) && <div className="plan-note">{planNote(plan)}</div>}
-                </>
-              )}
-              {plan.tasks.length === 0 && plan.laterToday > 0 && <div className="plan-note">{planNote(plan)}</div>}
-            </article>
-          </div>
+                  ))}
+                </div>
+                <div className="hero-foot">
+                  <button className="btn btn-primary btn-lg" onClick={start}><Icon name="play" size={14}/>Start session</button>
+                </div>
+                {planNote(plan) && <p className="plan-note">{planNote(plan)}</p>}
+              </>
+            ) : (
+              <>
+                <div className="hero-title">{doneToday ? "You're done for today" : hasContent ? "Nothing is due right now" : "No questions yet"}</div>
+                <p className="hero-sub">
+                  {doneToday
+                    ? "Everything important is scheduled. Tomorrow's session picks up where this one left off."
+                    : hasContent
+                      ? "Add the next chapter of something you're reading to bring in new concepts."
+                      : "Add material to one of your courses to generate questions."}
+                </p>
+                {plan.laterToday > 0 && <p className="plan-note">{planNote(plan)}</p>}
+              </>
+            )}
+          </article>
+          {flagged > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <Notice icon="flag">
+                {flagged} question{flagged === 1 ? " is" : "s are"} out of your sessions until fixed.{" "}
+                <button className="link" onClick={() => nav.go("progress")}>Review {flagged === 1 ? "it" : "them"}</button>
+              </Notice>
+            </div>
+          )}
 
           <div style={{ marginTop: 40 }}>
             <h2 className="h">Courses</h2>
@@ -161,8 +161,8 @@ export default function Today({ plan }) {
                   </button>
                 );
               })}
-              {state.courses.length > courses.length && (
-                <div className="list-row static muted small">{state.courses.length - courses.length} paused course{state.courses.length - courses.length === 1 ? "" : "s"} not shown</div>
+              {state.courses.filter(c => c.status === "paused" && c.kind !== "notes").length > 0 && (
+                <div className="list-row static muted small">{state.courses.filter(c => c.status === "paused" && c.kind !== "notes").length} paused course(s) not shown</div>
               )}
             </div>
           </div>
@@ -174,6 +174,16 @@ export default function Today({ plan }) {
             <div className="muted small">Review time already scheduled. The planner keeps new material in check so this stays near your budget.</div>
             <Week state={state} now={now}/>
           </div>
+          {inbox > 0 && (
+            <button className="panel panel-pad notes-callout" onClick={() => nav.go("notes")}>
+              <Icon name="note" size={18}/>
+              <div className="grow">
+                <div className="list-title">{inbox} note{inbox === 1 ? "" : "s"} in your inbox</div>
+                <div className="muted small">Process {inbox === 1 ? "it" : "them"} to turn what's worth keeping into questions.</div>
+              </div>
+              <Icon name="chevron" size={16} className="muted"/>
+            </button>
+          )}
 
           {slipping.length > 0 && (
             <div className="panel">

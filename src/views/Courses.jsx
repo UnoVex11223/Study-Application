@@ -19,7 +19,7 @@ export function CourseForm({ course, onSave, onClose }) {
       <div className="field">
         <label htmlFor="course-name">Name</label>
         <input id="course-name" className="input" value={name} autoFocus onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && save()} placeholder="e.g. C Programming: A Modern Approach"/>
+          onKeyDown={e => e.key === "Enter" && save()}/>
         <span className="help">One course per book, class or subject. You'll add chapters to it as you go.</span>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
@@ -49,7 +49,7 @@ export default function Courses() {
   };
 
   const order = { active: 0, maintain: 1, paused: 2 };
-  const courses = [...state.courses].sort((a, b) => order[a.status] - order[b.status] || a.createdAt - b.createdAt);
+  const courses = state.courses.filter(c => c.kind !== "notes").sort((a, b) => order[a.status] - order[b.status] || a.createdAt - b.createdAt);
 
   return (
     <div className="page">
@@ -58,14 +58,20 @@ export default function Courses() {
           <h1>Courses</h1>
           <div className="page-sub">Everything you're learning. Pause or maintain a course to control how much of your daily time it gets.</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+        <div className="row">
+          <button className="btn" onClick={() => nav.go("book")}><Icon name="book" size={15}/>Import a book</button>
+          <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+        </div>
       </div>
 
       {courses.length === 0 ? (
         <div className="panel empty">
           <h3>No courses yet</h3>
-          <p>Create one for each book, class or subject you're working through.</p>
-          <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+          <p>Create one for each book, class or subject you're working through, or import a whole book from its PDF.</p>
+          <div className="row" style={{ justifyContent: "center" }}>
+            <button className="btn btn-primary" onClick={() => nav.go("book")}><Icon name="book" size={15}/>Import a book</button>
+            <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
+          </div>
         </div>
       ) : (
         <div className="panel list">
@@ -76,8 +82,12 @@ export default function Courses() {
                 <span className="course-swatch" style={{ background: c.color }}/>
                 <div style={{ minWidth: 0 }}>
                   <div className="course-name">{c.name}</div>
-                  <div className="list-meta">
-                    {COURSE_STATUS[c.status].label}. {m.total} concept{m.total === 1 ? "" : "s"}{m.due ? `, ${m.due} due` : ""}{m.slipping ? `, ${m.slipping} slipping` : ""}
+                  <div className="section-stats">
+                    <span>{COURSE_STATUS[c.status].label.toLowerCase()}</span>
+                    <span>{m.total} concept{m.total === 1 ? "" : "s"}</span>
+                    {m.locked > 0 && <span>{m.locked} in locked chapters</span>}
+                    {m.due > 0 && <span>{m.due} due</span>}
+                    {m.slipping > 0 && <span>{m.slipping} slipping</span>}
                   </div>
                 </div>
                 <div>

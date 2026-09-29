@@ -5,6 +5,9 @@ import { useNav, pct } from "../ui/nav.js";
 import { index, ABILITIES } from "../lib/model.js";
 import { conceptMastery, courseMastery, abilityBreakdown, isEvidence } from "../lib/mastery.js";
 import { forecastLoad } from "../lib/planner.js";
+import { FLAG_REASONS } from "../lib/quality.js";
+import Markdown from "../ui/Markdown.jsx";
+import FixQuestion from "./FixQuestion.jsx";
 import { dayKey, addDays, keyToDate, formatMinutes } from "../lib/time.js";
 
 const DAY = 864e5;
@@ -54,15 +57,8 @@ export default function Progress() {
   const today = dayKey(now, state.settings.rolloverHour);
 
   const data = useMemo(() => {
-    // The old app's daily totals are the complete record for its era; add
-    // everything answered since.
-    const legacy = state.legacyDaily || {};
     const counts = {};
-    for (const [k, v] of Object.entries(legacy)) counts[k] = v.reviews || 0;
-    for (const a of state.attempts) {
-      if (a.legacy && legacy[a.day]) continue;
-      counts[a.day] = (counts[a.day] || 0) + 1;
-    }
+    for (const a of state.attempts) counts[a.day] = (counts[a.day] || 0) + 1;
 
     let streak = 0;
     for (let k = counts[today] ? today : addDays(today, -1); counts[k]; k = addDays(k, -1)) streak++;
@@ -76,7 +72,7 @@ export default function Progress() {
     let delayedN = 0, delayedOk = 0;
     for (const a of state.attempts) {
       const prev = lastSeen[a.itemId];
-      if (prev != null && a.ts - prev >= 7 * DAY && a.mode !== "recognition" && a.verdict !== "ungraded" && a.ts >= now - 90 * DAY) {
+      if (prev != null && a.ts - prev >= 7 * DAY && a.verdict !== "ungraded" && a.ts >= now - 90 * DAY) {
         delayedN++;
         if (isEvidence(a)) delayedOk++;
       }
@@ -103,6 +99,7 @@ export default function Progress() {
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abilities = abilityBreakdown(state, { now });
+  const flagged = state.items.filter(i => i.flag).sort((a, b) => (b.flag.at || 0) - (a.flag.at || 0));
 
   return (
     <div className="page">
@@ -139,7 +136,7 @@ export default function Progress() {
           <div className="panel">
             <div className="panel-head"><h2>Courses</h2></div>
             <div className="list">
-              {state.courses.map(c => {
+              {state.courses.filter(c => c.kind !== "notes").map(c => {
                 const m = courseMastery(state, c.id, now);
                 return (
                   <button key={c.id} className="list-row" onClick={() => nav.go("course", { courseId: c.id })}>
@@ -170,6 +167,24 @@ export default function Progress() {
               </div>
             ))}
           </div>
+
+          {flagged.length > 0 && (
+            <div className="panel">
+              <div className="panel-head"><h2>Questions to fix</h2><span className="muted small">out of your sessions</span></div>
+              <div className="list">
+                {flagged.map(it => {
+                  const c = ix.concept[it.conceptId];
+                  return (
+                    <div key={it.id} className="list-row static" style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
+                      <div className="section-stats"><span>{c?.name}</span><span>{(FLAG_REASONS[it.flag.reason] ?? "flagged").toLowerCase()}</span></div>
+                      <Markdown>{it.prompt}</Markdown>
+                      {c && <FixQuestion item={it} concept={c}/>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="panel">
             <div className="panel-head"><h2>Weak spots</h2></div>

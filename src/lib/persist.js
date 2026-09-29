@@ -1,16 +1,12 @@
 // Persistence. In the desktop app, state lives in electron-store (a local JSON
 // file) via the preload bridge. In a plain browser (dev/testing) it falls back
 // to localStorage.
-//
-// The previous app's keys (af_topics, af_log, …) are read once for migration
-// and left untouched, so the old data stays on disk as a backup.
 
 import { emptyState, normalizeState } from "./model.js";
-import { migrateLegacy } from "./migrate.js";
 
 const KEY = "af3_state";
 
-const bridge = () => (typeof window !== "undefined" && window.aeroflash?.store) || null;
+const bridge = () => (typeof window !== "undefined" && window.tenax?.store) || null;
 
 async function get(key) {
   const b = bridge();
@@ -30,15 +26,7 @@ function set(key, val) {
 
 export async function loadState() {
   const stored = await get(KEY);
-  if (stored) return { state: normalizeState(stored), migrated: false };
-
-  const [topics, log] = await Promise.all([get("af_topics"), get("af_log")]);
-  if (Array.isArray(topics) && topics.length) {
-    const state = migrateLegacy({ topics, log });
-    await set(KEY, state);
-    return { state, migrated: true };
-  }
-  return { state: emptyState(), migrated: false };
+  return stored ? normalizeState(stored) : emptyState();
 }
 
 let timer = null;
@@ -59,7 +47,7 @@ export function flush() {
 if (typeof window !== "undefined") window.addEventListener("beforeunload", flush);
 
 export const getApiKeySet = async () => {
-  const ai = typeof window !== "undefined" && window.aeroflash?.ai;
+  const ai = typeof window !== "undefined" && window.tenax?.ai;
   if (ai?.status) { try { return (await ai.status()).hasKey; } catch { return false; } }
   return Boolean(await get("af_api_key"));
 };

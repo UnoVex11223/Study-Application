@@ -26,6 +26,14 @@ const PATHS = {
   download: <><path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/></>,
   link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></>,
   pause: <path d="M9 5v14M15 5v14"/>,
+  flag: <><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></>,
+  wand: <><path d="M4 20L15 9"/><path d="M14 4v2M19 9h2M17.5 5.5l1.4-1.4M14 12v0M18 11l1.5 1.5"/></>,
+  undo: <><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></>,
+  lock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></>,
+  unlock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></>,
+  note: <><path d="M5 4h10l4 4v12H5z"/><path d="M14 4v5h5M9 13h6M9 17h4"/></>,
+  shelf: <><path d="M3 20.5h18"/><rect x="4.5" y="4.5" width="3.6" height="16" rx=".8"/><rect x="9.8" y="7.5" width="3.6" height="13" rx=".8"/><path d="M15.2 9.3l3.4-.9 2.9 11.2-3.4.9z"/><path d="M6.3 8v2M11.6 11v2"/></>,
+  book: <><path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 1h13v-3"/><path d="M9 7h6"/></>,
 };
 
 export default function Icon({ name, size = 18, stroke = 1.7, className, style }) {

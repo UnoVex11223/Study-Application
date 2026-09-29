@@ -2,12 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { rate, newSrs, retrievability, RATING } from "../src/lib/fsrs.js";
-import { emptyState, makeCourse, makeSection, makeConcept, makeItem, makeEdge, index } from "../src/lib/model.js";
+import { emptyState, makeCourse, makeSection, makeConcept, makeItem, makeEdge } from "../src/lib/model.js";
 import { buildPlan, interleave, forecastLoad, makeLoadAt } from "../src/lib/planner.js";
 import { conceptMastery, courseMastery } from "../src/lib/mastery.js";
 import { wouldCycle, mergeEdges, layeredLayout, topoOrder } from "../src/lib/graph.js";
-import { migrateLegacy } from "../src/lib/migrate.js";
-import { matchesAccepted, verdictFromChecks, suggestedRating, normalize } from "../src/lib/grade.js";
+import { matchesAccepted, verdictFromChecks, suggestedRating, normalize, verifyPoints, significantNumbers } from "../src/lib/grade.js";
 import { dayKey, dayEndTs, addDays } from "../src/lib/time.js";
 
 const DAY = 864e5;
@@ -34,10 +33,10 @@ function world({ courses = 1, sections = 1, conceptsPer = 5, abilities = ["recal
   return s;
 }
 
-/** Put every item into review state, due `dueOffsetDays` from NOW. */
+/** Put every concept into review state, due `dueOffsetDays` from NOW. */
 function makeAllDue(s, { dueOffsetDays = -1, stability = 5 } = {}) {
-  for (const it of s.items) {
-    it.srs = { ...newSrs(), state: "review", stability, difficulty: 5, lastReview: NOW - 6 * DAY, due: NOW + dueOffsetDays * DAY, reps: 3 };
+  for (const c of s.concepts) {
+    c.srs = { ...newSrs(), state: "review", stability, difficulty: 5, lastReview: NOW - 6 * DAY, due: NOW + dueOffsetDays * DAY, reps: 3 };
   }
 }
 
@@ -109,8 +108,7 @@ test("most-forgotten and most-important items come first when budget is tight", 
   makeAllDue(s);
   const [a, b, c] = s.concepts;
   a.importance = "detail"; b.importance = "core"; c.importance = "core";
-  const itemOf = (k) => s.items.find(i => i.conceptId === k.id);
-  itemOf(c).srs.lastReview = NOW - 60 * DAY; // much more forgotten
+  c.srs.lastReview = NOW - 60 * DAY; // much more forgotten
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.tasks[0].conceptId, c.id);
   assert.ok(!plan.tasks.some(t => t.conceptId === a.id) || plan.tasks.length === 3);
@@ -165,10 +163,10 @@ test("paused courses are excluded from reviews too", () => {
 test("a heavy upcoming week throttles new material", () => {
   const s = world({ conceptsPer: 200, minutes: 10, maxNew: 6 });
   // Lots of reviews spread over the next week, none due today.
-  s.items.forEach((it, i) => {
-    it.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: NOW - DAY, due: NOW + (1 + (i % 7)) * DAY, reps: 2 };
+  s.concepts.forEach((c, i) => {
+    c.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: NOW - DAY, due: NOW + (1 + (i % 7)) * DAY, reps: 2 };
   });
-  s.items.slice(0, 5).forEach(it => { it.srs = newSrs(); });
+  s.concepts.slice(0, 5).forEach(c => { c.srs = newSrs(); });
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.newCount, 0);
   assert.equal(plan.throttle, "forecast");
@@ -191,7 +189,7 @@ test("time already studied today reduces the remaining budget", () => {
 
 test("learning steps due soon always make it into the plan", () => {
   const s = world({ conceptsPer: 20, minutes: 0 });
-  s.items[0].srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW - 120e3, due: NOW - 60e3, reps: 4, lapses: 1 };
+  s.concepts[0].srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW - 120e3, due: NOW - 60e3, reps: 4, lapses: 1 };
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.tasks.length, 1);
   assert.equal(plan.tasks[0].kind, "learning");
@@ -222,18 +220,18 @@ function attempt(concept, item, dayOffset, verdict, extra = {}) {
 test("mastery needs unaided success on two different days", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
   s.attempts.push(attempt(c, it, -1, "correct"), attempt(c, it, -1, "correct"));
   assert.equal(conceptMastery(s, c.id, NOW).status, "practiced");
   const s2 = { ...s, attempts: [...s.attempts, attempt(c, it, 0, "correct")] };
   assert.equal(conceptMastery(s2, c.id, NOW).status, "mastered");
 });
 
-test("hints and multiple-choice never count as mastery evidence", () => {
+test("hints and revealed answers never count as mastery evidence", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
-  s.attempts.push(attempt(c, it, -3, "correct", { aided: true }), attempt(c, it, -2, "correct", { mode: "recognition" }), attempt(c, it, -1, "correct"));
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
+  s.attempts.push(attempt(c, it, -3, "correct", { aided: true }), attempt(c, it, -2, "correct", { aided: true }), attempt(c, it, -1, "correct"));
   const m = conceptMastery(s, c.id, NOW);
   assert.equal(m.correctDays, 1);
   assert.notEqual(m.status, "mastered");
@@ -242,7 +240,7 @@ test("hints and multiple-choice never count as mastery evidence", () => {
 test("concepts with an application task need a correct application to be mastered", () => {
   const s = world({ conceptsPer: 1, abilities: ["recall", "apply"] });
   const [c] = s.concepts; const [rec, app] = s.items;
-  for (const it of s.items) it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
   s.attempts.push(attempt(c, rec, -2, "correct"), attempt(c, rec, -1, "correct"));
   assert.equal(conceptMastery(s, c.id, NOW).status, "practiced");
   s.attempts.push(attempt(c, app, 0, "correct"));
@@ -253,7 +251,7 @@ test("concepts with an application task need a correct application to be mastere
 test("one good day after a miss isn't mastery; two good days in a row are", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 5, lapses: 2 };
+  c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 5, lapses: 2 };
   s.attempts.push(attempt(c, it, -5, "correct"), attempt(c, it, -4, "correct"), attempt(c, it, -2, "incorrect"), attempt(c, it, -1, "correct"));
   const m = conceptMastery(s, c.id, NOW);
   assert.equal(m.status, "practiced");
@@ -264,7 +262,7 @@ test("one good day after a miss isn't mastery; two good days in a row are", () =
 test("a miss after success marks a concept as slipping", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
-  it.srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW, due: NOW, reps: 3, lapses: 1 };
+  c.srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW, due: NOW, reps: 3, lapses: 1 };
   s.attempts.push(attempt(c, it, -3, "correct"), attempt(c, it, -2, "correct"), attempt(c, it, 0, "incorrect"));
   assert.equal(conceptMastery(s, c.id, NOW).status, "slipping");
 });
@@ -316,35 +314,26 @@ test("rubric checks map to verdicts and ratings", () => {
   assert.equal(suggestedRating("incorrect"), RATING.AGAIN);
 });
 
-// ── migration ──────────────────────────────────────────────────────────────
-test("legacy topics, cards, schedules and history migrate without loss", () => {
-  const srs = { ...newSrs(), state: "review", stability: 12, difficulty: 5, lastReview: NOW - 5 * DAY, due: NOW + 4 * DAY, reps: 5, lapses: 1 };
-  const topics = [{
-    id: 111, name: "Pointers", image: "data:image/jpeg;base64,xx", cards: [
-      { id: 1, type: "basic", front: "What is a magic number?", back: "An unexplained numeric literal", wrong: ["x", "y", "z"], srs },
-      { id: 2, type: "cloze", front: "", back: "stack", text: "Local variables live on the {{c1::stack}}.", srs: newSrs() },
-      { id: 3, type: "basic", front: "", back: "" },
-    ],
-  }];
-  const log = {
-    entries: [
-      { ts: NOW - 5 * DAY, cardId: 1, topicId: 111, rating: 3, mode: "review" },
-      { ts: NOW - 4 * DAY, cardId: 1, topicId: 111, rating: 3, mode: "quiz" },
-      { ts: NOW - 3 * DAY, cardId: 99, topicId: 111, rating: 3, mode: "review" },
-    ],
-    daily: { "2026-09-20": { reviews: 3, correct: 3 } },
-  };
-  const s = migrateLegacy({ topics, log });
-  assert.equal(s.courses.length, 1);
-  assert.equal(s.courses[0].name, "Pointers");
-  assert.equal(s.items.length, 2);
-  assert.deepEqual(s.items[0].srs, srs);
-  assert.equal(s.items[1].answer, "stack");
-  assert.ok(s.items[1].prompt.includes("_____"));
-  assert.deepEqual(s.items[1].accept, ["stack"]);
-  assert.equal(s.attempts.length, 2);
-  assert.equal(s.attempts[1].mode, "recognition");
-  assert.equal(s.legacyDaily["2026-09-20"].reviews, 3);
-  const ix = index(s);
-  assert.equal(ix.itemsByConcept[s.concepts[0].id].length, 1);
+test("AI grades are checked: wrong numbers and invented quotes can't pass", () => {
+  // The real case: a wrong range marked correct, with the model answer quoted as "evidence".
+  const [p] = verifyPoints([{ text: "Gives the answer: -32,768 through 32,767", met: true, evidence: "-32,768 through 32,767" }], "[-112, 111] ?");
+  assert.equal(p.met, false);
+  assert.match(p.corrected, /-32768/);
+  // Same answer written differently still passes.
+  assert.equal(verifyPoints([{ text: "Range is -32,768 to 32,767", met: true, evidence: "−32768 to 32767" }], "−32768 to 32767")[0].met, true);
+  assert.equal(verifyPoints([{ text: "Uses 16 bits", met: true, evidence: "sixteen bits" }], "It uses sixteen bits")[0].met, true);
+  // A quote that isn't in the answer is rejected; a close quote is fine.
+  assert.equal(verifyPoints([{ text: "Names the constant", met: true, evidence: "a named constant documents intent" }], "just a number")[0].met, false);
+  assert.equal(verifyPoints([{ text: "Names the constant", met: true, evidence: "naming it makes the purpose clear" }], "Naming it makes the purpose clearer.")[0].met, true);
+  // Checks never upgrade a point, and subtraction isn't a negative number.
+  assert.equal(verifyPoints([{ text: "x", met: false, evidence: "" }], "x")[0].met, false);
+  assert.deepEqual(significantNumbers("returns n-1 and 2 pointers"), []);
+  assert.deepEqual(significantNumbers("[-112, 111]"), ["-112", "111"]);
+});
+
+test("stored settings from before the monochrome theme switch to Black once", async () => {
+  const { normalizeState } = await import("../src/lib/model.js");
+  assert.equal(normalizeState({ settings: { theme: "system", dailyMinutes: 30 } }).settings.theme, "dark");
+  assert.equal(normalizeState({ settings: { theme: "light", themeVersion: 2 } }).settings.theme, "light");
+  assert.equal(normalizeState({ settings: { theme: "system", dailyMinutes: 30 } }).settings.dailyMinutes, 30);
 });

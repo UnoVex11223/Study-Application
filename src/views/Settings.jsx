@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Notice } from "../ui/ui.jsx";
+import { Notice, Spinner } from "../ui/ui.jsx";
+import { useSync } from "../state/sync.jsx";
 import Icon from "../ui/Icon.jsx";
-import { getApiKeySet, setApiKey } from "../lib/persist.js";
+import { getApiKeySet, setApiKey, flush } from "../lib/persist.js";
 import { aiBridge } from "../lib/ai.js";
 import { forecastLoad } from "../lib/planner.js";
 import { formatMinutes } from "../lib/time.js";
@@ -25,6 +26,18 @@ export default function Settings() {
   const [hasKey, setHasKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [backups, setBackups] = useState(null);
+  const sync = useSync();
+  const syncing = Boolean(sync?.status?.enabled);
+  const [version, setVersion] = useState("");
+  const [update, setUpdate] = useState(null);
+  useEffect(() => {
+    window.tenax?.version?.().then(setVersion).catch(() => {});
+    window.tenax?.update?.status().then(setUpdate).catch(() => {});
+  }, []);
+  const installUpdate = async () => { flush(); await window.tenax?.update?.install(); };
+  const backupApi = typeof window !== "undefined" ? window.tenax?.backup : null;
+  useEffect(() => { backupApi?.info().then(setBackups).catch(() => {}); }, [backupApi]);
   const [restore, setRestore] = useState(null);
   const [restoreError, setRestoreError] = useState("");
   const fileRef = useRef(null);
@@ -40,11 +53,10 @@ export default function Settings() {
   };
 
   const exportData = () => {
-    const { _migrated, ...data } = state;
-    const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(state)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `aeroflash-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `tenax-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
@@ -57,7 +69,7 @@ export default function Settings() {
         const data = JSON.parse(String(r.result));
         if (!Array.isArray(data.courses) || !Array.isArray(data.items)) throw new Error("not a backup");
         setRestore(data); setRestoreError("");
-      } catch { setRestoreError("That file isn't an AeroFlash backup."); }
+      } catch { setRestoreError("That file isn't a Tenax backup."); }
     };
     r.readAsText(file);
   };
@@ -96,26 +108,82 @@ export default function Settings() {
 
       <Section title="Appearance">
         <div className="seg">
-          {[["system", "Match system"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => (
+          {[["dark", "Black"], ["light", "White"], ["system", "Match system"]].map(([v, l]) => (
             <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
           ))}
         </div>
       </Section>
 
-      <Section title="AI" description="Extracting concepts, writing questions and grading written answers use Claude through your Anthropic API key. The key is stored on this computer and only used to call the API. Without it you can still write questions and check answers yourself.">
+      <Section title="AI" description="Extracting concepts, writing questions and grading written answers use Claude through your Anthropic API key. The key is stored on this computer, encrypted with your user account, and only used to call the API. Without it you can still write questions and check answers yourself.">
         {!aiBridge() && <div style={{ marginBottom: 12 }}><Notice>AI features run in the desktop app.</Notice></div>}
         <div className="row">
           <input className="input grow" type="password" value={key} onChange={e => { setKey(e.target.value); setKeySaved(false); }}
-            placeholder={hasKey ? "Key saved. Paste a new one to replace it." : "sk-ant-…"} aria-label="Anthropic API key"
+            aria-label="Anthropic API key"
             onKeyDown={e => e.key === "Enter" && key.trim() && saveKey()}/>
           <button className="btn btn-primary" onClick={saveKey} disabled={!key.trim()}>Save key</button>
           {hasKey && <button className="btn btn-danger" onClick={async () => { await setApiKey(null); setHasKey(false); }}>Remove</button>}
         </div>
-        {keySaved && <p className="small" style={{ color: "var(--good)", marginTop: 8 }}>Key saved.</p>}
-        <p className="help" style={{ marginTop: 10 }}>Get a key at console.anthropic.com under API Keys.</p>
+        {(keySaved || (hasKey && !key)) && <p className="small" style={{ color: "var(--good)", marginTop: 8 }}>{keySaved ? "Key saved." : "A key is saved. Paste a new one to replace it."}</p>}
+        <p className="help" style={{ marginTop: 10 }}>Get a key at platform.claude.com under Settings → API keys.</p>
+
+        <div className="label" style={{ marginTop: 20 }}>Book imports</div>
+        <div className="seg" style={{ marginTop: 8 }}>
+          {[[true, "Half price"], [false, "Faster"]].map(([v, l]) => (
+            <button key={l} className={(s.batchImports !== false) === v ? "on" : ""} onClick={() => set({ batchImports: v })}>{l}</button>
+          ))}
+        </div>
+        <p className="help" style={{ marginTop: 8 }}>
+          {s.batchImports !== false
+            ? "Questions for imported books are written through Anthropic's Batch API: the same models and quality at half the price. Each chapter usually takes a few extra minutes, occasionally up to an hour when the queue is busy."
+            : "Questions for imported books are written right away, at full price."}
+        </p>
       </Section>
 
-      <Section title="Your data" description="Everything is stored locally on this computer. Make a backup before big changes.">
+      <Section title="Sync across computers" description="Keep one library on every computer you use. Pick a folder your cloud drive syncs (OneDrive, Dropbox or Google Drive): each computer saves its copy there and merges in the others'. Your API key stays on each computer.">
+        {!sync?.status && <p className="muted small">Sync is available in the desktop app.</p>}
+        {sync?.status && !sync.status.enabled && (
+          <div className="row-wrap">
+            {/onedrive/i.test(sync.status.suggested) && (
+              <button className="btn btn-primary" onClick={sync.useSuggested}>Use OneDrive</button>
+            )}
+            <button className="btn" onClick={sync.choose}>Choose a folder…</button>
+          </div>
+        )}
+        {sync?.status?.enabled && (
+          <div className="stack" style={{ gap: 12 }}>
+            <div className="sync-grid">
+              <span className="muted small">Folder</span><span className="small mono-path">{sync.status.dir}</span>
+              <span className="muted small">This computer</span><span className="small">{sync.status.device?.name}</span>
+              <span className="muted small">Other computers</span>
+              <span className="small">
+                {sync.status.others.length === 0 ? "None yet. Set up sync on your other computer with the same folder." :
+                  sync.status.others.map(o => `${o.name} (saved ${new Date(o.savedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })})`).join(", ")}
+              </span>
+              <span className="muted small">Last checked</span>
+              <span className="small">{sync.info.busy ? <Spinner/> : sync.info.lastSync ? new Date(sync.info.lastSync).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "not yet"}</span>
+            </div>
+            {sync.info.error && <Notice tone="warn" icon="alert">{sync.info.error}</Notice>}
+            {sync.info.skipped.length > 0 && <Notice tone="warn" icon="alert">{sync.info.skipped.join(", ")} {sync.info.skipped.length === 1 ? "has" : "have"} a newer version of Tenax. Update this computer to sync with {sync.info.skipped.length === 1 ? "it" : "them"}.</Notice>}
+            <div className="row-wrap">
+              <button className="btn" onClick={sync.syncNow} disabled={sync.info.busy}>Sync now</button>
+              <button className="btn btn-quiet" onClick={sync.choose}>Change folder</button>
+              <button className="btn btn-quiet" onClick={sync.stop}>Stop syncing</button>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Your data" description={syncing ? "Stored on this computer, with a copy in your sync folder." : "Everything is stored locally on this computer."}>
+        {backups && (
+          <div className="row" style={{ marginBottom: 14, gap: 12 }}>
+            <Icon name="check" size={15}/>
+            <span className="grow small">
+              A copy is saved automatically each day; the last {backups.keep} are kept.
+              {backups.latest && <span className="muted"> Latest: {new Date(`${backups.latest}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.</span>}
+            </span>
+            <button className="btn btn-sm btn-quiet" onClick={() => backupApi.open()}>Open folder</button>
+          </div>
+        )}
         <div className="row-wrap">
           <button className="btn" onClick={exportData}><Icon name="download" size={15}/>Export backup</button>
           <button className="btn" onClick={() => fileRef.current?.click()}><Icon name="upload" size={15}/>Restore from backup</button>
@@ -125,7 +193,7 @@ export default function Settings() {
         {restore && (
           <div style={{ marginTop: 14 }}>
             <Notice tone="warn" icon="alert">
-              Replace everything with this backup ({restore.courses.length} courses, {restore.items.length} questions)? Current data will be lost.
+              Replace everything with this backup ({restore.courses.length} courses, {restore.items.length} questions)? Current data will be lost{syncing ? ", on your other computers too" : ""}.
               <div className="row" style={{ marginTop: 10 }}>
                 <button className="btn btn-sm btn-danger" onClick={() => { act("replace", { state: restore }); setRestore(null); }}>Replace my data</button>
                 <button className="btn btn-sm btn-quiet" onClick={() => setRestore(null)}>Cancel</button>
@@ -138,7 +206,7 @@ export default function Settings() {
           <button className="btn btn-danger" onClick={() => setConfirmReset(true)}><Icon name="trash" size={15}/>Reset all progress</button>
         ) : (
           <Notice tone="bad" icon="alert">
-            Delete all {state.courses.length} courses, {state.items.length} questions and your whole review history? Settings and your API key are kept. This can't be undone.
+            Delete all {state.courses.length} courses, {state.items.length} questions, your shelf and your whole review history{syncing ? " on every computer you sync with" : ""}? Settings and your API key are kept. This can't be undone.
             <div className="row" style={{ marginTop: 10 }}>
               <button className="btn btn-sm btn-danger" onClick={() => { act("reset"); setConfirmReset(false); }}>Delete everything</button>
               <button className="btn btn-sm btn-quiet" onClick={() => setConfirmReset(false)}>Cancel</button>
@@ -146,6 +214,15 @@ export default function Settings() {
           </Notice>
         )}
       </Section>
+      {update?.state === "ready" && (
+        <Notice icon="download">
+          <div className="row" style={{ gap: 12 }}>
+            <span className="grow">Tenax {update.version} is ready. It installs the next time you close the app.</span>
+            <button className="btn btn-sm" onClick={installUpdate}>Restart now</button>
+          </div>
+        </Notice>
+      )}
+      {version && <p className="muted small" style={{ textAlign: "center", marginTop: 16 }}>Tenax {version}{update?.state === "downloading" ? ` · downloading ${update.version}` : ""}</p>}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Modal } from "../ui/ui.jsx";
+import { Modal, Notice } from "../ui/ui.jsx";
+import { lintQuestion } from "../lib/quality.js";
 import { index, makeConcept, makeItem, makeSection, ABILITIES, ABILITY_KEYS, IMPORTANCE } from "../lib/model.js";
 
 const lines = (s) => s.split("\n").map(x => x.trim()).filter(Boolean);
@@ -29,6 +30,11 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
   const valid = prompt.trim() && answer.trim()
     && (editing || conceptId !== "__new" || conceptName.trim())
     && (editing || sectionId !== "__new" || newSection.trim() || conceptId !== "__new");
+
+  // The same rule checks new questions go through, shown as advice while you type.
+  const lint = prompt.trim() && answer.trim()
+    ? lintQuestion({ ability, prompt, answer, accept: lines(accept), points: lines(points).length ? lines(points) : [answer] })
+    : { issues: [] };
 
   const save = () => {
     if (!valid) return;
@@ -71,7 +77,7 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
               {sections.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
               <option value="__new">New section…</option>
             </select>
-            {sectionId === "__new" && <input className="input" placeholder="Section name" value={newSection} onChange={e => setNewSection(e.target.value)}/>}
+            {sectionId === "__new" && <input className="input" aria-label="New section name" value={newSection} onChange={e => setNewSection(e.target.value)} autoFocus/>}
           </div>
           <div className="field grow">
             <label htmlFor="if-concept">Concept</label>
@@ -79,7 +85,7 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
               {conceptsHere.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               <option value="__new">New concept…</option>
             </select>
-            {conceptId === "__new" && <input className="input" placeholder="Concept name, e.g. Magic number" value={conceptName} onChange={e => setConceptName(e.target.value)}/>}
+            {conceptId === "__new" && <input className="input" aria-label="New concept name" value={conceptName} onChange={e => setConceptName(e.target.value)}/>}
           </div>
         </div>
       )}
@@ -128,6 +134,12 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
           <textarea id="if-hint" className="textarea" style={{ minHeight: 56 }} value={hint} onChange={e => setHint(e.target.value)}/>
         </div>
       </div>
+      {lint.issues.length > 0 && (
+        <Notice tone="warn" icon="alert">
+          <strong>This question may not be worth keeping as written:</strong>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{lint.issues.map(i => <li key={i.code}>{i.message}</li>)}</ul>
+        </Notice>
+      )}
     </Modal>
   );
 }

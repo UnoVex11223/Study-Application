@@ -6,7 +6,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 
 function TeX({ tex, display }) {
-  const html = katex.renderToString(tex, { throwOnError: false, displayMode: display, output: "html" });
+  const html = katex.renderToString(tex, { throwOnError: false, displayMode: display, output: "html", trust: false, strict: "ignore" });
   return display
     ? <div dangerouslySetInnerHTML={{ __html: html }}/>
     : <span dangerouslySetInnerHTML={{ __html: html }}/>;
@@ -82,6 +82,11 @@ function parseBlocks(src) {
     blocks.push({ type: "p", text: para.join("\n") });
   }
   return blocks;
+}
+
+/** One line of inline markdown (code, bold, italic, math) with no block wrapper. */
+export function InlineMarkdown({ children, className = "" }) {
+  return <span className={`md md-inline ${className}`}>{inline(String(children ?? "").replace(/\s+/g, " ").trim(), "i")}</span>;
 }
 
 export default function Markdown({ children, className = "" }) {

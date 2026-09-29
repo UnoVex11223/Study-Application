@@ -11,6 +11,7 @@ import Markdown from "../ui/Markdown.jsx";
 import { index } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
 import { aiAvailable, teachBackWithAI } from "../lib/ai.js";
+import { pickItem } from "../lib/planner.js";
 import { RATING } from "../lib/fsrs.js";
 
 const STATUS_META = {
@@ -33,7 +34,7 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
   const nav = useNav();
   const ix = index(state);
   const course = ix.course[courseId];
-  const sections = ix.sectionsByCourse[courseId] || [];
+  const sections = (ix.sectionsByCourse[courseId] || []).filter(s => !s.locked);
   const [sectionId, setSectionId] = useState(initialSection ?? sections[0]?.id);
   const [text, setText] = useState("");
   const [showNames, setShowNames] = useState(false);
@@ -50,6 +51,9 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
   const concepts = (ix.conceptsBySection[sectionId] || []).filter(c => !c.suspended);
 
   if (!course) return null;
+  if (!section) {
+    return <div className="page page-narrow"><button className="crumb" onClick={() => nav.go("course", { courseId })}><Icon name="back" size={14}/>{course.name}</button><p className="muted">Mark a chapter as read first; then you can teach it back.</p></div>;
+  }
 
   const apply = (statuses) => {
     const now = nav.now;
@@ -58,21 +62,20 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
       const st = statuses[c.id];
       const m = conceptMastery(state, c.id, now);
       if (!m.started) continue;
-      const items = (ix.itemsByConcept[c.id] || []).filter(i => i.srs && i.srs.state !== "new");
-      if (!items.length) continue;
+      const item = pickItem(ix, c);
+      if (!item || !c.srs || c.srs.state === "new") continue;
       if (st === "covered") {
-        const due = items.filter(i => i.srs.due != null && i.srs.due <= now).sort((a, b) => a.srs.due - b.srs.due)[0];
-        if (due) {
-          act("attempt", { itemId: due.id, verdict: "correct", rating: RATING.GOOD, mode: "teachback", ms: 0 });
+        if (c.srs.due != null && c.srs.due <= now) {
+          act("attempt", { itemId: item.id, verdict: "correct", rating: RATING.GOOD, mode: "teachback", ms: 0 });
           credited++;
         }
       } else if (st === "wrong" || st === "missing") {
-        forward.push(...items.map(i => i.id));
-        if (st === "wrong") act("attempt", { itemId: items[0].id, verdict: "incorrect", rating: null, mode: "teachback", ms: 0 });
+        forward.push(c.id);
+        if (st === "wrong") act("attempt", { itemId: item.id, verdict: "incorrect", rating: null, mode: "teachback", ms: 0 });
       }
     }
-    if (forward.length) act("items/bringForward", { ids: forward });
-    setApplied({ credited, forward: new Set(forward.map(id => ix.item[id]?.conceptId)).size });
+    if (forward.length) act("concepts/bringForward", { ids: forward });
+    setApplied({ credited, forward: forward.length });
   };
 
   const check = async () => {
@@ -135,11 +138,10 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
               <Notice>{concepts.map(c => c.name).join(", ")}. With the list showing, this is practice only and won't change your schedule.</Notice>
             </div>
           )}
-          <article className="index-card">
-            <div className="index-card-head"><span className="ability">{section?.title}</span></div>
-            <textarea className="ruled card-input" value={text} onChange={e => setText(e.target.value)} autoFocus aria-label="Your explanation"
-              style={{ minHeight: 34 * 10 }}
-              placeholder="Start with the big idea, then walk through the pieces…"/>
+          <article className="q-card">
+            <div className="q-head"><span className="q-ability">{section?.title}</span></div>
+            <textarea className="card-input" value={text} onChange={e => setText(e.target.value)} autoFocus aria-label="Your explanation"
+              style={{ minHeight: 320 }}/>
           </article>
           <div className="row" style={{ marginTop: 16 }}>
             <button className="btn btn-primary" disabled={text.trim().length < 40 || !concepts.length} onClick={check}>Check my explanation</button>
@@ -177,7 +179,7 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
               <div key={s} className="stat"><div className="stat-value">{counts[s] || 0}</div><div className="stat-label">{STATUS_META[s].label.toLowerCase()}</div></div>
             ))}
           </div>
-          {result.summary && <p style={{ fontFamily: "var(--serif)", fontSize: 16, lineHeight: 1.6 }}>{result.summary}</p>}
+          {result.summary && <p style={{ fontSize: 16, lineHeight: 1.6 }}>{result.summary}</p>}
           {result.errors?.length > 0 && result.errors.map((e, i) => <div key={i} className="misconception"><strong>Error:</strong> {e}</div>)}
           <div className="panel list">
             {concepts.map(c => {
