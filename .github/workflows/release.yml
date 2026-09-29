@@ -1,19 +1,52 @@
 # Builds the Windows installer and publishes it on GitHub Releases.
-# To release: bump "version" in package.json, commit, then push a matching tag:
-#   git tag v2.1.0 && git push origin v2.1.0
+#
+# To release: bump "version" in package.json and push. If there's no release
+# for that version yet, this runs the tests, builds Tenax-Setup-<version>.exe
+# on Windows and publishes it as release v<version> on the commit you pushed.
 # Installed copies of Tenax pick the new version up on their own.
 name: Release
 
 on:
   push:
+    branches: [main, redesign-learning-engine]
+    paths: [package.json, .github/workflows/release.yml]
     tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != "v$v" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $v"; exit 1
+          fi
+          if gh release view "v$v" --repo "$GITHUB_REPOSITORY" --json isDraft -q '.isDraft' 2>/dev/null | grep -q false; then
+            echo "Release v$v already exists; nothing to do."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: check
+    if: needs.check.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,23 +59,27 @@ jobs:
       - run: npm test
 
   windows:
-    needs: test
+    needs: [check, test]
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ needs.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Check the tag matches package.json
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          v=$(node -p "require('./package.json').version")
-          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} doesn't match package.json version $v"; exit 1; }
       - run: npm ci
       - run: npm run build
-      - name: Build and publish the installer
+      - name: Create a draft release on this commit
+        shell: bash
+        run: |
+          gh release view "v$VERSION" >/dev/null 2>&1 || gh release create "v$VERSION" --draft --target "$GITHUB_SHA" \
+            --title "Tenax $VERSION" \
+            --notes "Download **Tenax-Setup-$VERSION.exe** below and run it. Windows may say it protected your PC because the app isn't code-signed: choose More info, then Run anyway. Installed copies update themselves."
+      - name: Build the installer and upload it
         run: npx electron-builder --win --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the release
+        shell: bash
+        run: gh release edit "v$VERSION" --draft=false --latest

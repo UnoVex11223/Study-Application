@@ -163,7 +163,7 @@ Not synced: the API key (enter it once per computer) and book PDFs. A book impor
 
 ### Installing
 
-Installers are on GitHub Releases (`Tenax-Setup-<version>.exe`, per-user, no admin rights). The app isn't code-signed, so Windows SmartScreen asks the first time: More info → Run anyway. Installed copies check for a new release every few hours, download it in the background and install it when the app closes (Settings shows "Restart now" once one is ready), which keeps every computer on the same version. To publish a release: bump `version` in package.json, commit, `git tag v<version>` and push the tag; `.github/workflows/release.yml` runs the tests, builds the installer on Windows and publishes it.
+Installers are on GitHub Releases (`Tenax-Setup-<version>.exe`, per-user, no admin rights). The app isn't code-signed, so Windows SmartScreen asks the first time: More info → Run anyway. Installed copies check for a new release every few hours, download it in the background and install it when the app closes (Settings shows "Restart now" once one is ready), which keeps every computer on the same version. To publish a release: bump `version` in package.json and push (to main or the working branch). `.github/workflows/release.yml` sees there's no release for that version yet, runs the tests, builds the installer on Windows and publishes it as `v<version>` on that commit.
 
 This version starts from an empty library. The first time it runs, anything saved by earlier versions (old flashcards and anything converted from them) is written to a `backup-before-clean-start-<date>.json` file in the app's data folder and then removed from the app. Settings and the API key are kept.
 
