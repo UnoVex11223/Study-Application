@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../state/store.jsx";
 import { Bar, StatusDot, ImportanceTag, Notice, Spinner, Modal } from "../ui/ui.jsx";
 import { useBackground } from "../state/background.jsx";
+import { useSync } from "../state/sync.jsx";
 import { useBookImport, jobProgress, bookBridge } from "../state/bookImport.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
@@ -14,9 +15,22 @@ import { practiceTasks } from "../lib/planner.js";
 import { aiBridge, roomForQuestions } from "../lib/ai.js";
 
 /** Progress and controls for a book being imported into this course. */
-function JobBanner({ job }) {
+function JobBanner({ job, device }) {
   const importer = useBookImport();
   const p = jobProgress(job);
+  // Running on another computer: progress only; that computer controls it.
+  if (job.deviceId && device && job.deviceId !== device.id && job.status !== "done") {
+    return (
+      <div className="job-banner">
+        <Icon name="book" size={16}/>
+        <div className="grow" style={{ minWidth: 0 }}>
+          <strong>Importing {job.title} on {job.deviceName || "another computer"}</strong>
+          <div className="section-stats"><span>{p.done} of {p.total} chapters ready</span>{job.status === "paused" && <span>paused</span>}</div>
+          <Bar value={p.total ? p.done / p.total : 0} thin/>
+        </div>
+      </div>
+    );
+  }
   if (job.status === "running" || job.status === "paused") {
     const paused = job.status === "paused";
     return (
@@ -118,6 +132,7 @@ export default function Course({ courseId }) {
   const [confirmSection, setConfirmSection] = useState(null);
   const importer = useBookImport();
   const bg = useBackground();
+  const device = useSync()?.device ?? null;
   const [topUpScope, setTopUpScope] = useState(null);
   const now = nav.now;
 
@@ -168,7 +183,7 @@ export default function Course({ courseId }) {
         </div>
       </div>
 
-      {jobs.map(job => <JobBanner key={job.id} job={job}/>)}
+      {jobs.map(job => <JobBanner key={job.id} job={job} device={device}/>)}
       {topUps.map(t => <TopUpBanner key={t.id} task={t} onDismiss={() => bg.dismiss(t.id)}/>)}
 
       {sections.length === 0 && waiting.length === 0 ? (

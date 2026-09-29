@@ -5,6 +5,7 @@ import Icon from "./ui/Icon.jsx";
 import { Logo, Bar } from "./ui/ui.jsx";
 import { BookImportProvider, jobProgress } from "./state/bookImport.jsx";
 import { BackgroundProvider, useBackground } from "./state/background.jsx";
+import { SyncProvider, useSync } from "./state/sync.jsx";
 import ImportBook from "./views/ImportBook.jsx";
 import Notes from "./views/Notes.jsx";
 import { useKey } from "./ui/nav.js";
@@ -37,6 +38,7 @@ function useNow(ms = 60000) {
 function Shell() {
   const { state } = useStore();
   const bg = useBackground();
+  const sync = useSync();
   const [route, setRoute] = useState({ view: "today" });
   const [session, setSession] = useState(null);
   const now = useNow();
@@ -101,11 +103,12 @@ function Shell() {
           ))}
           {state.bookJobs.filter(j => j.status !== "done").map(j => {
             const p = jobProgress(j);
+            const elsewhere = j.deviceId && sync?.device && j.deviceId !== sync.device.id;
             return (
               <button key={j.id} className="nav-job" onClick={() => nav.go("course", { courseId: j.courseId })} title={j.error || ""}>
                 <span className="nav-job-title"><Icon name="book" size={13}/><span className="ell">{j.title}</span></span>
                 <Bar value={p.total ? p.done / p.total : 0} thin/>
-                <span className="nav-job-meta">{j.status === "paused" ? "Paused" : "Importing"} · {p.done}/{p.total} chapters</span>
+                <span className="nav-job-meta">{j.status === "paused" ? "Paused" : elsewhere ? `Importing on ${j.deviceName || "another computer"}` : "Importing"} · {p.done}/{p.total}</span>
               </button>
             );
           })}
@@ -129,5 +132,13 @@ function Shell() {
 }
 
 export default function App() {
-  return <StoreProvider><BookImportProvider><BackgroundProvider><Shell/></BackgroundProvider></BookImportProvider></StoreProvider>;
+  return (
+    <StoreProvider>
+      <SyncProvider>
+        <BookImportProvider>
+          <BackgroundProvider><Shell/></BackgroundProvider>
+        </BookImportProvider>
+      </SyncProvider>
+    </StoreProvider>
+  );
 }

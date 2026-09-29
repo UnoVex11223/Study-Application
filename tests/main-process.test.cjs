@@ -227,3 +227,25 @@ test("a copy of your library is saved each day, and the last 14 are kept", async
   assert.ok(!fs.readFileSync(path.join(dir, `tenax-${today}.json`), "utf8").includes("sk-ant"), "the key isn't in backups");
 });
 
+
+test("sync folder: saving the library writes this computer's copy there", async () => {
+  const assert = require("assert/strict");
+  const zlib = require("zlib");
+  process.env.OneDrive = fs.mkdtempSync(path.join(os.tmpdir(), "tenax-onedrive-"));
+  const dir = path.join(process.env.OneDrive, "Tenax");
+  assert.equal((await handlers["sync:status"]()).suggested, dir);
+  assert.equal((await handlers["sync:status"]()).enabled, false);
+  const st = await handlers["sync:use"]({}, "/somewhere/else");
+  assert.equal(st.enabled, true);
+  assert.equal(st.dir, dir);
+  await handlers["store-set"]({}, "af3_state", { version: 4, courses: [{ id: "synced" }] });
+  await handlers["sync:flush"]();
+  const files = fs.readdirSync(dir);
+  assert.equal(files.length, 1);
+  const copy = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(dir, files[0]))).toString());
+  assert.equal(copy.state.courses[0].id, "synced");
+  assert.equal(copy.deviceId, st.device.id);
+  assert.deepEqual((await handlers["sync:pull"]({}, { all: true })).copies, [], "its own copy isn't merged back in");
+  await handlers["sync:stop"]();
+  assert.equal((await handlers["sync:status"]()).enabled, false);
+});

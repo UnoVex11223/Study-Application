@@ -149,21 +149,34 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 
 ## Data & privacy
 
-Everything lives locally in one file on your machine, and a copy is saved automatically once a day in a `backups` folder next to it (the last 14 are kept; Settings → Your data → Open folder). The API key is encrypted with your user account (Windows DPAPI / macOS Keychain) and isn't included in backups. The data file is `config.json` in `%APPDATA%\aeroflash` on Windows (the folder the app has used since its first version, kept so nothing moves when the app is renamed). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
+Everything lives locally in one file on your machine, and a copy is saved automatically once a day in a `backups` folder next to it (the last 14 are kept; Settings → Your data → Open folder). The API key is encrypted with your user account (Windows DPAPI / macOS Keychain) and isn't included in backups. The data file is `config.json` in `%APPDATA%\aeroflash` on a computer that ran earlier versions (kept so nothing moves when the app is renamed) and in `%APPDATA%\Tenax` on a fresh install. Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
 
 Data saved before per-concept scheduling is converted on first load: each concept takes the schedule of whichever of its questions you reviewed most recently.
+
+### Using Tenax on several computers
+
+Settings → Sync across computers. Pick a folder your cloud drive already syncs (one click for OneDrive; Dropbox or Google Drive via "Choose a folder…") and do the same on each computer. There's no server and no account: each computer keeps working on its own local copy, also writes it as `tenax-<computer>-<id>.json.gz` into that folder a few seconds after each change (and on quit), and reads the other computers' files on start-up, every 3 minutes and whenever the window gets focus. Each computer only ever writes its own file, so the cloud drive never has to resolve a conflict.
+
+Merging works record by record: for every course, chapter, concept, question, link, note and import, the most recently edited version wins; a deletion wins over edits made before it; review history is combined from all computers; settings come from whichever computer changed them last. Restoring a backup counts as an edit, so it carries over to the other computers instead of being undone by them; resetting deletes everywhere (both warnings say so when sync is on). A copy written by a newer version of Tenax is skipped (Settings says which computer to update) rather than merged by code that doesn't understand it.
+
+Not synced: the API key (enter it once per computer) and book PDFs. A book import runs on the computer that has the PDF; the others show its progress and get each chapter as it's saved. If two computers are used offline at the same time, both sets of reviews are kept; if the same concept was reviewed on both, the later review's schedule wins.
+
+### Installing
+
+Installers are on GitHub Releases (`Tenax-Setup-<version>.exe`, per-user, no admin rights). The app isn't code-signed, so Windows SmartScreen asks the first time: More info → Run anyway. Installed copies check for a new release every few hours, download it in the background and install it when the app closes (Settings shows "Restart now" once one is ready), which keeps every computer on the same version. To publish a release: bump `version` in package.json, commit, `git tag v<version>` and push the tag; `.github/workflows/release.yml` runs the tests, builds the installer on Windows and publishes it.
 
 This version starts from an empty library. The first time it runs, anything saved by earlier versions (old flashcards and anything converted from them) is written to a `backup-before-clean-start-<date>.json` file in the app's data folder and then removed from the app. Settings and the API key are kept.
 
 ## For developers
 
 ```
-electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC
+electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates
+sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai, book, bookRunner, notes
-src/state/        reducer (pure, tested), store (persistence), bookImport (keeps book imports running), background (question top-ups)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, grade, quality, model, ai, book, bookRunner, batchWriter, notes, sync (merging)
+src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
 src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, KnowledgeMap, Progress, TeachBack, Settings
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```
 
-`npm test`, `npm run lint`, `npm run build`, `npm run electron` (dev), `npm run dist` (package).
+`npm test`, `npm run lint`, `npm run build`, `npm run electron` (dev), `npm run dist` (Windows installer in `release/`, not published).

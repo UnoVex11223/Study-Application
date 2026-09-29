@@ -23,6 +23,19 @@ contextBridge.exposeInMainWorld("tenax", {
     outline: (data) => ipcRenderer.invoke("pdf:outline", data),
     text: (payload) => ipcRenderer.invoke("pdf:text", payload),
   },
+  sync: {
+    status: () => ipcRenderer.invoke("sync:status"),
+    choose: () => ipcRenderer.invoke("sync:choose"),
+    useSuggested: () => ipcRenderer.invoke("sync:use"),
+    stop: () => ipcRenderer.invoke("sync:stop"),
+    pull: (opts) => ipcRenderer.invoke("sync:pull", opts),
+    flush: () => ipcRenderer.invoke("sync:flush"),
+  },
+  version: () => ipcRenderer.invoke("app:version"),
+  update: {
+    status: () => ipcRenderer.invoke("app:update"),
+    install: () => ipcRenderer.invoke("app:update-install"),
+  },
   backup: {
     info: () => ipcRenderer.invoke("backup:info"),
     open: () => ipcRenderer.invoke("backup:open"),
@@ -31,5 +44,6 @@ contextBridge.exposeInMainWorld("tenax", {
     save: (data) => ipcRenderer.invoke("book:save", data),
     text: (payload) => ipcRenderer.invoke("book:text", payload),
     remove: (bookId) => ipcRenderer.invoke("book:delete", bookId),
+    has: (bookId) => ipcRenderer.invoke("book:has", bookId),
   },
 });

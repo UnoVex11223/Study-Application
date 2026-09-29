@@ -79,6 +79,7 @@ export function normalizeState(s) {
   for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }
+  if (!out.tombstones || typeof out.tombstones !== "object" || Array.isArray(out.tombstones)) out.tombstones = {};
   // A chapter that was mid-import when the app closed starts over, unless its
   // questions were already in a batch (then the import picks the batch back up).
   const interrupted = (c) => c.status === "reading" || (c.status === "writing" && !c.pending?.ex);

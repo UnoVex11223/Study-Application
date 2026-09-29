@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
 import { bookBridge } from "../state/bookImport.jsx";
+import { useSync } from "../state/sync.jsx";
 import { useNav } from "../ui/nav.js";
 import { Notice, Spinner } from "../ui/ui.jsx";
 import Icon from "../ui/Icon.jsx";
@@ -34,6 +35,7 @@ export default function ImportBook({ courseId: presetCourse }) {
   useEffect(() => () => { if (!started.current && saved.current) bookBridge()?.remove(saved.current); }, []);
 
   const bridge = bookBridge();
+  const device = useSync()?.device ?? null;
 
   const open = async (file) => {
     setError("");
@@ -67,7 +69,7 @@ export default function ImportBook({ courseId: presetCourse }) {
     const baseOrder = Math.max(-1, ...(ix.sectionsByCourse[courseId] || []).map(s => s.order)) + 1;
     const job = {
       id: uid("job"), courseId, bookId: book.bookId, title: (target === "new" ? name.trim() : "") || cleanName(book.name), fileName: book.name,
-      status: "running", baseOrder, startedAt: Date.now(),
+      status: "running", baseOrder, startedAt: Date.now(), deviceId: device?.id ?? null, deviceName: device?.name ?? "",
       chapters: chapters.map(c => ({ title: c.title, from: c.from, to: c.to, include: c.include, read: c.read, status: "pending" })),
     };
     started.current = true;

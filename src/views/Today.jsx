@@ -1,4 +1,5 @@
 import { useStore } from "../state/store.jsx";
+import { useSync } from "../state/sync.jsx";
 import { Bar, StatusDot, Notice } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
@@ -42,6 +43,7 @@ function Week({ state, now }) {
 
 export default function Today({ plan }) {
   const { state } = useStore();
+  const sync = useSync();
   const nav = useNav();
   const ix = index(state);
   const now = nav.now;
@@ -70,7 +72,12 @@ export default function Today({ plan }) {
           <div className="hero-label">Get started</div>
           <div className="hero-title">Add what you're studying</div>
           <p className="hero-sub">Create a course for a book or class, then add a chapter at a time as you work through it. Tenax keeps only the questions worth remembering and schedules short daily reviews so you keep them for good.</p>
-          <div className="hero-foot"><button className="btn btn-primary btn-lg" onClick={() => nav.go("courses", { create: true })}><Icon name="plus" size={16}/>Create a course</button></div>
+          <div className="hero-foot" style={{ flexWrap: "wrap" }}>
+            <button className="btn btn-primary btn-lg" onClick={() => nav.go("courses", { create: true })}><Icon name="plus" size={16}/>Create a course</button>
+            {sync?.status && !sync.status.enabled && (
+              <button className="btn btn-lg" onClick={() => nav.go("settings")}>Sync from another computer</button>
+            )}
+          </div>
         </article>
       </div>
     );

@@ -4,6 +4,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { useStore } from "./store.jsx";
+import { useSync } from "./sync.jsx";
 import { runBookJob } from "../lib/bookRunner.js";
 
 const Ctx = createContext(null);
@@ -15,6 +16,8 @@ export function BookImportProvider({ children }) {
   const stateRef = useRef(state);
   const running = useRef(new Set());
   const runRef = useRef(null);
+  const checked = useRef(new Set());
+  const device = useSync()?.device ?? null;
 
   const run = useCallback((jobId) => {
     const book = bookBridge();
@@ -32,11 +35,24 @@ export function BookImportProvider({ children }) {
       });
   }, [act]);
 
+  // An import runs on the computer that started it (it has the PDF). One from
+  // before imports were tied to a computer is claimed by the computer that
+  // has its PDF; other computers just show its progress.
   useEffect(() => {
     stateRef.current = state;
     runRef.current = run;
-    for (const j of state?.bookJobs || []) if (j.status === "running") run(j.id);
-  }, [state, run]);
+    if (!device) return;
+    for (const j of state?.bookJobs || []) {
+      if (j.status !== "running") continue;
+      if (j.deviceId === device.id) run(j.id);
+      else if (!j.deviceId && !checked.current.has(j.id)) {
+        checked.current.add(j.id);
+        bookBridge()?.has?.(j.bookId).then(has => {
+          if (has) act("book/patch", { id: j.id, patch: { deviceId: device.id, deviceName: device.name } });
+        });
+      }
+    }
+  }, [state, run, device, act]);
 
   const value = useMemo(() => ({
     pause: (id) => act("book/patch", { id, patch: { status: "paused" } }),

@@ -5,6 +5,7 @@ import { makeLoadAt } from "../lib/planner.js";
 import { mergeEdges } from "../lib/graph.js";
 import { dayKey } from "../lib/time.js";
 import { LEECH_LAPSES, DISPUTE_LIMIT } from "../lib/quality.js";
+import { mergeStates } from "../lib/sync.js";
 
 const MAX_ATTEMPTS = 30000;
 
@@ -20,7 +21,7 @@ function removeConcepts(state, ids) {
   };
 }
 
-export function reducer(state, action) {
+function apply(state, action) {
   if (action.type === "load") return action.state;
   if (!state) return state;
 
@@ -73,7 +74,7 @@ export function reducer(state, action) {
     case "notes/import": {
       const { course, noteUpdates = [], ...payload } = action.payload;
       let next = course ? { ...state, courses: [...state.courses, course] } : state;
-      next = reducer(next, { type: "import", payload });
+      next = apply(next, { type: "import", payload });
       const patches = new Map(noteUpdates.map(u => [u.id, u.patch]));
       return { ...next, notes: next.notes.map(n => (patches.has(n.id) ? { ...n, ...patches.get(n.id) } : n)) };
     }
@@ -99,7 +100,7 @@ export function reducer(state, action) {
       };
       // A book chapter's import and its "done" mark are saved together, so a
       // restart can never import the same chapter twice.
-      return action.bookChapter ? reducer(next, { type: "book/chapter", ...action.bookChapter }) : next;
+      return action.bookChapter ? apply(next, { type: "book/chapter", ...action.bookChapter }) : next;
     }
 
     case "edges/add": {
@@ -201,6 +202,13 @@ export function reducer(state, action) {
     case "settings":
       return { ...state, settings: { ...state.settings, ...action.patch } };
 
+    // Copies from other computers (sync folder), merged into the current state
+    // at the moment the action is applied, so nothing done meanwhile is lost.
+    case "sync/merge": {
+      const r = mergeStates(state, action.copies || []);
+      return r.changed ? r.state : state;
+    }
+
     case "replace":
       return normalizeState(action.state);
     case "reset":
@@ -208,4 +216,59 @@ export function reducer(state, action) {
     default:
       return state;
   }
+}
+
+// ── Change tracking (for syncing between computers) ─────────────────────────
+// Every record an action changes gets updatedAt = the action's time, and every
+// record it removes leaves a deletion marker (tombstone). Merging copies from
+// several computers uses these to keep the newest version of each record and
+// to carry deletions across. Loads, restores and merges aren't user edits and
+// aren't stamped.
+const TRACKED = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs"];
+// A restore ("replace") *is* tracked: every restored record counts as edited
+// now and everything else as deleted, so the restore wins on your other
+// computers too instead of being overridden by their newer copies.
+const UNTRACKED_ACTIONS = new Set(["load", "sync/merge"]);
+const TOMBSTONE_DAYS = 180;
+
+export function track(prev, next, now, { all = false } = {}) {
+  let out = next, tombstones = null;
+  if (all) {
+    // A restore keeps what this computer had already deleted (so it doesn't
+    // come back from another computer), except records the backup brings back.
+    tombstones = { ...(prev.tombstones || {}), ...(next.tombstones || {}) };
+    for (const k of TRACKED) for (const r of next[k] || []) delete tombstones[r.id];
+  }
+  for (const k of TRACKED) {
+    const a = prev[k], b = next[k];
+    if ((a === b && !all) || !Array.isArray(a) || !Array.isArray(b)) continue;
+    const before = new Map(a.map(r => [r.id, r]));
+    let changed = false;
+    const list = b.map(r => {
+      if (!all && before.get(r.id) === r) return r;
+      changed = true;
+      return { ...r, updatedAt: now };
+    });
+    const ids = new Set(b.map(r => r.id));
+    for (const r of a) {
+      if (ids.has(r.id)) continue;
+      tombstones ||= { ...(next.tombstones || {}) };
+      tombstones[r.id] = now;
+    }
+    if (changed) out = { ...out, [k]: list };
+  }
+  if (tombstones) {
+    const cutoff = now - TOMBSTONE_DAYS * 864e5;
+    for (const [id, ts] of Object.entries(tombstones)) if (ts < cutoff) delete tombstones[id];
+    out = { ...out, tombstones };
+  }
+  if (all || prev.settings !== next.settings) out = { ...out, settingsUpdatedAt: now };
+  if (prev.days !== next.days) out = { ...out, daysUpdatedAt: now };
+  return out;
+}
+
+export function reducer(state, action) {
+  const next = apply(state, action);
+  if (!state || !next || next === state || action.now == null || UNTRACKED_ACTIONS.has(action.type)) return next;
+  return track(state, next, action.now, { all: action.type === "replace" });
 }

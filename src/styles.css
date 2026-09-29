@@ -114,6 +114,8 @@ h2.h { font-size: 15px; font-weight: 650; letter-spacing: -.01em; margin-bottom:
 .grow { flex: 1; min-width: 0; }
 .grid-2 { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; align-items: start; }
 .divider { height: 1px; background: var(--rule); margin: 24px 0; border: 0; }
+.sync-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 20px; align-items: baseline; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 10px; }
+.mono-path { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 
 .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow-1); }
 .panel-pad { padding: 20px 22px; }

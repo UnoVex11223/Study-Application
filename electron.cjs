@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, shell, nativeTheme, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, nativeTheme, safeStorage, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const Store = require("electron-store");
 const Anthropic = require("@anthropic-ai/sdk");
 const pdf = require("./pdf-text.cjs");
+const { createSync } = require("./sync-folder.cjs");
 
 // Your data stays in the folder earlier versions used (%APPDATA%\aeroflash on
 // Windows), so renaming the app never loses your library or API key.
@@ -65,6 +66,77 @@ cleanStart();
 
 // ── Store bridge ──────────────────────────────────────────────────────────────
 // The renderer can write the API key but never read it back.
+// ── Sync folder (see sync-folder.cjs) ────────────────────────────────────────
+// After the library changes, this computer's copy is written to the sync
+// folder a few seconds later (and on quit); the UI pulls the other copies.
+const sync = createSync({ store, version: app.getVersion?.() ?? "0" });
+let pushTimer = null, pendingPush = null;
+const flushPush = () => {
+  clearTimeout(pushTimer);
+  if (pendingPush) { sync.push(pendingPush); pendingPush = null; }
+};
+const schedulePush = (state) => {
+  if (!sync.status().enabled) return;
+  pendingPush = state;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(flushPush, 4000);
+};
+app.on("before-quit", flushPush);
+
+ipcMain.handle("sync:status", () => sync.status());
+ipcMain.handle("sync:choose", async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const current = sync.status();
+  const res = await dialog.showOpenDialog(win, {
+    title: "Choose a folder to sync through",
+    defaultPath: current.dir || path.dirname(current.suggested),
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (res.canceled || !res.filePaths?.[0]) return current;
+  const out = sync.setFolder(res.filePaths[0]);
+  const state = store.get("af3_state");
+  if (state) sync.push(state);
+  return out;
+});
+// One-click setup uses the suggested folder (OneDrive\Tenax); any other
+// folder goes through the picker, so the page can't point sync anywhere.
+ipcMain.handle("sync:use", () => {
+  const out = sync.setFolder(sync.status().suggested);
+  const state = store.get("af3_state");
+  if (state) sync.push(state);
+  return out;
+});
+ipcMain.handle("sync:stop", () => { flushPush(); return sync.stop(); });
+ipcMain.handle("sync:pull", (_e, opts) => sync.pull(opts || {}));
+ipcMain.handle("sync:flush", () => { flushPush(); return { ok: true }; });
+ipcMain.handle("app:version", () => app.getVersion?.() ?? "0");
+
+// ── Updates ─────────────────────────────────────────────────────────────────
+// The installed app checks GitHub Releases for a newer version, downloads it
+// in the background and installs it the next time Tenax closes, so every
+// computer stays on the same version (sync skips copies from newer versions).
+let update = { state: "idle", version: null };
+let updater = null;
+function startUpdates() {
+  if (!app.isPackaged) return;
+  try { ({ autoUpdater: updater } = require("electron-updater")); } catch { return; }
+  updater.autoDownload = true;
+  updater.autoInstallOnAppQuit = true;
+  updater.on("update-available", (i) => { update = { state: "downloading", version: i?.version ?? null }; });
+  updater.on("update-downloaded", (i) => { update = { state: "ready", version: i?.version ?? null }; });
+  updater.on("error", () => { if (update.state !== "ready") update = { state: "idle", version: null }; });
+  const check = () => { if (update.state === "idle") updater.checkForUpdates().catch(() => {}); };
+  setTimeout(check, 10000).unref?.();
+  setInterval(check, 4 * 3600e3).unref?.();
+}
+ipcMain.handle("app:update", () => update);
+ipcMain.handle("app:update-install", () => {
+  if (update.state !== "ready" || !updater) return false;
+  flushPush();
+  setImmediate(() => updater.quitAndInstall());
+  return true;
+});
+
 // The key can be set from the UI but never read back.
 ipcMain.handle("store-get", (_event, key) => (key === API_KEY || key === API_KEY_ENC ? null : store.get(key, null)));
 ipcMain.handle("store-set", (_event, key, val) => {
@@ -72,6 +144,7 @@ ipcMain.handle("store-set", (_event, key, val) => {
   if (key === API_KEY_ENC) return;
   if (val === null || val === undefined) store.delete(key);
   else store.set(key, val);
+  if (key === "af3_state" && val) schedulePush(val);
 });
 
 // ── Automatic backups ─────────────────────────────────────────────────────────
@@ -698,6 +771,7 @@ ipcMain.handle("book:text", async (_e, { bookId, from, to }) => {
     return { ok: true, ...(await pdf.pageText(fs.readFileSync(file), from, to)) };
   } catch (err) { return pdfError(err); }
 });
+ipcMain.handle("book:has", (_e, bookId) => fs.existsSync(bookFile(bookId)));
 ipcMain.handle("book:delete", (_e, bookId) => {
   try { fs.rmSync(bookFile(bookId), { force: true }); } catch { /* already gone */ }
   return { ok: true };
@@ -749,5 +823,6 @@ app.whenReady().then(() => {
   createWindow();
   autoBackup();
   setInterval(() => autoBackup(), 6 * 3600e3).unref?.();
+  startUpdates();
 });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
