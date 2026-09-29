@@ -47,6 +47,7 @@ export const COURSE_STATUS = {
 export const COURSE_COLORS = ["#6F7FD4", "#5BA68A", "#C9A061", "#A286CC", "#D08A7E", "#5EA2BF", "#C087A8", "#8A93A6"];
 
 export const DEFAULT_SETTINGS = {
+  batchImports: true, // book imports write questions through the Batch API (half price, slower)
   dailyMinutes: 20,
   maxNewPerDay: 6,
   rolloverHour: 4,
@@ -78,9 +79,11 @@ export function normalizeState(s) {
   for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }
-  // A chapter that was mid-import when the app closed starts that chapter over.
-  out.bookJobs = out.bookJobs.map(j => (j.chapters.some(c => c.status === "reading" || c.status === "writing")
-    ? { ...j, chapters: j.chapters.map(c => (c.status === "reading" || c.status === "writing" ? { ...c, status: "pending" } : c)) }
+  // A chapter that was mid-import when the app closed starts over, unless its
+  // questions were already in a batch (then the import picks the batch back up).
+  const interrupted = (c) => c.status === "reading" || (c.status === "writing" && !c.pending?.ex);
+  out.bookJobs = out.bookJobs.map(j => (j.chapters.some(interrupted)
+    ? { ...j, chapters: j.chapters.map(c => (interrupted(c) ? { ...c, status: "pending" } : c)) }
     : j));
   // v4: schedules moved from questions to concepts. A concept keeps the
   // schedule of whichever of its questions was reviewed most recently.

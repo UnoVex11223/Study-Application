@@ -25,6 +25,9 @@ export default function Settings() {
   const [hasKey, setHasKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [backups, setBackups] = useState(null);
+  const backupApi = typeof window !== "undefined" ? window.tenax?.backup : null;
+  useEffect(() => { backupApi?.info().then(setBackups).catch(() => {}); }, [backupApi]);
   const [restore, setRestore] = useState(null);
   const [restoreError, setRestoreError] = useState("");
   const fileRef = useRef(null);
@@ -43,7 +46,7 @@ export default function Settings() {
     const blob = new Blob([JSON.stringify(state)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `engram-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `tenax-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
@@ -56,7 +59,7 @@ export default function Settings() {
         const data = JSON.parse(String(r.result));
         if (!Array.isArray(data.courses) || !Array.isArray(data.items)) throw new Error("not a backup");
         setRestore(data); setRestoreError("");
-      } catch { setRestoreError("That file isn't an Engram backup."); }
+      } catch { setRestoreError("That file isn't an Tenax backup."); }
     };
     r.readAsText(file);
   };
@@ -101,7 +104,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="AI" description="Extracting concepts, writing questions and grading written answers use Claude through your Anthropic API key. The key is stored on this computer and only used to call the API. Without it you can still write questions and check answers yourself.">
+      <Section title="AI" description="Extracting concepts, writing questions and grading written answers use Claude through your Anthropic API key. The key is stored on this computer, encrypted with your user account, and only used to call the API. Without it you can still write questions and check answers yourself.">
         {!aiBridge() && <div style={{ marginBottom: 12 }}><Notice>AI features run in the desktop app.</Notice></div>}
         <div className="row">
           <input className="input grow" type="password" value={key} onChange={e => { setKey(e.target.value); setKeySaved(false); }}
@@ -111,10 +114,32 @@ export default function Settings() {
           {hasKey && <button className="btn btn-danger" onClick={async () => { await setApiKey(null); setHasKey(false); }}>Remove</button>}
         </div>
         {keySaved && <p className="small" style={{ color: "var(--good)", marginTop: 8 }}>Key saved.</p>}
-        <p className="help" style={{ marginTop: 10 }}>Get a key at console.anthropic.com under API Keys.</p>
+        <p className="help" style={{ marginTop: 10 }}>Get a key at platform.claude.com under Settings → API keys.</p>
+
+        <div className="label" style={{ marginTop: 20 }}>Book imports</div>
+        <div className="seg" style={{ marginTop: 8 }}>
+          {[[true, "Half price"], [false, "Faster"]].map(([v, l]) => (
+            <button key={l} className={(s.batchImports !== false) === v ? "on" : ""} onClick={() => set({ batchImports: v })}>{l}</button>
+          ))}
+        </div>
+        <p className="help" style={{ marginTop: 8 }}>
+          {s.batchImports !== false
+            ? "Questions for imported books are written through Anthropic's Batch API: the same models and quality at half the price. Each chapter usually takes a few extra minutes, occasionally up to an hour when the queue is busy."
+            : "Questions for imported books are written right away, at full price."}
+        </p>
       </Section>
 
-      <Section title="Your data" description="Everything is stored locally on this computer. Make a backup before big changes.">
+      <Section title="Your data" description="Everything is stored locally on this computer.">
+        {backups && (
+          <div className="row" style={{ marginBottom: 14, gap: 12 }}>
+            <Icon name="check" size={15}/>
+            <span className="grow small">
+              A copy is saved automatically each day; the last {backups.keep} are kept.
+              {backups.latest && <span className="muted"> Latest: {new Date(`${backups.latest}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.</span>}
+            </span>
+            <button className="btn btn-sm btn-quiet" onClick={() => backupApi.open()}>Open folder</button>
+          </div>
+        )}
         <div className="row-wrap">
           <button className="btn" onClick={exportData}><Icon name="download" size={15}/>Export backup</button>
           <button className="btn" onClick={() => fileRef.current?.click()}><Icon name="upload" size={15}/>Restore from backup</button>

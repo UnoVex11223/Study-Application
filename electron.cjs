@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, nativeTheme } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, nativeTheme, safeStorage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const Store = require("electron-store");
@@ -11,7 +11,31 @@ const LEGACY_DATA = path.join(app.getPath("appData"), "aeroflash");
 if (fs.existsSync(LEGACY_DATA)) app.setPath("userData", LEGACY_DATA);
 
 const store = new Store();
-const API_KEY = "af_api_key";
+const API_KEY = "af_api_key";         // plain text (older versions, or no OS encryption available)
+const API_KEY_ENC = "af_api_key_enc"; // encrypted with the OS (Windows: DPAPI, macOS: Keychain)
+
+// ── API key ───────────────────────────────────────────────────────────────────
+// The key is encrypted with the operating system's per-user encryption when
+// it's available, so copying the data file elsewhere doesn't expose it.
+const canEncrypt = () => { try { return Boolean(safeStorage?.isEncryptionAvailable()); } catch { return false; } };
+
+function saveApiKey(key) {
+  store.delete(API_KEY);
+  store.delete(API_KEY_ENC);
+  if (!key) return;
+  if (canEncrypt()) store.set(API_KEY_ENC, safeStorage.encryptString(String(key)).toString("base64"));
+  else store.set(API_KEY, String(key));
+}
+
+function readApiKey() {
+  const enc = store.get(API_KEY_ENC);
+  if (enc && canEncrypt()) {
+    try { return safeStorage.decryptString(Buffer.from(enc, "base64")); } catch { /* unreadable on this account */ }
+  }
+  const plain = store.get(API_KEY);
+  if (plain && canEncrypt()) saveApiKey(plain); // upgrade a key saved by an older version
+  return plain || process.env.ANTHROPIC_API_KEY || null;
+}
 
 // ── One-time clean start ──────────────────────────────────────────────────────
 // This version starts from an empty library. Anything stored by earlier
@@ -41,11 +65,40 @@ cleanStart();
 
 // ── Store bridge ──────────────────────────────────────────────────────────────
 // The renderer can write the API key but never read it back.
-ipcMain.handle("store-get", (_event, key) => (key === API_KEY ? null : store.get(key, null)));
+// The key can be set from the UI but never read back.
+ipcMain.handle("store-get", (_event, key) => (key === API_KEY || key === API_KEY_ENC ? null : store.get(key, null)));
 ipcMain.handle("store-set", (_event, key, val) => {
+  if (key === API_KEY) return saveApiKey(val);
+  if (key === API_KEY_ENC) return;
   if (val === null || val === undefined) store.delete(key);
   else store.set(key, val);
 });
+
+// ── Automatic backups ─────────────────────────────────────────────────────────
+// A copy of your library is saved once a day (at start-up and every few hours
+// while the app runs), and the last 14 are kept. The API key isn't included.
+const BACKUP_KEEP = 14;
+const backupsDir = () => path.join(app.getPath("userData"), "backups");
+const BACKUP_NAME = /^tenax-\d{4}-\d{2}-\d{2}\.json$/;
+
+function autoBackup(now = new Date()) {
+  try {
+    const state = store.get("af3_state");
+    if (!state) return;
+    fs.mkdirSync(backupsDir(), { recursive: true });
+    const file = path.join(backupsDir(), `tenax-${now.toISOString().slice(0, 10)}.json`);
+    if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(state));
+    const files = fs.readdirSync(backupsDir()).filter(f => BACKUP_NAME.test(f)).sort();
+    for (const f of files.slice(0, Math.max(0, files.length - BACKUP_KEEP))) fs.rmSync(path.join(backupsDir(), f), { force: true });
+  } catch { /* best effort: a failed backup never blocks the app */ }
+}
+
+ipcMain.handle("backup:info", () => {
+  autoBackup();
+  const files = fs.existsSync(backupsDir()) ? fs.readdirSync(backupsDir()).filter(f => BACKUP_NAME.test(f)).sort() : [];
+  return { count: files.length, latest: files.at(-1)?.slice(6, 16) ?? null, keep: BACKUP_KEEP };
+});
+ipcMain.handle("backup:open", () => { fs.mkdirSync(backupsDir(), { recursive: true }); return shell.openPath(backupsDir()); });
 
 // ── AI (runs here so the API key never reaches the renderer) ─────────────────
 // Heavier reasoning (building a curriculum) uses the strongest model; grading
@@ -53,11 +106,11 @@ ipcMain.handle("store-set", (_event, key, val) => {
 // order if a model isn't available on the account.
 const MODELS = {
   deep: ["claude-opus-5-5", "claude-opus-5"],
-  fast: ["claude-sonnet-5", "claude-opus-5"],
+  fast: ["claude-sonnet-5-5", "claude-sonnet-5", "claude-opus-5-5"],
 };
 
 function getClient() {
-  const apiKey = store.get(API_KEY) || process.env.ANTHROPIC_API_KEY;
+  const apiKey = readApiKey();
   if (!apiKey) return null;
   // Retries (with backoff) cover brief overloads when several groups run at once.
   return new Anthropic({ apiKey, maxRetries: 4 });
@@ -71,27 +124,43 @@ function friendlyError(err) {
   return err?.message || "Something went wrong.";
 }
 
+/**
+ * Request parameters for one structured-output call.
+ * The system prompt is marked for prompt caching: it's identical across the
+ * many calls of an import or a study session, and cached input costs a tenth.
+ * `prompt` is a string, or content blocks when a large stable part (e.g. the
+ * list of concepts you already know) should be cached too.
+ */
+function buildParams({ system, prompt, schema, maxTokens }, model) {
+  return {
+    model,
+    max_tokens: maxTokens,
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+    output_config: { format: { type: "json_schema", schema } },
+    messages: [{ role: "user", content: prompt }],
+  };
+}
+
+/** Parse a finished message into { ok, data } or { ok:false, error }. */
+function readMessage(message) {
+  if (message.stop_reason === "refusal") return { ok: false, error: "The model declined this content." };
+  if (message.stop_reason === "max_tokens") return { ok: false, error: "That was too much material for one pass. Try a smaller section." };
+  const text = message.content.find((b) => b.type === "text")?.text ?? "";
+  try { return { ok: true, data: JSON.parse(text) }; } catch { return { ok: false, error: "The response couldn't be read." }; }
+}
+
 /** One structured-output call with model fallback. Returns { ok, data } or { ok:false, error }. */
-async function structured({ tier, system, prompt, schema, maxTokens }) {
+async function structured(spec) {
   const client = getClient();
   if (!client) return { ok: false, error: "no-key" };
   let lastErr = null;
-  for (const model of MODELS[tier]) {
+  for (const model of MODELS[spec.tier]) {
     try {
-      const params = {
-        model,
-        max_tokens: maxTokens,
-        system,
-        output_config: { format: { type: "json_schema", schema } },
-        messages: [{ role: "user", content: prompt }],
-      };
-      const message = maxTokens > 8000
+      const params = buildParams(spec, model);
+      const message = spec.maxTokens > 8000
         ? await client.messages.stream(params).finalMessage()
         : await client.messages.create(params);
-      if (message.stop_reason === "refusal") return { ok: false, error: "The model declined this content." };
-      if (message.stop_reason === "max_tokens") return { ok: false, error: "That was too much material for one pass. Try a smaller section." };
-      const text = message.content.find((b) => b.type === "text")?.text ?? "";
-      return { ok: true, data: JSON.parse(text), model };
+      return { ...readMessage(message), model };
     } catch (err) {
       lastErr = err;
       if (err instanceof Anthropic.NotFoundError) continue; // try the next model
@@ -100,6 +169,9 @@ async function structured({ tier, system, prompt, schema, maxTokens }) {
   }
   return { ok: false, error: friendlyError(lastErr) };
 }
+
+// Request builders shared by live calls and the Batch API (see "Batches" below).
+const SPEC = {};
 
 const str = (description) => (description ? { type: "string", description } : { type: "string" });
 const strList = (description) => ({ type: "array", items: { type: "string" }, ...(description ? { description } : {}) });
@@ -240,7 +312,7 @@ WRITING
 - Vary phrasing; don't start every prompt the same way.
 - Markdown: fenced code blocks with a language tag, \`inline code\`, $...$ for math.`;
 
-ipcMain.handle("ai:items", async (_e, { courseName, sectionTitle, concepts }) => {
+SPEC.items = ({ courseName, sectionTitle, concepts }) => {
   const list = concepts.map((c) => `<concept key="${c.key}" importance="${c.importance}" kind="${c.kind}">
 name: ${c.name}
 summary: ${c.summary}
@@ -250,14 +322,17 @@ ${c.excerpt ? `source: ${c.excerpt}` : ""}${c.existing?.length ? `\nalready_aske
 Section: ${sectionTitle}
 
 ${list}`;
-  return structured({ tier: "deep", system: ITEMS_SYSTEM, prompt, schema: ITEMS_SCHEMA, maxTokens: 32000 });
-});
+  return { tier: "deep", system: ITEMS_SYSTEM, prompt, schema: ITEMS_SCHEMA, maxTokens: 32000 };
+};
+ipcMain.handle("ai:items", (_e, payload) => structured(SPEC.items(payload)));
 
 // ── 2b. Quality review (an independent critic) ──────────────────────────────
 const REVISION = obj({
   prompt: str(), model_answer: str(), accept: strList(), required_points: strList(), misconceptions: strList(), hint: str(),
 });
 const SCORE = { type: "integer", description: "1 to 5" };
+// Revisions are listed separately so keep/drop verdicts don't pay for empty
+// revision fields (output tokens are the expensive part).
 const CRITIQUE_SCHEMA = obj({
   reviews: {
     type: "array",
@@ -265,9 +340,13 @@ const CRITIQUE_SCHEMA = obj({
       id: str("The question id"),
       verdict: { type: "string", enum: ["keep", "revise", "drop"] },
       scores: obj({ importance: SCORE, clarity: SCORE, retrieval: SCORE, gradability: SCORE, accuracy: SCORE }),
-      reason: str("One short sentence: the main problem, or why it's a strong question"),
-      revision: { ...REVISION, description: "The full revised question when verdict is revise; empty strings and arrays otherwise" },
+      reason: str("For drop or revise: one short sentence on the main problem. For keep: empty"),
     }),
+  },
+  revisions: {
+    type: "array",
+    description: "One entry per question with verdict revise, and only those",
+    items: { ...REVISION, properties: { id: str("The question id"), ...REVISION.properties }, required: ["id", ...REVISION.required] },
   },
 });
 
@@ -284,13 +363,13 @@ Also check the batch as a whole: if two questions test the same thing in the sam
 
 Verdicts:
 - keep: every score is 4 or 5 as written.
-- revise: it tests something important (importance 4+) but has a fixable flaw. Write the complete improved question in revision and give the scores the REVISED question earns.
+- revise: it tests something important (importance 4+) but has a fixable flaw. Put the complete improved question in revisions (with the same id) and give the scores the REVISED question earns.
 - drop: importance 3 or lower, redundant, or not fixable.
-For keep and drop, leave every revision field empty.
+Leave reason empty for keep. Only revised questions go in revisions.
 
 ${QUALITY_BAR}`;
 
-ipcMain.handle("ai:critique", async (_e, { courseName, sectionTitle, concepts, questions }) => {
+SPEC.critique = ({ courseName, sectionTitle, concepts, questions }) => {
   const ctx = concepts.map((c) => `<concept key="${c.key}" importance="${c.importance}">
 ${c.name}: ${c.summary}${c.excerpt ? `\nsource: ${c.excerpt}` : ""}
 </concept>`).join("\n");
@@ -310,8 +389,9 @@ ${inUse ? `\nQuestions already in use (not for review; drop new questions that r
 ${qs}
 
 Review every question above.`;
-  return structured({ tier: "deep", system: CRITIQUE_SYSTEM, prompt, schema: CRITIQUE_SCHEMA, maxTokens: 24000 });
-});
+  return { tier: "deep", system: CRITIQUE_SYSTEM, prompt, schema: CRITIQUE_SCHEMA, maxTokens: 24000 };
+};
+ipcMain.handle("ai:critique", (_e, payload) => structured(SPEC.critique(payload)));
 
 // ── 2c. Rewrite a question you reported ──────────────────────────────────────
 const REWRITE_SCHEMA = obj({
@@ -422,11 +502,12 @@ Prefer a few high-value links to many weak ones: at most 2 per new concept, and 
 
 ipcMain.handle("ai:link", async (_e, { fresh, existing }) => {
   const fmt = (c) => `${c.id} | ${c.course} | ${c.name}: ${c.summary}`;
-  const prompt = `NEW concepts:
-${fresh.map(fmt).join("\n")}
-
-EXISTING concepts:
-${existing.map(fmt).join("\n") || "(none)"}`;
+  // The existing list comes first and is cached: it's the same for every
+  // chapter of a book being imported.
+  const prompt = [
+    { type: "text", text: `EXISTING concepts:\n${existing.map(fmt).join("\n") || "(none)"}`, cache_control: { type: "ephemeral" } },
+    { type: "text", text: `NEW concepts:\n${fresh.map(fmt).join("\n")}` },
+  ];
   return structured({ tier: "deep", system: LINK_SYSTEM, prompt, schema: LINK_SCHEMA, maxTokens: 8000 });
 });
 
@@ -480,20 +561,22 @@ For a kept note, extract its concepts: usually one; split only when the note hol
 Match on meaning, never on shared words alone.`;
 
 ipcMain.handle("ai:notes", async (_e, { notes, topics = [], known = [] }) => {
-  const knownList = known.map((k) => `${k.id} | ${k.name} | ${k.course} | ${k.summary}`).join("\n");
+  const knownList = known.map((k) => `${k.id} | ${k.name} | ${k.course}${k.summary ? ` | ${k.summary}` : ""}`).join("\n");
   const noteList = notes.map((n) => `<note id="${n.id}" force="${n.force ? "true" : "false"}"${n.context ? ` context="${String(n.context).replace(/"/g, "'")}"` : ""}>
 ${escapeTag(n.text)}
 </note>`).join("\n");
-  const prompt = `<existing_topics>
+  // Topics and known concepts are the same for every batch of a run: cached.
+  const prompt = [
+    { type: "text", cache_control: { type: "ephemeral" }, text: `<existing_topics>
 ${topics.join("\n") || "(none yet)"}
 </existing_topics>
 
 <known_concepts>
-id | name | course | summary
+id | name | course | summary (summaries only for the likeliest matches)
 ${knownList || "(none yet)"}
-</known_concepts>
-
-${noteList}`;
+</known_concepts>` },
+    { type: "text", text: noteList },
+  ];
   return structured({ tier: "deep", system: NOTES_SYSTEM, prompt, schema: NOTES_SCHEMA, maxTokens: 16000 });
 });
 
@@ -535,7 +618,56 @@ ${escapeTag(text)}
   return structured({ tier: "deep", system: TEACH_SYSTEM, prompt, schema: TEACH_SCHEMA, maxTokens: 4000 });
 });
 
-ipcMain.handle("ai:status", () => ({ hasKey: Boolean(store.get(API_KEY) || process.env.ANTHROPIC_API_KEY) }));
+// ── Batches ─────────────────────────────────────────────────────────────────
+// Whole-book imports can send question writing and review through the
+// Message Batches API: same models and prompts at half the price, results
+// usually within the hour. Any request a batch can't handle is redone live by
+// the caller, so quality never depends on the batch.
+const BATCHABLE = { items: SPEC.items, critique: SPEC.critique };
+
+ipcMain.handle("ai:batch-create", async (_e, { kind, requests }) => {
+  const client = getClient();
+  if (!client) return { ok: false, error: "no-key" };
+  const spec = BATCHABLE[kind];
+  if (!spec || !requests?.length) return { ok: false, error: "Nothing to send." };
+  try {
+    const batch = await client.messages.batches.create({
+      requests: requests.map((r) => ({ custom_id: r.id, params: buildParams(spec(r.payload), MODELS.deep[0]) })),
+    });
+    return { ok: true, batchId: batch.id };
+  } catch (err) {
+    return { ok: false, error: friendlyError(err) };
+  }
+});
+
+ipcMain.handle("ai:batch-status", async (_e, batchId) => {
+  const client = getClient();
+  if (!client) return { ok: false, error: "no-key" };
+  try {
+    const b = await client.messages.batches.retrieve(batchId);
+    return { ok: true, status: b.processing_status, counts: b.request_counts };
+  } catch (err) {
+    return { ok: false, error: friendlyError(err) };
+  }
+});
+
+ipcMain.handle("ai:batch-results", async (_e, batchId) => {
+  const client = getClient();
+  if (!client) return { ok: false, error: "no-key" };
+  try {
+    const results = {};
+    for await (const r of await client.messages.batches.results(batchId)) {
+      results[r.custom_id] = r.result.type === "succeeded"
+        ? readMessage(r.result.message)
+        : { ok: false, error: r.result.type === "errored" ? (r.result.error?.error?.message || "Request failed.") : `Request ${r.result.type}.` };
+    }
+    return { ok: true, results };
+  } catch (err) {
+    return { ok: false, error: friendlyError(err) };
+  }
+});
+
+ipcMain.handle("ai:status", () => ({ hasKey: Boolean(readApiKey()) }));
 
 // ── PDF import ───────────────────────────────────────────────────────────────
 const pdfError = (err) => ({ ok: false, error: /password/i.test(err?.message) ? "That PDF is password-protected." : "Couldn't read that PDF." });
@@ -588,13 +720,18 @@ function createWindow() {
     height: 820,
     minWidth: 900,
     minHeight: 620,
-    title: "Engram",
+    title: "Tenax",
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     ...(fs.existsSync(iconPath) && { icon: iconPath }),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
     },
+  });
+  // The window only ever shows the app: a file dropped outside a drop zone, or
+  // a stray link, must not navigate it away.
+  win.webContents.on("will-navigate", (e, url) => {
+    if (url !== win.webContents.getURL()) e.preventDefault();
   });
   // Open external links in the browser, not inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -608,7 +745,11 @@ function createWindow() {
   }
 }
 
-// Lets Windows group the taskbar button under Engram with its own icon.
-if (process.platform === "win32") app.setAppUserModelId("app.engram.desktop");
-app.whenReady().then(createWindow);
+// Lets Windows group the taskbar button under Tenax with its own icon.
+if (process.platform === "win32") app.setAppUserModelId("app.tenax.desktop");
+app.whenReady().then(() => {
+  createWindow();
+  autoBackup();
+  setInterval(() => autoBackup(), 6 * 3600e3).unref?.();
+});
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });

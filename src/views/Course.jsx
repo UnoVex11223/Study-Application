@@ -175,7 +175,7 @@ export default function Course({ courseId }) {
       {sections.length === 0 && waiting.length === 0 ? (
         <div className="panel empty">
           <h3>Add the first chapter</h3>
-          <p>Paste a chapter or lesson, or drop in your notes. Engram pulls out the concepts that matter, writes questions for them, and introduces them a few a day.</p>
+          <p>Paste a chapter or lesson, or drop in your notes. Tenax pulls out the concepts that matter, writes questions for them, and introduces them a few a day.</p>
           <div className="row" style={{ justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus" size={15}/>Add material</button>
             <button className="btn" onClick={() => nav.go("book", { courseId })}><Icon name="book" size={15}/>Import a whole book</button>
@@ -191,7 +191,7 @@ export default function Course({ courseId }) {
               <div className="stat-label">{m.basisIsCore ? "core concepts" : "concepts"} mastered</div>
             </div>
             <div className="stat"><div className="stat-value">{pct(m.coveragePct)}</div><div className="stat-label">of {m.total} concepts started</div></div>
-            <div className="stat"><div className="stat-value">{m.memory == null ? "–" : pct(m.memory)}</div><div className="stat-label">average recall chance now</div></div>
+            <div className="stat"><div className="stat-value">{m.memory == null ? "–" : pct(m.memory)}</div><div className="stat-label">average recall today</div></div>
             <div className="stat"><div className="stat-value">{m.slipping}</div><div className="stat-label">slipping</div></div>
           </div>
 
@@ -225,8 +225,8 @@ export default function Course({ courseId }) {
                               <span>{sm.total} concept{sm.total === 1 ? "" : "s"}</span>
                               <span>{questionCount(concepts)} questions</span>
                               {s.locked ? <span>locked until you've read it</span> : <>
-                                <span>{sm.mastered}/{sm.basisCount} {sm.basisIsCore ? "core " : ""}mastered</span>
-                                <span>{sm.introduced}/{sm.total} started</span>
+                                <span title={sm.basisIsCore ? "Core concepts mastered" : "Concepts mastered"}>{sm.mastered}/{sm.basisCount} mastered</span>
+                                {sm.introduced < sm.total && <span>{sm.introduced}/{sm.total} started</span>}
                                 {sm.slipping > 0 && <span>{sm.slipping} slipping</span>}
                               </>}
                             </div>
@@ -288,7 +288,7 @@ export default function Course({ courseId }) {
                           <div className="list-title">{c.title}</div>
                           <div className="section-stats">
                             <span>pp. {c.from}–{c.to}</span>
-                            <span>{c.status === "pending" && job.status === "paused" ? "Paused" : CHAPTER_STATUS[c.status]}</span>
+                            <span>{c.status === "pending" && job.status === "paused" ? "Paused" : c.status === "writing" && c.mode === "batch" ? "Writing questions (half-price batch)…" : CHAPTER_STATUS[c.status]}</span>
                           </div>
                           {c.status === "failed" && c.error && <div className="small review-reason">{c.error}</div>}
                         </div>

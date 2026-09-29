@@ -1,6 +1,6 @@
-# Engram — How It Works
+# Tenax — How It Works
 
-Engram is a desktop study app (Electron + React) for keeping what you learn in long-term memory across many subjects at once. You add material a chapter at a time; it pulls out the concepts worth remembering, writes questions you answer from memory, and schedules a short daily session sized to the time you have.
+Tenax is a desktop study app (Electron + React) for keeping what you learn in long-term memory across many subjects at once. You add material a chapter at a time; it pulls out the concepts worth remembering, writes questions you answer from memory, and schedules a short daily session sized to the time you have.
 
 This file doubles as context you can paste into another AI when preparing material for the app.
 
@@ -66,6 +66,15 @@ After import, quality keeps being enforced:
 - Questions you write yourself get the same rule checks as advice while you type.
 - **More questions** (on a course's Sections header, or inside a chapter) tops up concepts that have fewer than their target: Claude sees the questions a concept already has and writes ones that come at the idea from another side, through the same review and caps. What passes is added automatically.
 
+## What the AI costs, and how it's kept down
+
+- Heavy work (finding concepts, writing and reviewing questions, linking, notes) uses Claude Opus; grading uses Claude Sonnet, which is fast and a fraction of the price.
+- System prompts are cached, so the instructions repeated across an import or a study session are billed at a tenth after the first call. The long lists sent with linking and notes (concepts you already know) are cached too.
+- The reviewer only writes out revisions for questions it actually revises, not empty fields for every question.
+- Linking only compares new concepts with your *other* courses (within a course, prerequisites come from extraction), and is skipped when there's nothing else to link to.
+- Notes send the concepts most likely to match with their summaries and the rest by name only.
+- Book imports use the Batch API at half price (see Importing a whole book).
+
 ## Grading
 
 Every question carries a small rubric written when the question is created: **key points** a correct answer must contain, plus common **misconceptions** that make an answer wrong.
@@ -116,7 +125,7 @@ You can also write questions yourself (Course → Add a question) with key point
 3. The import runs in the background, in reading order. Each chapter's concepts are extracted knowing the earlier chapters', so later chapters point back at earlier ideas as prerequisites (the book's map) instead of recreating them. Question writing for up to two chapters runs alongside, and chapters appear on the course page as they finish. Closing the app pauses the import; it picks up where it left off (a chapter that was mid-way starts over). Two API failures in a row pause it with the error shown.
 4. **Mark as read** on a chapter unlocks it. A locked chapter never comes up in sessions, doesn't count in course totals, and its prerequisites don't hold back chapters you've read out of order. Unlocking doesn't dump the chapter on you: its concepts join the queue and are introduced a few a day like any other new material.
 
-Rough cost: 2–4 cents of API usage per page (about $10–15 for a 400-page book at Opus pricing), and about 1–2 minutes per chapter.
+Cost: by default (Settings → AI → Book imports: **Half price**) question writing and review go through Anthropic's Batch API: the same models and prompts at half the price, with each chapter usually taking a few extra minutes (occasionally up to an hour). Roughly 1.5–2.5 cents per page that way (about $6–10 for a 400-page book), or 2–4 cents at full speed. An import that's closed mid-batch picks the same batch back up; anything a batch can't handle is redone live.
 
 ### Notes
 
@@ -140,7 +149,7 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 
 ## Data & privacy
 
-Everything lives locally in one file on your machine (electron-store; on Windows `%APPDATA%\aeroflash\config.json`, the folder the app used before it was renamed to Engram). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
+Everything lives locally in one file on your machine, and a copy is saved automatically once a day in a `backups` folder next to it (the last 14 are kept; Settings → Your data → Open folder). The API key is encrypted with your user account (Windows DPAPI / macOS Keychain) and isn't included in backups. The data file is `config.json` in `%APPDATA%\aeroflash` on Windows (the folder the app has used since its first version, kept so nothing moves when the app is renamed). Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
 
 Data saved before per-concept scheduling is converted on first load: each concept takes the schedule of whichever of its questions you reviewed most recently.
 

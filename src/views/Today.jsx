@@ -56,6 +56,7 @@ export default function Today({ plan }) {
 
   const courses = state.courses.filter(c => c.status !== "paused" && c.kind !== "notes");
   const flagged = state.items.filter(i => i.flag).length;
+  const inbox = state.notes.filter(n => n.status === "inbox").length;
   const dateLabel = new Date(now).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const doneToday = plan.tasks.length === 0 && plan.spentSec > 0;
 
@@ -68,7 +69,7 @@ export default function Today({ plan }) {
         <article className="hero" style={{ marginTop: 8 }}>
           <div className="hero-label">Get started</div>
           <div className="hero-title">Add what you're studying</div>
-          <p className="hero-sub">Create a course for a book or class, then add a chapter at a time as you work through it. Engram keeps only the questions worth remembering and schedules short daily reviews so you keep them for good.</p>
+          <p className="hero-sub">Create a course for a book or class, then add a chapter at a time as you work through it. Tenax keeps only the questions worth remembering and schedules short daily reviews so you keep them for good.</p>
           <div className="hero-foot"><button className="btn btn-primary btn-lg" onClick={() => nav.go("courses", { create: true })}><Icon name="plus" size={16}/>Create a course</button></div>
         </article>
       </div>
@@ -166,6 +167,16 @@ export default function Today({ plan }) {
             <div className="muted small">Review time already scheduled. The planner keeps new material in check so this stays near your budget.</div>
             <Week state={state} now={now}/>
           </div>
+          {inbox > 0 && (
+            <button className="panel panel-pad notes-callout" onClick={() => nav.go("notes")}>
+              <Icon name="note" size={18}/>
+              <div className="grow">
+                <div className="list-title">{inbox} note{inbox === 1 ? "" : "s"} in your inbox</div>
+                <div className="muted small">Process {inbox === 1 ? "it" : "them"} to turn what's worth keeping into questions.</div>
+              </div>
+              <Icon name="chevron" size={16} className="muted"/>
+            </button>
+          )}
 
           {slipping.length > 0 && (
             <div className="panel">

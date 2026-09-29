@@ -72,7 +72,7 @@ export default function AddMaterial({ courseId }) {
 
   const source = [text, ...files.map(f => `# ${f.name}\n\n${f.content}`)].filter(s => s.trim()).join("\n\n");
 
-  const pdfApi = typeof window !== "undefined" ? window.engram?.pdf : null;
+  const pdfApi = typeof window !== "undefined" ? window.tenax?.pdf : null;
 
   const openPdf = async (f) => {
     if (!pdfApi) { setError("PDF import works in the desktop app. Paste the chapter's text instead."); return; }

@@ -137,7 +137,7 @@ const newJob = (chapters, id = "job1") => ({ id, courseId: "c1", bookId: "b1", t
 test("a book imports chapter by chapter, in order, with prerequisites across chapters", async () => {
   // Chapter 1's questions take longest, so chapter 2 finishes writing first.
   const { ai, book, calls } = fakes({ itemDelay: { "1.1": 60, "2.1": 5, "3.1": 5 } });
-  globalThis.window = { engram: { ai } };
+  globalThis.window = { tenax: { ai } };
   const course = makeCourse({ name: "Book" }); course.id = "c1";
   const st = storeWith(newJob([chapter(1, { read: true }), chapter(2), { ...chapter(3), include: false }]), course);
   const result = await runBookJob({ jobId: "job1", getState: st.getState, act: st.act, book });
@@ -157,12 +157,31 @@ test("a book imports chapter by chapter, in order, with prerequisites across cha
   assert.deepEqual(s.bookJobs[0].chapters.map(c => c.status), ["done", "done", "pending"]);
   assert.equal(s.bookJobs[0].chapters[0].questions, 1);
   assert.equal(s.bookJobs[0].status, "done");
+  assert.equal(calls.link, 0, "no other course to link to: no linking calls");
+});
+
+test("chapters are linked to your other courses, and only those", async () => {
+  const { ai, book, calls } = fakes();
+  const sent = [];
+  ai.link = async (p) => { calls.link++; sent.push(p.existing.map(e => e.name)); return { ok: true, data: { links: [] } }; };
+  globalThis.window = { tenax: { ai } };
+  const course = makeCourse({ name: "Book" }); course.id = "c1";
+  const st = storeWith(newJob([chapter(1), chapter(2)], "job6"), course);
+  const other = makeCourse({ name: "Networking" });
+  const sec = makeSection({ courseId: other.id, title: "Ch 1" });
+  st.act("course/add", { course: other });
+  st.act("section/add", { section: sec });
+  st.act("import", { payload: { concepts: [makeConcept({ courseId: other.id, sectionId: sec.id, name: "Checksum" })] } });
+  await runBookJob({ jobId: "job6", getState: st.getState, act: st.act, book });
+  await wait(10);
+  delete globalThis.window;
   assert.equal(calls.link, 2);
+  assert.ok(sent.every(list => list.length === 1 && list[0] === "Checksum"), "the book's own concepts aren't sent");
 });
 
 test("scanned chapters fail on their own; repeated API failures pause the import", async () => {
   const { ai, book } = fakes({ emptyPages: new Set([10]), failExtract: new Set(["Chapter 2", "Chapter 3"]) });
-  globalThis.window = { engram: { ai } };
+  globalThis.window = { tenax: { ai } };
   const course = makeCourse({ name: "Book" }); course.id = "c1";
   const st = storeWith(newJob([chapter(1), chapter(2), chapter(3), chapter(4)], "job2"), course);
   const result = await runBookJob({ jobId: "job2", getState: st.getState, act: st.act, book });
@@ -177,7 +196,7 @@ test("scanned chapters fail on their own; repeated API failures pause the import
 
 test("a restarted import skips finished chapters and redoes interrupted ones", async () => {
   const { ai, book, calls } = fakes();
-  globalThis.window = { engram: { ai } };
+  globalThis.window = { tenax: { ai } };
   const course = makeCourse({ name: "Book" }); course.id = "c1";
   const saved = newJob([chapter(1, { status: "done" }), chapter(2, { status: "writing" })], "job3");
   const st = storeWith(saved, course); // normalizeState turns "writing" back into "pending"
@@ -196,7 +215,7 @@ test("a chapter with only minor details finishes with nothing added", async () =
     if (p.title === "Chapter 1") r.data.sections[0].concepts = r.data.sections[0].concepts.filter(c => c.importance === "detail");
     return r;
   };
-  globalThis.window = { engram: { ai } };
+  globalThis.window = { tenax: { ai } };
   const course = makeCourse({ name: "Book" }); course.id = "c1";
   const st = storeWith(newJob([chapter(1), chapter(2)], "job4"), course);
   const result = await runBookJob({ jobId: "job4", getState: st.getState, act: st.act, book });
@@ -209,7 +228,7 @@ test("a chapter with only minor details finishes with nothing added", async () =
 
 test("deleting the course mid-import stops it without leaving stray chapters", async () => {
   const { ai, book } = fakes({ itemDelay: { "1.1": 40 } });
-  globalThis.window = { engram: { ai } };
+  globalThis.window = { tenax: { ai } };
   const course = makeCourse({ name: "Book" }); course.id = "c1";
   const st = storeWith(newJob([chapter(1), chapter(2)], "job5"), course);
   const run = runBookJob({ jobId: "job5", getState: st.getState, act: st.act, book });
@@ -223,3 +242,91 @@ test("deleting the course mid-import stops it without leaving stray chapters", a
   assert.equal(s.bookJobs.length, 0);
 });
 
+
+// ── Half-price imports through the Batch API ───────────────────────────────
+function withBatches(ai, { failAll = false, failIds = new Set(), pollsToEnd = 2 } = {}) {
+  const live = { items: ai.items, critique: ai.critique };
+  const calls = { create: [], liveItems: 0, liveCritique: 0 };
+  ai.items = async (p) => { calls.liveItems++; return live.items(p); };
+  ai.critique = async (p) => { calls.liveCritique++; return live.critique(p); };
+  const batches = {};
+  let n = 0;
+  ai.batchCreate = async ({ kind, requests }) => {
+    const id = `batch${++n}`;
+    batches[id] = { kind, requests, polls: 0 };
+    calls.create.push({ id, kind, count: requests.length });
+    return { ok: true, batchId: id };
+  };
+  ai.batchStatus = async (id) => { batches[id].polls++; return { ok: true, status: batches[id].polls >= pollsToEnd ? "ended" : "in_progress" }; };
+  ai.batchResults = async (id) => {
+    const b = batches[id], results = {};
+    for (const r of b.requests) {
+      results[r.id] = failAll || failIds.has(r.id) ? { ok: false, error: "Request errored." } : await live[b.kind](r.payload);
+    }
+    return { ok: true, results };
+  };
+  return calls;
+}
+const fast = { sleep: async () => {}, pollMs: 0 };
+
+test("with batches on, a chapter's questions are written and reviewed in two half-price batches", async () => {
+  const { ai, book } = fakes();
+  const calls = withBatches(ai);
+  globalThis.window = { tenax: { ai } };
+  const course = makeCourse({ name: "Book" }); course.id = "c1";
+  const st = storeWith(newJob([chapter(1), chapter(2)], "jobB1"), course);
+  const result = await runBookJob({ jobId: "jobB1", getState: st.getState, act: st.act, book, ...fast });
+  delete globalThis.window;
+  assert.equal(result, "done");
+  assert.deepEqual(calls.create.map(c => c.kind).sort(), ["critique", "critique", "items", "items"], "one writer and one review batch per chapter");
+  assert.equal(calls.liveItems + calls.liveCritique, 0, "nothing went live");
+  const s = st.getState();
+  assert.deepEqual(s.bookJobs[0].chapters.map(c => [c.status, c.questions, c.pending ?? null]), [["done", 1, null], ["done", 1, null]]);
+  assert.equal(s.items.length, 2);
+});
+
+test("a paused batch import picks the same batch back up instead of paying twice", async () => {
+  const { ai, book, calls: aiCalls } = fakes();
+  const calls = withBatches(ai, { pollsToEnd: 3 });
+  globalThis.window = { tenax: { ai } };
+  const course = makeCourse({ name: "Book" }); course.id = "c1";
+  const st = storeWith(newJob([chapter(1)], "jobB2"), course);
+  let polls = 0;
+  const sleep = async () => { if (++polls === 1) st.act("book/patch", { id: "jobB2", patch: { status: "paused" } }); };
+  assert.equal(await runBookJob({ jobId: "jobB2", getState: st.getState, act: st.act, book, sleep, pollMs: 0 }), "stopped");
+  const saved = st.getState().bookJobs[0].chapters[0];
+  assert.equal(saved.status, "writing");
+  assert.equal(saved.pending.batch.stage, "write");
+
+  // "Restart": reload the saved state and resume.
+  const reloaded = normalizeState(JSON.parse(JSON.stringify({ ...st.getState(), bookJobs: [{ ...st.getState().bookJobs[0], status: "running" }] })));
+  let state = reloaded;
+  const act = (type, payload = {}) => { state = reducer(state, { type, now: Date.now(), ...payload }); };
+  assert.equal(state.bookJobs[0].chapters[0].status, "writing", "a chapter waiting on a batch isn't restarted");
+  assert.equal(await runBookJob({ jobId: "jobB2", getState: () => state, act, book, ...fast }), "done");
+  delete globalThis.window;
+  assert.equal(aiCalls.extract.length, 1, "the chapter wasn't extracted again");
+  assert.equal(calls.create.filter(c => c.kind === "items").length, 1, "no second writer batch");
+  assert.equal(state.bookJobs[0].chapters[0].status, "done");
+});
+
+test("a request a batch can't handle is redone live; if batches don't work at all, the import goes live", async () => {
+  const one = fakes();
+  const partial = withBatches(one.ai, { failIds: new Set(["c0"]) });
+  globalThis.window = { tenax: { ai: one.ai } };
+  const course = makeCourse({ name: "Book" }); course.id = "c1";
+  let st = storeWith(newJob([chapter(1)], "jobB3"), course);
+  await runBookJob({ jobId: "jobB3", getState: st.getState, act: st.act, book: one.book, ...fast });
+  assert.equal(partial.liveCritique, 1, "the review that errored was redone live");
+  assert.equal(st.getState().bookJobs[0].chapters[0].status, "done");
+
+  const two = fakes();
+  const broken = withBatches(two.ai, { failAll: true });
+  globalThis.window = { tenax: { ai: two.ai } };
+  st = storeWith(newJob([chapter(1), chapter(2)], "jobB4"), course);
+  await runBookJob({ jobId: "jobB4", getState: st.getState, act: st.act, book: two.book, ...fast });
+  delete globalThis.window;
+  assert.ok(broken.liveItems >= 2, "every chapter was redone live");
+  assert.equal(broken.create.filter(c => c.kind === "critique").length, 0, "no review batch after the writer batch failed");
+  assert.deepEqual(st.getState().bookJobs[0].chapters.map(c => c.status), ["done", "done"]);
+});

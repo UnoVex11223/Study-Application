@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("engram", {
+contextBridge.exposeInMainWorld("tenax", {
   store: {
     get: (key) => ipcRenderer.invoke("store-get", key),
     set: (key, val) => ipcRenderer.invoke("store-set", key, val),
@@ -15,10 +15,17 @@ contextBridge.exposeInMainWorld("engram", {
     link: (payload) => ipcRenderer.invoke("ai:link", payload),
     teachback: (payload) => ipcRenderer.invoke("ai:teachback", payload),
     notes: (payload) => ipcRenderer.invoke("ai:notes", payload),
+    batchCreate: (payload) => ipcRenderer.invoke("ai:batch-create", payload),
+    batchStatus: (batchId) => ipcRenderer.invoke("ai:batch-status", batchId),
+    batchResults: (batchId) => ipcRenderer.invoke("ai:batch-results", batchId),
   },
   pdf: {
     outline: (data) => ipcRenderer.invoke("pdf:outline", data),
     text: (payload) => ipcRenderer.invoke("pdf:text", payload),
+  },
+  backup: {
+    info: () => ipcRenderer.invoke("backup:info"),
+    open: () => ipcRenderer.invoke("backup:open"),
   },
   book: {
     save: (data) => ipcRenderer.invoke("book:save", data),

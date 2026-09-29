@@ -8,7 +8,7 @@ import { runBookJob } from "../lib/bookRunner.js";
 
 const Ctx = createContext(null);
 // eslint-disable-next-line react-refresh/only-export-components
-export const bookBridge = () => (typeof window !== "undefined" && window.engram?.book) || null;
+export const bookBridge = () => (typeof window !== "undefined" && window.tenax?.book) || null;
 
 export function BookImportProvider({ children }) {
   const { state, act } = useStore();

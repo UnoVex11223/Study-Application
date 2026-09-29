@@ -53,7 +53,7 @@ export default function ImportBook({ courseId: presetCourse }) {
   const chapters = !book ? [] : book.manual
     ? chaptersFromStarts(starts.filter(r => Number(r.from) >= 1).map(r => ({ title: r.title, from: Number(r.from) })), book.pages).map(c => ({ ...c, read: false }))
     : book.chapters;
-  const est = estimate(chapters);
+  const est = estimate(chapters, { batch: state.settings.batchImports !== false });
 
   const patchChapter = (i, patch) => setBook(b => ({ ...b, chapters: b.chapters.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
   const setAll = (include) => setBook(b => ({ ...b, chapters: b.chapters.map(c => ({ ...c, include })) }));
@@ -185,7 +185,7 @@ export default function ImportBook({ courseId: presetCourse }) {
           <div className="panel panel-pad book-estimate">
             {est.chapters ? (
               <>
-                <div><strong>{est.chapters} chapter{est.chapters === 1 ? "" : "s"}, {est.pages} pages.</strong> Takes about {est.minutes[0]}–{est.minutes[1]} minutes in the background and roughly ${est.dollars[0]}–{est.dollars[1]} of API usage.</div>
+                <div><strong>{est.chapters} chapter{est.chapters === 1 ? "" : "s"}, {est.pages} pages.</strong> Takes about {est.minutes[0]}–{est.minutes[1]} minutes in the background and roughly ${est.dollars[0]}–{est.dollars[1]} of API usage{est.batch ? " (half-price batches; change in Settings)" : ""}.</div>
                 <p className="muted small" style={{ margin: "6px 0 0" }}>
                   Chapters are ready one by one, in order, and you can keep studying meanwhile. Closing the app pauses the import until you open it again.
                   Chapters you haven't read stay locked: nothing from them comes up until you mark them read, and then their concepts are introduced a few a day.

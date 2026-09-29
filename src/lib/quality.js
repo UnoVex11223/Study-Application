@@ -35,8 +35,8 @@ export const FLAG_REASONS = {
   wrong: "Model answer is wrong",
   trivial: "Not worth remembering",
   other: "Something else is off",
-  leech: "Missed 5 or more times",
-  disputed: "Grading disputed twice",
+  leech: "Missed on 5 different days",
+  disputed: "Grading overruled twice",
 };
 export const LEECH_LAPSES = 5;
 export const DISPUTE_LIMIT = 2;

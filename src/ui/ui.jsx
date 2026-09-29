@@ -60,13 +60,15 @@ export function Notice({ tone, icon = "info", children }) {
   return <div className={`notice${tone ? ` notice-${tone}` : ""}`}><Icon name={icon} size={16}/><div>{children}</div></div>;
 }
 
-/** The Engram mark: a lowercase e with its trace. Colors follow the theme. */
+/** The Tenax mark: a lowercase t whose base is an anchor's arms (tenax: "holding fast"). Colors follow the theme. */
 export function Logo({ size = 22 }) {
+  const stroke = { fill: "none", stroke: "var(--bg)", strokeWidth: 112, strokeLinecap: "round", strokeLinejoin: "round" };
   return (
     <svg className="brand-mark" width={size} height={size} viewBox="0 0 1024 1024" aria-hidden="true">
       <rect width="1024" height="1024" rx="236" fill="var(--ink)"/>
-      <path d="M298 512H726A214 214 0 1 0 516.7 725.9" fill="none" stroke="var(--bg)" strokeWidth="112" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="675.9" cy="649.6" r="56" fill="var(--bg)"/>
+      <path d="M512 236V768" {...stroke}/>
+      <path d="M384 404H640" {...stroke}/>
+      <path d="M312 612C336 724 422 768 512 768C602 768 688 724 712 612" {...stroke}/>
     </svg>
   );
 }

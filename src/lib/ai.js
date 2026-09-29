@@ -5,7 +5,7 @@ import { index, makeSection, makeConcept, makeItem, makeEdge, ABILITIES, IMPORTA
 import { selectForConcept, lintQuestion, QUESTION_CAP } from "./quality.js";
 import { verifyPoints } from "./grade.js";
 
-const api = () => (typeof window !== "undefined" && window.engram?.ai) || null;
+export const api = () => (typeof window !== "undefined" && window.tenax?.ai) || null;
 
 export const aiBridge = () => Boolean(api());
 
@@ -179,7 +179,7 @@ export function splitBatches(sections, size = GROUP_SIZE) {
  * concepts: [{ key, name, summary, kind, importance, excerpt, existing?: [prompt], want? }]
  * Returns { ok, candidates: [{ ...question, conceptKey }], reviews, reviewed }.
  */
-async function writeAndReview({ a, courseName, sectionTitle, concepts, tag }) {
+export async function writeAndReview({ a, courseName, sectionTitle, concepts, tag }) {
   const ctx = concepts.map(c => {
     const existing = c.existing ?? c.existingItems?.map(i => i.prompt) ?? [];
     return { key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt,
@@ -187,17 +187,28 @@ async function writeAndReview({ a, courseName, sectionTitle, concepts, tag }) {
   });
   const res = wrap(await a.items({ courseName, sectionTitle, concepts: ctx }));
   if (!res.ok) return { ok: false, error: res.error };
-  const keys = new Set(concepts.map(c => c.key));
-  const raw = res.data.tasks.filter(t => keys.has(t.concept_key) && ABILITIES[t.ability] && t.prompt?.trim() && t.model_answer?.trim());
-  const candidates = raw.map((t, i) => ({ ...toQuestion(t, `${tag}_${i}`), conceptKey: t.concept_key }));
+  const candidates = toCandidates(res.data, concepts, tag);
 
   let reviews = {};
   const crit = a.critique ? wrap(await a.critique({
     courseName, sectionTitle, concepts: ctx,
     questions: candidates.map(q => ({ id: q.id, concept_key: q.conceptKey, ability: q.ability, prompt: q.prompt, model_answer: q.answer, accept: q.accept, required_points: q.points, misconceptions: q.misconceptions })),
   })) : { ok: false };
-  if (crit.ok) reviews = Object.fromEntries(crit.data.reviews.map(r => [r.id, r]));
+  if (crit.ok) reviews = reviewsById(crit.data);
   return { ok: true, candidates, reviews, reviewed: crit.ok };
+}
+
+/** The critic's verdicts by question id, each with its revision attached (revisions come as a separate list). */
+export function reviewsById(data) {
+  const revisions = Object.fromEntries((data.revisions || []).map(r => [r.id, r]));
+  return Object.fromEntries((data.reviews || []).map(r => [r.id, { ...r, revision: r.revision ?? revisions[r.id] ?? null }]));
+}
+
+/** The writer's usable candidates for these concepts, with stable ids. */
+export function toCandidates(data, concepts, tag) {
+  const keys = new Set(concepts.map(c => c.key));
+  const raw = (data?.tasks || []).filter(t => keys.has(t.concept_key) && ABILITIES[t.ability] && t.prompt?.trim() && t.model_answer?.trim());
+  return raw.map((t, i) => ({ ...toQuestion(t, `${tag}_${i}`), conceptKey: t.concept_key }));
 }
 
 /** A question that passed (or was kept past) the gate, as a stored item. */
@@ -352,11 +363,15 @@ export async function linkConcepts({ state, conceptIds }) {
   if (!a || !conceptIds.length) return { ok: false, error: "nothing to link" };
   const ix = index(state);
   const fresh = conceptIds.map(id => ix.concept[id]).filter(Boolean);
-  const freshSet = new Set(conceptIds);
+  // Links across courses only: within a course, prerequisites come from
+  // extraction (which sees the course's other concepts). With nothing else to
+  // link to, skip the call entirely.
+  const courses = new Set(fresh.map(c => c.courseId));
   const existing = state.concepts
-    .filter(c => !freshSet.has(c.id) && !c.suspended)
-    .sort((a2, b) => IMPORTANCE[a2.importance].rank - IMPORTANCE[b.importance].rank)
+    .filter(c => !courses.has(c.courseId) && !c.suspended)
+    .sort((a2, b) => IMPORTANCE[a2.importance].rank - IMPORTANCE[b.importance].rank || a2.createdAt - b.createdAt)
     .slice(0, 350);
+  if (!existing.length) return { ok: true, edges: [] };
   const fmt = (c) => ({ id: c.id, name: c.name, summary: (c.summary || "").slice(0, 220), course: ix.course[c.courseId]?.name ?? "" });
   const res = wrap(await a.link({ fresh: fresh.map(fmt), existing: existing.map(fmt) }));
   if (!res.ok) return res;

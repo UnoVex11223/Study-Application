@@ -27,12 +27,12 @@ test("a notes file splits into list items and paragraphs, with code kept and hea
     "",
     "Second paragraph about savepoints: SAVEPOINT names a nested transaction you can roll back to.",
   ].join("\n");
-  const notes = splitNotes(raw, { context: "Engram project" });
+  const notes = splitNotes(raw, { context: "Tenax project" });
   assert.equal(notes.length, 4);
   assert.match(notes[0].text, /per connection, not per database/, "sub-items stay with their item");
-  assert.equal(notes[0].context, "Engram project › SQLite");
+  assert.equal(notes[0].context, "Tenax project › SQLite");
   assert.match(notes[2].text, /UPDATE t SET x = 1;\n```$/, "a code block (even with a blank line inside) stays with its paragraph");
-  assert.equal(notes[2].context, "Engram project › Transactions");
+  assert.equal(notes[2].context, "Tenax project › Transactions");
   assert.ok(!notes.some(n => n.text === "ok"), "fragments too short to mean anything are dropped");
 });
 
@@ -65,7 +65,7 @@ function world() {
   s.courses.push(course); s.sections.push(sec); s.concepts.push(ptr);
   for (let i = 0; i < 4; i++) s.items.push(makeItem({ conceptId: ptr.id, ability: "explain", prompt: `Existing question ${i} about how pointer arithmetic scales by element size?`, answer: "a", points: ["a"] }));
   const notes = newNotes(s, [
-    { text: "sqlite: foreign keys are OFF by default, PRAGMA foreign_keys = ON per connection", context: "Engram" },
+    { text: "sqlite: foreign keys are OFF by default, PRAGMA foreign_keys = ON per connection", context: "Tenax" },
     { text: "p + 1 on an int* moves 4 bytes on my machine because it scales by sizeof(int)", context: "K&R exercises" },
     { text: "TODO fix the login bug before Friday", context: "work" },
   ]).notes;
@@ -107,7 +107,7 @@ function fakeAi(ptrId) {
 test("notes become new concepts in Notes, extra questions on matching concepts, or skips", async () => {
   const { s, course, ptr, notes } = world();
   const { ai, calls } = fakeAi(ptr.id);
-  globalThis.window = { engram: { ai } };
+  globalThis.window = { tenax: { ai } };
   const res = await processNotes({ state: s, noteIds: notes.map(n => n.id) });
   delete globalThis.window;
 
@@ -131,7 +131,7 @@ test("notes become new concepts in Notes, extra questions on matching concepts, 
   assert.deepEqual((ix.sectionsByCourse[space.id] || []).map(x => x.title), ["SQLite"]);
   const newConcept = ix.conceptsByCourse[space.id][0];
   assert.equal(newConcept.filledIn, true);
-  assert.match(newConcept.source.label, /^Your note \(Engram\)/);
+  assert.match(newConcept.source.label, /^Your note \(Tenax\)/);
   assert.equal((ix.itemsByConcept[ptr.id] || []).length, 6, "the matching note became two more questions on Pointer arithmetic");
   assert.ok(next.edges.some(e => e.from === newConcept.id && e.to === ptr.id && e.type === "related"));
   assert.deepEqual(next.notes.map(n => n.status), ["done", "done", "skipped"]);
@@ -146,7 +146,7 @@ test("notes become new concepts in Notes, extra questions on matching concepts, 
 test("later notes reuse the Notes space and its topics; Keep anyway forces a skipped note through", async () => {
   const { s, ptr, notes } = world();
   const { ai } = fakeAi(ptr.id);
-  globalThis.window = { engram: { ai } };
+  globalThis.window = { tenax: { ai } };
   let state = s;
   const first = await processNotes({ state, noteIds: [notes[0].id, notes[2].id] });
   state = reducer(state, { type: "notes/import", payload: buildNotesImport({ state, entries: first.entries }) });

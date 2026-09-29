@@ -11,11 +11,13 @@
 //   act(type, payload)  dispatch
 //   book                { text({ bookId, from, to }) }
 
-import { extractMaterial, generateTasks, linkConcepts } from "./ai.js";
+import { api, extractMaterial, generateTasks, linkConcepts } from "./ai.js";
+import { writeViaBatch } from "./batchWriter.js";
 import { chapterImport } from "./book.js";
 import { reducer } from "../state/reducer.js";
 
-const MAX_WRITING = 2;       // chapters whose questions are being written at once
+const MAX_WRITING = 2;       // chapters whose questions are being written at once (live)
+const MAX_BATCHED = 8;       // chapters waiting on the Batch API at once (the waiting happens server-side)
 const STOP_AFTER_FAILURES = 2; // consecutive API failures before pausing the job
 const MIN_TEXT = 300;        // characters; less means a scanned or empty page range
 
@@ -24,7 +26,7 @@ const MIN_TEXT = 300;        // characters; less means a scanned or empty page r
 const claimed = new Set();
 const key = (jobId, i) => `${jobId}:${i}`;
 
-export async function runBookJob({ jobId, getState, act, book }) {
+export async function runBookJob({ jobId, getState, act, book, sleep, pollMs }) {
   const findJob = () => getState()?.bookJobs?.find(j => j.id === jobId);
   const job = findJob();
   if (!job) return "missing";
@@ -37,10 +39,13 @@ export async function runBookJob({ jobId, getState, act, book }) {
   const writing = new Set();
   let chain = Promise.resolve(); // imports happen in chapter order
   let failures = 0, stopError = null;
+  // Half-price question writing through the Batch API unless turned off in
+  // Settings; if batches stop working, the rest of the import goes live.
+  let batchOff = getState()?.settings?.batchImports === false || !api()?.batchCreate;
 
   const fail = (i, error, { counts = true } = {}) => {
     claimed.delete(key(jobId, i));
-    setChapter(i, { status: "failed", error });
+    setChapter(i, { status: "failed", error, pending: null });
     if (!counts) return;
     failures++;
     if (failures >= STOP_AFTER_FAILURES) stopError = error;
@@ -49,9 +54,18 @@ export async function runBookJob({ jobId, getState, act, book }) {
   for (let i = 0; i < job.chapters.length; i++) {
     const ch = job.chapters[i];
     if (!ch.include || ch.status === "done" || ch.status === "failed" || claimed.has(key(jobId, i))) continue;
-    while (writing.size >= MAX_WRITING) await Promise.race(writing);
+    while (writing.size >= (batchOff ? MAX_WRITING : MAX_BATCHED)) await Promise.race(writing);
     if (stopped() || stopError) break;
     claimed.add(key(jobId, i));
+
+    // A chapter whose questions were already in a batch when the app closed
+    // (or the import was paused) picks up where it was.
+    const resume = ch.status === "writing" && ch.pending?.ex ? ch.pending : null;
+    if (resume) {
+      for (const s of resume.ex.sections) for (const c of s.concepts) alsoKnown.push({ name: c.name, section: ch.title });
+      startWriting(i, ch, resume.ex, resume.batch);
+      continue;
+    }
 
     setChapter(i, { status: "reading", error: "" });
     let text;
@@ -75,18 +89,35 @@ export async function runBookJob({ jobId, getState, act, book }) {
       setChapter(i, { status: "done", concepts: 0, questions: 0, error: "" });
       continue;
     }
-    setChapter(i, { status: "writing", found });
+    const compact = { summary: ex.summary, sections: ex.sections };
+    setChapter(i, batchOff
+      ? { status: "writing", found, mode: "live" }
+      : { status: "writing", found, mode: "batch", pending: { ex: compact, batch: null } });
+    startWriting(i, ch, compact, null);
+  }
 
+  function startWriting(i, ch, ex, savedBatch) {
     // Take this chapter's place in the import order now, before writing starts.
     const prev = chain;
     let release;
     chain = new Promise(r => { release = r; });
     const w = (async () => {
       let res;
-      try { res = await generateTasks({ state: getState(), courseId, sections: ex.sections }); }
-      catch (err) { res = { ok: false, error: err?.message || "Something went wrong." }; }
+      try {
+        if (!batchOff) {
+          res = await writeViaBatch({
+            state: getState(), courseId, sections: ex.sections, saved: savedBatch, sleep, pollMs, stopped,
+            onSaved: (batch) => setChapter(i, { pending: { ex, batch } }),
+          });
+          if (res.batchBroken) batchOff = true;
+          if (res.batchUnavailable) res = await generateTasks({ state: getState(), courseId, sections: ex.sections });
+        } else {
+          res = await generateTasks({ state: getState(), courseId, sections: ex.sections });
+        }
+      } catch (err) { res = { ok: false, error: err?.message || "Something went wrong." }; }
       await prev;
       try {
+        if (res.stopped) { claimed.delete(key(jobId, i)); return; } // paused: resumes from the saved batch
         if (!res.ok) { fail(i, res.error); return; }
         failures = 0;
         if (!getState()?.courses.some(c => c.id === courseId)) return; // course deleted meanwhile
@@ -100,7 +131,7 @@ export async function runBookJob({ jobId, getState, act, book }) {
           payload,
           bookChapter: { id: jobId, index: i, patch: {
             status: "done", error: res.partial || "", sectionId: payload.sections[0]?.id ?? null,
-            concepts: payload.concepts.length, questions: payload.items.length,
+            concepts: payload.concepts.length, questions: payload.items.length, pending: null,
           } },
         });
         imported.push(...payload.concepts.map(c => ({ id: c.id, name: c.name })));

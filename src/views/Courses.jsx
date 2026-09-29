@@ -82,8 +82,12 @@ export default function Courses() {
                 <span className="course-swatch" style={{ background: c.color }}/>
                 <div style={{ minWidth: 0 }}>
                   <div className="course-name">{c.name}</div>
-                  <div className="list-meta">
-                    {COURSE_STATUS[c.status].label}. {m.total} concept{m.total === 1 ? "" : "s"}{m.due ? `, ${m.due} due` : ""}{m.slipping ? `, ${m.slipping} slipping` : ""}
+                  <div className="section-stats">
+                    <span>{COURSE_STATUS[c.status].label.toLowerCase()}</span>
+                    <span>{m.total} concept{m.total === 1 ? "" : "s"}</span>
+                    {m.locked > 0 && <span>{m.locked} in locked chapters</span>}
+                    {m.due > 0 && <span>{m.due} due</span>}
+                    {m.slipping > 0 && <span>{m.slipping} slipping</span>}
                   </div>
                 </div>
                 <div>

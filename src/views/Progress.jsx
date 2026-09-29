@@ -176,7 +176,7 @@ export default function Progress() {
                   const c = ix.concept[it.conceptId];
                   return (
                     <div key={it.id} className="list-row static" style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
-                      <div className="small muted">{c?.name}, {FLAG_REASONS[it.flag.reason] ?? "flagged"}</div>
+                      <div className="section-stats"><span>{c?.name}</span><span>{(FLAG_REASONS[it.flag.reason] ?? "flagged").toLowerCase()}</span></div>
                       <Markdown>{it.prompt}</Markdown>
                       {c && <FixQuestion item={it} concept={c}/>}
                     </div>

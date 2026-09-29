@@ -5,6 +5,9 @@ import "@fontsource-variable/geist-mono";
 import App from "./App.jsx";
 import "./styles.css";
 
+// Files dropped anywhere but a drop zone do nothing (instead of opening in the window).
+for (const type of ["dragover", "drop"]) window.addEventListener(type, (e) => { if (!e.defaultPrevented) e.preventDefault(); });
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <App/>

@@ -100,15 +100,32 @@ export function batchNotes(notes) {
   return batches;
 }
 
-/** Concepts a note can match or link to: everything you study, most important first. */
-function knownConcepts(state, limit = 700) {
+const STOP = new Set("the and for are but not you all any can had her was one our out has have from that this with what when your into than then them they will just like also only more most such very used uses using".split(" "));
+const words = (text) => String(text).toLowerCase().match(/[a-z][a-z0-9_]{2,}/g)?.filter(w => !STOP.has(w)) ?? [];
+
+/**
+ * Concepts a note can match or link to: everything you study. The likeliest
+ * matches for these notes (by shared words) come with their summaries; the
+ * rest are listed by name only, which is enough to recognize a match and
+ * keeps the prompt small. The list is the same for every batch of a run, so
+ * it's cached after the first.
+ */
+function knownConcepts(state, notes, { limit = 700, detailed = 80 } = {}) {
   const ix = index(state);
-  return state.concepts
+  const vocab = new Set(words(notes.map(n => `${n.text} ${n.context || ""}`).join(" ")));
+  const scored = state.concepts
     .filter(c => !c.suspended)
-    .sort((a, b) => (ix.course[a.courseId]?.kind === "notes" ? -1 : 0) - (ix.course[b.courseId]?.kind === "notes" ? -1 : 0)
-      || IMPORTANCE[a.importance].rank - IMPORTANCE[b.importance].rank)
-    .slice(0, limit)
-    .map(c => ({ id: c.id, name: c.name, course: ix.course[c.courseId]?.name ?? "", summary: (c.summary || "").replace(/\s+/g, " ").slice(0, 160) }));
+    .map(c => {
+      const name = words(c.name), summary = words(c.summary);
+      const score = 2 * name.filter(w => vocab.has(w)).length + summary.filter(w => vocab.has(w)).length;
+      return { c, score };
+    })
+    .sort((a, b) => b.score - a.score || IMPORTANCE[a.c.importance].rank - IMPORTANCE[b.c.importance].rank)
+    .slice(0, limit);
+  return scored.map(({ c, score }, i) => ({
+    id: c.id, name: c.name, course: ix.course[c.courseId]?.name ?? "",
+    summary: i < detailed && score > 0 ? (c.summary || "").replace(/\s+/g, " ").slice(0, 160) : "",
+  }));
 }
 
 const NOTE_EXCERPT = 900;
@@ -127,7 +144,7 @@ export async function processNotes({ state, noteIds, onProgress }) {
   if (!notes.length) return { ok: false, error: "No notes to process." };
   const nc = notesCourse(state);
   const topics = nc ? (ix.sectionsByCourse[nc.id] || []).map(s => s.title) : [];
-  const known = knownConcepts(state);
+  const known = knownConcepts(state, notes);
   const knownIds = new Set(state.concepts.map(c => c.id));
 
   // 1. Sort out what each note holds and where it belongs.

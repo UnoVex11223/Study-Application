@@ -91,7 +91,7 @@ function Shell() {
     <NavCtx.Provider value={nav}>
       <div className="app">
         <nav className="sidebar" aria-label="Main">
-          <div className="brand"><Logo/>engram</div>
+          <div className="brand"><Logo/>tenax</div>
           {NAV.map(n => (
             <button key={n.id} className={`nav-item${active === n.id ? " on" : ""}`} onClick={() => nav.go(n.id)}>
               <Icon name={n.icon}/>{n.label}

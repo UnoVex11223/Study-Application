@@ -50,16 +50,22 @@ export function chaptersFromStarts(rows, pages) {
   }));
 }
 
-/** Rough time and cost for importing the chosen chapters (Opus pricing, 2026). */
-export function estimate(chapters) {
+/**
+ * Rough time and cost for importing the chosen chapters (Opus pricing, 2026).
+ * About 3 cents a page live; question writing and review (roughly three
+ * quarters of that) cost half through the Batch API.
+ */
+export function estimate(chapters, { batch = false } = {}) {
   const chosen = chapters.filter(c => c.include);
   const pages = chosen.reduce((n, c) => n + Math.max(1, c.to - c.from + 1), 0);
   const round = (x) => Math.max(1, Math.round(x));
+  const factor = batch ? 0.62 : 1;
   return {
     chapters: chosen.length,
     pages,
-    minutes: [round(chosen.length * 1.2 + 2), round(chosen.length * 2 + 4)],
-    dollars: [round(pages * 0.02), round(pages * 0.04)],
+    batch,
+    minutes: batch ? [round(chosen.length * 1.2 + 8), round(chosen.length * 1.5 + 60)] : [round(chosen.length * 1.2 + 2), round(chosen.length * 2 + 4)],
+    dollars: [round(pages * 0.02 * factor), round(pages * 0.04 * factor)],
   };
 }
 

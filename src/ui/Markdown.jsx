@@ -6,7 +6,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 
 function TeX({ tex, display }) {
-  const html = katex.renderToString(tex, { throwOnError: false, displayMode: display, output: "html" });
+  const html = katex.renderToString(tex, { throwOnError: false, displayMode: display, output: "html", trust: false, strict: "ignore" });
   return display
     ? <div dangerouslySetInnerHTML={{ __html: html }}/>
     : <span dangerouslySetInnerHTML={{ __html: html }}/>;
