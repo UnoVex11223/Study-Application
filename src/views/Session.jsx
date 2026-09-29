@@ -176,7 +176,6 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
                   <button className="btn btn-lg" onClick={keepGoing}>Study 5 more minutes</button>
                 )}
               </div>
-              {daily && <p className="muted small" style={{ marginTop: 14 }}>That's today's plan. Coming back tomorrow does more for memory than doing more today.</p>}
             </div>
           )}
         </div>

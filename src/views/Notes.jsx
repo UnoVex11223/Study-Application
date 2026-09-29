@@ -121,7 +121,6 @@ export default function Notes() {
       <div className="page-head">
         <div>
           <h1>Notes</h1>
-          <div className="page-sub">What you pick up outside a course: from projects, docs and work. Reviewed with everything else, never counted toward a course.</div>
         </div>
       </div>
 
@@ -137,13 +136,12 @@ export default function Notes() {
             onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}
             style={{ marginTop: 8 }}
           />
-          <label className="label" htmlFor="note-context" style={{ display: "block", marginTop: 14 }}>Project or topic <span className="muted" style={{ fontWeight: 400 }}>(optional)</span></label>
+          <label className="label" htmlFor="note-context" style={{ display: "block", marginTop: 14 }}>Project or topic</label>
           <div className="row" style={{ marginTop: 8, gap: 10 }}>
             <input id="note-context" className="input grow" value={context} onChange={e => setContext(e.target.value)} aria-label="Project or topic"
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); capture(); } }}/>
             <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus" size={14}/>Add note</button>
           </div>
-          <p className="muted small" style={{ margin: "8px 0 0" }}>Ctrl+Enter adds it. Write it the way you'd explain it to yourself; one idea per paragraph or bullet works best.</p>
         </div>
 
         <div
@@ -155,7 +153,6 @@ export default function Notes() {
         >
           <Icon name="upload" size={20}/>
           <strong>Upload notes</strong>
-          <span className="muted small">Drop .md or .txt files. Each bullet or paragraph becomes a note. Upload the same file again whenever you add to it: only new parts are picked up.</span>
           <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,text/plain,text/markdown" multiple hidden onChange={e => { readFiles([...e.target.files]); e.target.value = ""; }}/>
         </div>
       </div>
@@ -166,7 +163,6 @@ export default function Notes() {
       {busy && (
         <div className="panel panel-pad" style={{ marginTop: 20 }}>
           <div className="progress-line"><Spinner/><span>{busy.label}{busy.total > 1 ? ` (${busy.done} of ${busy.total})` : ""}…</span></div>
-          <p className="muted small" style={{ marginTop: 10 }}>Claude checks each note against what you already study, then writes questions for what's worth keeping.</p>
         </div>
       )}
 
@@ -252,7 +248,6 @@ export default function Notes() {
         {topics.length === 0 ? (
           <div className="panel empty">
             <h3>Nothing here yet</h3>
-            <p>Add a few notes and process them. Claude files each idea under a topic like "SQLite" or "Git", links it to related concepts from your courses, and writes questions for it.</p>
           </div>
         ) : (
           <div className="panel">

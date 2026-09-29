@@ -117,7 +117,6 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
       <div className="page-head">
         <div>
           <h1>Teach it back</h1>
-          <div className="page-sub">Explain a section from memory as if you were teaching it. Aim for the ideas and how they connect; wording doesn't matter.</div>
         </div>
       </div>
 
@@ -155,7 +154,6 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
       {phase === "selfcheck" && (
         <div className="panel panel-pad stack">
           {error && <Notice tone="warn" icon="alert">{error}</Notice>}
-          <p className="muted small">For each concept, compare the key points with what you wrote.</p>
           {concepts.map(c => (
             <div key={c.id} className="item-card">
               <div className="row"><strong className="grow">{c.name}</strong>

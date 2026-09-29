@@ -21,7 +21,7 @@ function askedLine(st) {
   return `Asked ${st.seen}×${misses ? `, missed on ${misses} day${misses === 1 ? "" : "s"}` : ""}`;
 }
 
-export default function ConceptPanel({ conceptId, onOpen, onClose }) {
+export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = false }) {
   const { state, act } = useStore();
   const nav = useNav();
   const [editing, setEditing] = useState(null); // item | "new" | null
@@ -60,7 +60,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
   };
 
   return (
-    <Drawer onClose={onClose} title={c.name} subtitle={`${course?.name ?? ""}${section ? ` / ${section.title}` : ""}`}>
+    <Drawer onClose={onClose} modeless={modeless} title={c.name} subtitle={`${course?.name ?? ""}${section ? ` / ${section.title}` : ""}`}>
       <section className="stack" style={{ gap: 10 }}>
         <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
           <span className="row" style={{ gap: 7 }}><StatusDot status={m.status}/><strong>{STATUS[m.status].label}</strong></span>
@@ -154,7 +154,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose }) {
               </details>
             </div>
           ))}
-          {!items.length && <p className="muted small">No questions yet. This concept won't appear in sessions until it has one.</p>}
+          {!items.length && <p className="muted small">No questions yet.</p>}
         </div>
       </section>
 

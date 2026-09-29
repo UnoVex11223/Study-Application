@@ -56,7 +56,7 @@ function JobBanner({ job, device }) {
       <Icon name="check" size={16}/>
       <div className="grow">
         <strong>Imported {p.done} of {p.total} chapters</strong>
-        <div className="muted small">{p.failed ? `${p.failed} chapter${p.failed === 1 ? "" : "s"} failed; try again below. ` : ""}Chapters stay locked until you mark them read.</div>
+        {p.failed > 0 && <div className="muted small">{p.failed} chapter{p.failed === 1 ? "" : "s"} failed</div>}
       </div>
       {p.failed > 0 && <button className="btn btn-sm" onClick={() => importer.resume(job.id)}>Retry failed</button>}
       <button className="btn btn-sm btn-quiet" onClick={() => importer.dismiss(job.id)}>Dismiss</button>
@@ -77,8 +77,7 @@ function TopUpModal({ scope, onClose, onStart }) {
     </>}>
       {n ? (
         <div className="stack" style={{ gap: 10 }}>
-          <p style={{ margin: 0 }}><strong>{n} concept{n === 1 ? "" : "s"}</strong> in {scope.label} {n === 1 ? "has" : "have"} fewer questions than the target (4 for core concepts, 3 for supporting, 1 for details): room for up to {adds} more.</p>
-          <p className="muted" style={{ margin: 0 }}>Claude writes questions that come at each idea from another side. They go through the same quality check and are added automatically. A concept's questions take turns at its reviews, so this adds variety, not review time.</p>
+          <p style={{ margin: 0 }}><strong>{n} concept{n === 1 ? "" : "s"}</strong> in {scope.label}: room for up to {adds} more questions.</p>
           <p className="muted small" style={{ margin: 0 }}>About {minutes} minute{minutes === 1 ? "" : "s"} in the background, roughly ${dollars} of API usage.</p>
         </div>
       ) : <p style={{ margin: 0 }}>Every concept in {scope.label} already has its full set of questions.</p>}
@@ -151,7 +150,6 @@ export default function Course({ courseId }) {
   const abilityRows = Object.entries(abilities).filter(([, v]) => v.attempts > 0);
   const jobs = state.bookJobs.filter(j => j.courseId === courseId);
   const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i })).filter(x => x.c.include && x.c.status !== "done"));
-  const lockedCount = sections.filter(s => s.locked).length;
   const topUps = bg.tasks.filter(t => t.courseId === courseId);
   const topUpRunning = topUps.some(t => t.status === "running");
   const questionCount = (conceptList) => conceptList.reduce((n, c) => n + (ix.itemsByConcept[c.id] || []).filter(i => !i.flag).length, 0);
@@ -173,7 +171,6 @@ export default function Course({ courseId }) {
                 <button key={k} className={course.status === k ? "on" : ""} onClick={() => act("course/update", { id: course.id, patch: { status: k } })}>{v.label}</button>
               ))}
             </div>
-            <span className="muted small">{COURSE_STATUS[course.status].blurb}.</span>
           </div>
         </div>
         <div className="row">
@@ -189,7 +186,6 @@ export default function Course({ courseId }) {
       {sections.length === 0 && waiting.length === 0 ? (
         <div className="panel empty">
           <h3>Add the first chapter</h3>
-          <p>Paste a chapter or lesson, or drop in your notes. Tenax pulls out the concepts that matter, writes questions for them, and introduces them a few a day.</p>
           <div className="row" style={{ justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus" size={15}/>Add material</button>
             <button className="btn" onClick={() => nav.go("book", { courseId })}><Icon name="book" size={15}/>Import a whole book</button>
@@ -217,11 +213,6 @@ export default function Course({ courseId }) {
                 <button className="btn btn-sm btn-quiet" onClick={() => setAdding({})}><Icon name="plus" size={14}/>Add a question</button>
                 <button className="btn btn-sm btn-quiet" onClick={() => nav.go("map", { courseId })}><Icon name="map" size={14}/>Map</button>
               </div>
-              {lockedCount > 0 && (
-                <p className="muted small" style={{ margin: "-4px 0 12px" }}>
-                  {lockedCount} chapter{lockedCount === 1 ? " is" : "s are"} locked until you mark {lockedCount === 1 ? "it" : "them"} read. Nothing from a locked chapter comes up in sessions, and course totals count unlocked chapters only.
-                </p>
-              )}
               <div className="panel">
                 {sections.map(s => {
                   const sm = sectionMastery(state, s.id, now);
@@ -320,8 +311,7 @@ export default function Course({ courseId }) {
 
             <div className="stack" style={{ gap: 24 }}>
               <div className="panel panel-pad">
-                <h2 className="h" style={{ marginBottom: 4 }}>Recall, explain, apply</h2>
-                <p className="muted small" style={{ marginBottom: 10 }}>Share of answers right the first time without help, last 60 days.</p>
+                <h2 className="h">Recall, explain, apply</h2>
                 {abilityRows.length === 0 && <p className="small muted">Shows up after a few sessions.</p>}
                 {abilityRows.map(([k, v]) => (
                   <div key={k} className="ability-row">
@@ -330,12 +320,6 @@ export default function Course({ courseId }) {
                     <span className="num small muted" style={{ textAlign: "right" }}>{pct(v.correct / v.attempts)} of {v.attempts}</span>
                   </div>
                 ))}
-              </div>
-              <div className="panel panel-pad small">
-                <h2 className="h">How mastery is measured</h2>
-                <p className="muted" style={{ lineHeight: 1.6 }}>
-                  A concept is mastered once you've answered it correctly without hints on your last two study days with it, and, if it has an application question, you've solved one. Percentages count core concepts only, so details don't dilute them.
-                </p>
               </div>
               {course.status === "paused" && <Notice icon="pause">Paused courses are left out of daily sessions. Their schedules resume when you switch back.</Notice>}
             </div>

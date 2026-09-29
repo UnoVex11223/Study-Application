@@ -106,7 +106,6 @@ export default function Progress() {
       <div className="page-head">
         <div>
           <h1>Progress</h1>
-          <div className="page-sub">What you can recall and use without help, measured over time.</div>
         </div>
       </div>
 
@@ -123,8 +122,7 @@ export default function Progress() {
       <div className="grid-2">
         <div className="stack" style={{ gap: 28 }}>
           <div className="panel panel-pad">
-            <h2 className="h" style={{ marginBottom: 4 }}>Next two weeks</h2>
-            <p className="muted small">Estimated review time per day. Amber days are over budget; the planner holds back new material until they settle.</p>
+            <h2 className="h">Next two weeks</h2>
             <Forecast state={state} now={now}/>
           </div>
 
@@ -157,8 +155,7 @@ export default function Progress() {
 
         <div className="stack" style={{ gap: 28 }}>
           <div className="panel panel-pad">
-            <h2 className="h" style={{ marginBottom: 4 }}>By type of question</h2>
-            <p className="muted small" style={{ marginBottom: 10 }}>Right the first time without help, last 60 days. Strong recall with weak application means you know the words but should practice using them.</p>
+            <h2 className="h">By type of question</h2>
             {Object.entries(abilities).map(([k, v]) => (
               <div key={k} className="ability-row">
                 <span>{ABILITIES[k].label}</span>
@@ -170,7 +167,7 @@ export default function Progress() {
 
           {flagged.length > 0 && (
             <div className="panel">
-              <div className="panel-head"><h2>Questions to fix</h2><span className="muted small">out of your sessions</span></div>
+              <div className="panel-head"><h2>Questions to fix</h2></div>
               <div className="list">
                 {flagged.map(it => {
                   const c = ix.concept[it.conceptId];
@@ -200,9 +197,6 @@ export default function Progress() {
               ))}
               {!data.weak.length && <div className="list-row static muted small">Nothing is slipping right now.</div>}
             </div>
-            {data.weak.some(x => x.m.lapses >= 4) && (
-              <p className="muted small" style={{ padding: "0 18px 14px" }}>A concept missed four or more times usually needs a clearer question or a prerequisite you haven't learned. Open it to edit its questions or check what it builds on.</p>
-            )}
           </div>
 
           {data.misconceptions.length > 0 && (

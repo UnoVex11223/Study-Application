@@ -21,13 +21,21 @@ import Settings from "./views/Settings.jsx";
 import TeachBack from "./views/TeachBack.jsx";
 import Session from "./views/Session.jsx";
 
-const NAV = [
-  { id: "today", label: "Today", icon: "today" },
-  { id: "courses", label: "Courses", icon: "courses" },
+// Studying first, then looking back; the shelf sits at the bottom with Settings.
+const NAV_GROUPS = [
+  [
+    { id: "today", label: "Today", icon: "today" },
+    { id: "courses", label: "Courses", icon: "courses" },
+    { id: "notes", label: "Notes", icon: "note" },
+  ],
+  [
+    { id: "progress", label: "Progress", icon: "progress" },
+    { id: "map", label: "Knowledge map", icon: "map" },
+  ],
+];
+const NAV_BOTTOM = [
   { id: "shelf", label: "Shelf", icon: "shelf" },
-  { id: "notes", label: "Notes", icon: "note" },
-  { id: "map", label: "Knowledge map", icon: "map" },
-  { id: "progress", label: "Progress", icon: "progress" },
+  { id: "settings", label: "Settings", icon: "settings" },
 ];
 
 /** Re-render every `ms` so time-based views (due counts, plans) stay current. */
@@ -97,12 +105,16 @@ function Shell() {
       <div className="app">
         <nav className="sidebar" aria-label="Main">
           <div className="brand"><Logo/>tenax</div>
-          {NAV.map(n => (
-            <button key={n.id} className={`nav-item${active === n.id ? " on" : ""}`} onClick={() => nav.go(n.id)}>
-              <Icon name={n.icon}/>{n.label}
-              {n.id === "today" && plan?.tasks.length > 0 && <span className="nav-count">{plan.tasks.length}</span>}
-              {n.id === "notes" && inboxCount > 0 && <span className="nav-count" title="Notes waiting to be processed">{inboxCount}</span>}
-            </button>
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={gi} className="nav-group">
+              {group.map(n => (
+                <button key={n.id} className={`nav-item${active === n.id ? " on" : ""}`} onClick={() => nav.go(n.id)}>
+                  <Icon name={n.icon}/>{n.label}
+                  {n.id === "today" && plan?.tasks.length > 0 && <span className="nav-count">{plan.tasks.length}</span>}
+                  {n.id === "notes" && inboxCount > 0 && <span className="nav-count" title="Notes waiting to be processed">{inboxCount}</span>}
+                </button>
+              ))}
+            </div>
           ))}
           {state.bookJobs.filter(j => j.status !== "done").map(j => {
             const p = jobProgress(j);
@@ -123,9 +135,13 @@ function Shell() {
             </button>
           ))}
           <div className="nav-spacer"/>
-          <button className={`nav-item${active === "settings" ? " on" : ""}`} onClick={() => nav.go("settings")}>
-            <Icon name="settings"/>Settings
-          </button>
+          <div className="nav-group">
+            {NAV_BOTTOM.map(n => (
+              <button key={n.id} className={`nav-item${active === n.id ? " on" : ""}`} onClick={() => nav.go(n.id)}>
+                <Icon name={n.icon}/>{n.label}
+              </button>
+            ))}
+          </div>
         </nav>
         <main className="main">{page}</main>
       </div>

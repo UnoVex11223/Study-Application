@@ -260,7 +260,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
             </div>
           </div>
           <div className="feedback-foot small muted">
-            <span className="grow">Press Enter to continue with <strong>{RATING_LABEL[suggested]}</strong>, or 1–4 to choose.</span>
+            <span className="grow"/>
             {grade.verdict !== "correct" && grade.source !== "reveal" && !override && (
               <button className="link small" onClick={() => setOverride("correct")}>I was right</button>
             )}

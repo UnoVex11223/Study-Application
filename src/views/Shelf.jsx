@@ -6,7 +6,7 @@ import { useStore } from "../state/store.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import { Bar, Modal, Notice, Spinner } from "../ui/ui.jsx";
 import Icon from "../ui/Icon.jsx";
-import { shelfEntries, shelfStats, SHELF_FILTERS, SHELF_KINDS, makeShelfItem, courseChapters, fromAeroShelf } from "../lib/shelf.js";
+import { shelfEntries, shelfStats, SHELF_FILTERS, SHELF_KINDS, makeShelfItem, fromAeroShelf } from "../lib/shelf.js";
 import { shrinkImage } from "../lib/image.js";
 
 const legacyBridge = () => (typeof window !== "undefined" ? window.tenax?.shelf : null);
@@ -43,7 +43,6 @@ export default function Shelf() {
       <div className="page-head">
         <div>
           <h1>Shelf</h1>
-          <div className="page-sub">Everything you're reading or taking, and how far along you are.</div>
         </div>
         <div className="row">
           {canImport && <button className="btn" onClick={() => setImporting(true)}><Icon name="download" size={15}/>Import from AeroShelf</button>}
@@ -54,7 +53,6 @@ export default function Shelf() {
       {entries.length === 0 ? (
         <div className="panel empty">
           <h3>Your shelf is empty</h3>
-          <p>Add a book or course you're working through. Your Tenax courses show up here on their own.</p>
           <div className="row" style={{ justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={() => setEditing({ entry: null })}><Icon name="plus" size={16}/>Add to shelf</button>
             {canImport && <button className="btn" onClick={() => setImporting(true)}><Icon name="download" size={15}/>Import from AeroShelf</button>}
@@ -199,7 +197,6 @@ function ShelfForm({ entry, onClose }) {
   const fileRef = useRef(null);
 
   const course = state.courses.find(c => c.id === courseId) || null;
-  const chapters = course ? courseChapters(state, course.id) : null;
   // A course can be on the shelf once.
   const taken = new Set(state.shelf.filter(it => it.courseId && it.id !== item?.id).map(it => it.courseId));
   const options = state.courses.filter(c => c.kind !== "notes" && (!taken.has(c.id) || c.id === courseId));
@@ -282,12 +279,6 @@ function ShelfForm({ entry, onClose }) {
           <option value="">None: track progress here</option>
           {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        {course && (
-          <span className="help">
-            {chapters.read} {chapters.read === 1 ? "chapter" : "chapters"} read in Tenax. Progress is that or what you log here, whichever is more,
-            so chapters you read before Tenax count too.
-          </span>
-        )}
       </div>
       <div className="shelf-form-row">
         <div className="field">
@@ -382,7 +373,6 @@ function ImportAeroShelf({ onClose }) {
               {plan.linked.map(l => l.course).join(", ")}.
             </p>
           )}
-          {plan.items.length > 0 && <p className="muted small">Import once on this computer; sync takes it to the others.</p>}
         </div>
       )}
     </Modal>

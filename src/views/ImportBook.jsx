@@ -85,7 +85,6 @@ export default function ImportBook({ courseId: presetCourse }) {
       <div className="page-head">
         <div>
           <h1>Import a book</h1>
-          <p className="page-sub">The whole book at once: concepts, a prerequisite map and questions for every chapter.</p>
         </div>
       </div>
 
@@ -106,7 +105,7 @@ export default function ImportBook({ courseId: presetCourse }) {
             <>
               <Icon name="book" size={26}/>
               <strong>Drop the book's PDF here</strong>
-              <span className="muted small">or click to choose it. Chapters are found from the PDF's table of contents.</span>
+              <span className="muted small">or click to choose it</span>
             </>
           )}
           <input ref={fileRef} type="file" accept="application/pdf,.pdf" hidden onChange={e => open(e.target.files[0])}/>
@@ -190,11 +189,7 @@ export default function ImportBook({ courseId: presetCourse }) {
           <div className="panel panel-pad book-estimate">
             {est.chapters ? (
               <>
-                <div><strong>{est.chapters} chapter{est.chapters === 1 ? "" : "s"}, {est.pages} pages.</strong> Takes about {est.minutes[0]}–{est.minutes[1]} minutes in the background and roughly ${est.dollars[0]}–{est.dollars[1]} of API usage{est.batch ? " (half-price batches; change in Settings)" : ""}.</div>
-                <p className="muted small" style={{ margin: "6px 0 0" }}>
-                  Chapters are ready one by one, in order, and you can keep studying meanwhile. Closing the app pauses the import until you open it again.
-                  Chapters you haven't read stay locked: nothing from them comes up until you mark them read, and then their concepts are introduced a few a day.
-                </p>
+                <div><strong>{est.chapters} chapter{est.chapters === 1 ? "" : "s"}, {est.pages} pages.</strong> Takes about {est.minutes[0]}–{est.minutes[1]} minutes in the background and roughly ${est.dollars[0]}–{est.dollars[1]} of API usage{est.batch ? " (half-price batches)" : ""}.</div>
               </>
             ) : <span className="muted">Pick at least one chapter.</span>}
           </div>

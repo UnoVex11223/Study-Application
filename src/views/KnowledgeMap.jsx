@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY } from "d3-force";
 import { useStore } from "../state/store.jsx";
 import { useNav } from "../ui/nav.js";
@@ -65,9 +65,15 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
   const [scope, setScope] = useState(focusCourseId ?? "all");
   const [selected, setSelected] = useState(focusConceptId ?? null);
   const [hover, setHover] = useState(null);
-  const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+  // Panning and zooming move the drawing directly (no re-render per frame);
+  // React only hears about the zoom level when labels need to change.
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const view = useRef({ x: 0, y: 0, k: 1 });
   const svgRef = useRef(null);
+  const gRef = useRef(null);
   const drag = useRef(null);
+  const anim = useRef(0);
+  const hoverTimer = useRef(0);
 
   const layout = useMemo(() => {
     const concepts = state.concepts.filter(c => !c.suspended && (scope === "all" || c.courseId === scope));
@@ -86,38 +92,98 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
 
   const edges = useMemo(() => state.edges.filter(e => layout.pos[e.from] && layout.pos[e.to]), [state.edges, layout]);
 
-  const fit = () => {
+  const labelBucket = (k) => (k > 1.1 ? 2 : k > 0.7 ? 1 : 0);
+  const apply = useCallback((v) => {
+    view.current = v;
+    gRef.current?.setAttribute("transform", `translate(${v.x},${v.y}) scale(${v.k})`);
+    setZoomLevel(prev => (labelBucket(prev) === labelBucket(v.k) ? prev : v.k));
+  }, []);
+
+  /** Glide to a view instead of jumping to it. */
+  const animateTo = useCallback((target, ms = 520) => {
+    cancelAnimationFrame(anim.current);
+    const from = { ...view.current };
+    const t0 = performance.now();
+    const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / ms), e = ease(t);
+      apply({ x: from.x + (target.x - from.x) * e, y: from.y + (target.y - from.y) * e, k: from.k + (target.k - from.k) * e });
+      if (t < 1) anim.current = requestAnimationFrame(step);
+    };
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) apply(target);
+    else anim.current = requestAnimationFrame(step);
+  }, [apply]);
+  useEffect(() => () => { cancelAnimationFrame(anim.current); clearTimeout(hoverTimer.current); }, []);
+
+  const fitView = useCallback(() => {
     const svg = svgRef.current;
-    if (!svg) return;
+    if (!svg) return null;
     const { width, height } = svg.getBoundingClientRect();
     const b = bounds(layout.pos);
     const k = Math.min(1.4, Math.max(0.2, Math.min(width / (b.x1 - b.x0), height / (b.y1 - b.y0))));
-    setView({ k, x: width / 2 - ((b.x0 + b.x1) / 2) * k, y: height / 2 - ((b.y0 + b.y1) / 2) * k });
-  };
-  useEffect(fit, [layout]);
+    return { k, x: width / 2 - ((b.x0 + b.x1) / 2) * k, y: height / 2 - ((b.y0 + b.y1) / 2) * k };
+  }, [layout]);
+  // Fit before the first paint; this measures the map, so it has to run after layout.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useLayoutEffect(() => { const v = fitView(); if (v) apply(v); }, [fitView, apply]);
+  const fit = () => { const v = fitView(); if (v) animateTo(v, 450); };
+
+  /** Bring a concept to the middle of what's left of the map beside the panel. */
+  const centerOn = useCallback((id) => {
+    const p = layout.pos[id], svg = svgRef.current;
+    if (!p || !svg) return;
+    const r = svg.getBoundingClientRect();
+    const panel = Math.min(520, window.innerWidth * 0.92) + 20;
+    const visible = Math.max(r.width * 0.4, window.innerWidth - panel - r.left);
+    const k = Math.min(1.4, Math.max(view.current.k, 1));
+    animateTo({ k, x: Math.min(visible, r.width) / 2 - p.x * k, y: r.height / 2 - p.y * k });
+  }, [layout, animateTo]);
+  const choose = (id) => { setSelected(id); setHover(null); centerOn(id); };
+  // Opened from a course page with a concept in mind: glide to it once the map is laid out.
+  useEffect(() => {
+    if (!focusConceptId) return undefined;
+    const t = setTimeout(() => centerOn(focusConceptId), 250);
+    return () => clearTimeout(t);
+  }, [focusConceptId, centerOn]);
 
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return undefined;
+    let pending = 0, frame = 0, at = null;
     const onWheel = (e) => {
       e.preventDefault();
+      cancelAnimationFrame(anim.current);
       const r = svg.getBoundingClientRect();
-      const mx = e.clientX - r.left, my = e.clientY - r.top;
-      setView(v => {
-        const k = Math.min(3, Math.max(0.15, v.k * Math.exp(-e.deltaY * 0.0015)));
-        return { k, x: mx - ((mx - v.x) / v.k) * k, y: my - ((my - v.y) / v.k) * k };
+      at = { x: e.clientX - r.left, y: e.clientY - r.top };
+      pending += e.deltaY;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        const v = view.current;
+        const k = Math.min(3, Math.max(0.15, v.k * Math.exp(-pending * 0.0012)));
+        apply({ k, x: at.x - ((at.x - v.x) / v.k) * k, y: at.y - ((at.y - v.y) / v.k) * k });
+        pending = 0; frame = 0;
       });
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
-    return () => svg.removeEventListener("wheel", onWheel);
-  }, []);
+    return () => { svg.removeEventListener("wheel", onWheel); cancelAnimationFrame(frame); };
+  }, [apply, layout.concepts.length]);
 
   const zoom = (f) => {
-    const r = svgRef.current.getBoundingClientRect();
-    setView(v => {
-      const k = Math.min(3, Math.max(0.15, v.k * f));
-      return { k, x: r.width / 2 - ((r.width / 2 - v.x) / v.k) * k, y: r.height / 2 - ((r.height / 2 - v.y) / v.k) * k };
-    });
+    const r = svgRef.current.getBoundingClientRect(), v = view.current;
+    const k = Math.min(3, Math.max(0.15, v.k * f));
+    animateTo({ k, x: r.width / 2 - ((r.width / 2 - v.x) / v.k) * k, y: r.height / 2 - ((r.height / 2 - v.y) / v.k) * k }, 260);
+  };
+
+  // Highlighting follows the pointer after a short pause, so sweeping across
+  // the map doesn't flash every node it passes.
+  const enter = (id) => {
+    if (drag.current?.moved) return;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHover(id), 90);
+  };
+  const leave = () => {
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHover(null), 120);
   };
 
   const focus = hover ?? selected;
@@ -129,18 +195,13 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
   }, [focus, edges]);
 
   const coursesWithConcepts = state.courses.filter(c => state.concepts.some(k => k.courseId === c.id));
-  const showAllLabels = scope !== "all" || concepts.length <= 80 || view.k > 1.1;
+  const showAllLabels = scope !== "all" || concepts.length <= 80 || zoomLevel > 1.1;
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
       <div className="page-head">
         <div>
           <h1>Knowledge map</h1>
-          <div className="page-sub">
-            {scope === "all"
-              ? "Everything you're learning, clustered by course. Brighter lines connect ideas across courses."
-              : "Prerequisites flow left to right: each concept builds on the ones to its left."}
-          </div>
         </div>
         <select className="select" style={{ width: 260 }} value={scope} onChange={e => { setScope(e.target.value); setSelected(null); }} aria-label="Map scope">
           <option value="all">All courses</option>
@@ -151,21 +212,31 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       {!concepts.length ? (
         <div className="panel empty">
           <h3>Nothing to map yet</h3>
-          <p>Concepts appear here as you add material to your courses, connected by what they build on.</p>
           <button className="btn btn-primary" onClick={() => nav.go("courses")}>Go to courses</button>
         </div>
       ) : (
         <div className="map-wrap">
           <svg ref={svgRef}
-            onPointerDown={e => { if (e.target.closest(".map-node")) return; drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; e.currentTarget.setPointerCapture(e.pointerId); }}
-            onPointerMove={e => { const d = drag.current; if (!d) return; d.moved = true; setView(v => ({ ...v, x: d.vx + e.clientX - d.x, y: d.vy + e.clientY - d.y })); }}
+            onPointerDown={e => {
+              if (e.target.closest(".map-node")) return;
+              cancelAnimationFrame(anim.current);
+              drag.current = { x: e.clientX, y: e.clientY, vx: view.current.x, vy: view.current.y, k: view.current.k };
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={e => {
+              const d = drag.current;
+              if (!d) return;
+              if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 3) return; // a click, not a drag
+              d.moved = true;
+              apply({ k: d.k, x: d.vx + e.clientX - d.x, y: d.vy + e.clientY - d.y });
+            }}
             onPointerUp={() => { const moved = drag.current?.moved; drag.current = null; if (!moved) setSelected(null); }}>
             <defs>
               <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                 <path d="M0 0 L10 5 L0 10 z" fill="var(--ink-3)"/>
               </marker>
             </defs>
-            <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
+            <g ref={gRef}>
               {edges.map(e => {
                 const a = layout.pos[e.from], b = layout.pos[e.to];
                 const cross = ix.concept[e.from]?.courseId !== ix.concept[e.to]?.courseId;
@@ -188,11 +259,11 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
                 const r = RADIUS[c.importance] ?? 5;
                 const course = ix.course[c.courseId];
                 const dim = neighbors && !neighbors.has(c.id);
-                const label = showAllLabels || c.id === focus || (neighbors?.has(c.id)) || (c.importance === "core" && view.k > 0.7);
+                const label = showAllLabels || c.id === focus || (neighbors?.has(c.id)) || (c.importance === "core" && zoomLevel > 0.7);
                 return (
                   <g key={c.id} className={`map-node${dim ? " dim" : ""}${ix.lockedConcepts.has(c.id) ? " locked" : ""}`} transform={`translate(${p.x},${p.y})`}
-                    onPointerEnter={() => setHover(c.id)} onPointerLeave={() => setHover(null)}
-                    onClick={() => setSelected(c.id)}>
+                    onPointerEnter={() => enter(c.id)} onPointerLeave={leave}
+                    onClick={() => choose(c.id)}>
                     <circle r={r + 5} fill="transparent"/>
                     <circle r={r} fill={STATUS_FILL[st]} stroke={st === "new" ? course?.color : "var(--surface)"} strokeWidth={st === "new" ? 1.8 : 1.5}/>
                     {c.id === selected && <circle r={r + 4} fill="none" stroke="var(--ink)" strokeWidth={1.4}/>}
@@ -220,7 +291,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
         </div>
       )}
 
-      {selected && <ConceptPanel conceptId={selected} onOpen={setSelected} onClose={() => setSelected(null)}/>}
+      {selected && <ConceptPanel modeless conceptId={selected} onOpen={(id) => (layout.pos[id] ? choose(id) : setSelected(id))} onClose={() => setSelected(null)}/>}
     </div>
   );
 }

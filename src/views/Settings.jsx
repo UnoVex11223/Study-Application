@@ -5,14 +5,11 @@ import { useSync } from "../state/sync.jsx";
 import Icon from "../ui/Icon.jsx";
 import { getApiKeySet, setApiKey, flush } from "../lib/persist.js";
 import { aiBridge } from "../lib/ai.js";
-import { forecastLoad } from "../lib/planner.js";
-import { formatMinutes } from "../lib/time.js";
 
-function Section({ title, children, description }) {
+function Section({ title, children }) {
   return (
     <section className="panel panel-pad" style={{ marginBottom: 20 }}>
-      <h2 className="h" style={{ marginBottom: description ? 4 : 14 }}>{title}</h2>
-      {description && <p className="muted small" style={{ marginBottom: 16 }}>{description}</p>}
+      <h2 className="h" style={{ marginBottom: 14 }}>{title}</h2>
       {children}
     </section>
   );
@@ -24,7 +21,7 @@ export default function Settings() {
   const set = (patch) => act("settings", { patch });
   const [key, setKey] = useState("");
   const [hasKey, setHasKey] = useState(false);
-  const [keySaved, setKeySaved] = useState(false);
+  const [replacing, setReplacing] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [backups, setBackups] = useState(null);
   const sync = useSync();
@@ -44,13 +41,11 @@ export default function Settings() {
 
   useEffect(() => { getApiKeySet().then(setHasKey); }, []);
 
-  const { sec } = forecastLoad(state, { days: 8 });
-  const weekAvg = sec.slice(1).reduce((a, b) => a + b, 0) / 7;
-
   const saveKey = async () => {
     await setApiKey(key.trim());
-    setKey(""); setHasKey(Boolean(key.trim())); setKeySaved(true);
+    setKey(""); setHasKey(Boolean(key.trim())); setReplacing(false);
   };
+  const cancelKey = () => { setKey(""); setReplacing(false); };
 
   const exportData = () => {
     const blob = new Blob([JSON.stringify(state)], { type: "application/json" });
@@ -78,68 +73,60 @@ export default function Settings() {
     <div className="page page-narrow">
       <div className="page-head"><div><h1>Settings</h1></div></div>
 
-      <Section title="Daily workload" description="Sessions are built to fit this budget. Reviews that don't fit move to later days, most urgent first, and new material slows down while you catch up.">
+      <Section title="Study">
         <div className="field">
           <label htmlFor="st-min">Study time per day: <strong>{s.dailyMinutes} minutes</strong></label>
           <input id="st-min" type="range" min={5} max={90} step={5} value={s.dailyMinutes} onChange={e => set({ dailyMinutes: Number(e.target.value) })}/>
-          <span className="help">Reviews already scheduled for the coming week average {formatMinutes(weekAvg)} a day.</span>
         </div>
         <div className="field">
           <label htmlFor="st-new">New concepts per day, at most: <strong>{s.maxNewPerDay}</strong></label>
           <input id="st-new" type="range" min={0} max={20} step={1} value={s.maxNewPerDay} onChange={e => set({ maxNewPerDay: Number(e.target.value) })}/>
-          <span className="help">Shared across active courses. Each new concept adds a few minutes of reviews over the following weeks.</span>
+        </div>
+        <div className="field">
+          <span className="label">Memory target</span>
+          <div className="seg" style={{ alignSelf: "flex-start" }}>
+            {[[0.85, "85%, lighter"], [0.9, "90%, recommended"], [0.95, "95%, thorough"]].map(([v, l]) => (
+              <button key={v} className={s.retention === v ? "on" : ""} onClick={() => set({ retention: v })}>{l}</button>
+            ))}
+          </div>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="st-roll">A new study day starts at</label>
           <select id="st-roll" className="select" style={{ width: 160 }} value={s.rolloverHour} onChange={e => set({ rolloverHour: Number(e.target.value) })}>
             {[0, 1, 2, 3, 4, 5, 6].map(h => <option key={h} value={h}>{h === 0 ? "Midnight" : `${h}:00 am`}</option>)}
           </select>
-          <span className="help">A late-night session counts toward the day you started it.</span>
         </div>
       </Section>
 
-      <Section title="Memory target" description="How likely you should be to remember something when it comes up for review. Higher means more reviews.">
-        <div className="seg">
-          {[[0.85, "85%, lighter"], [0.9, "90%, recommended"], [0.95, "95%, thorough"]].map(([v, l]) => (
-            <button key={v} className={s.retention === v ? "on" : ""} onClick={() => set({ retention: v })}>{l}</button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Appearance">
-        <div className="seg">
-          {[["dark", "Black"], ["light", "White"], ["system", "Match system"]].map(([v, l]) => (
-            <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="AI" description="Extracting concepts, writing questions and grading written answers use Claude through your Anthropic API key. The key is stored on this computer, encrypted with your user account, and only used to call the API. Without it you can still write questions and check answers yourself.">
+      <Section title="Anthropic API key">
         {!aiBridge() && <div style={{ marginBottom: 12 }}><Notice>AI features run in the desktop app.</Notice></div>}
-        <div className="row">
-          <input className="input grow" type="password" value={key} onChange={e => { setKey(e.target.value); setKeySaved(false); }}
-            aria-label="Anthropic API key"
-            onKeyDown={e => e.key === "Enter" && key.trim() && saveKey()}/>
-          <button className="btn btn-primary" onClick={saveKey} disabled={!key.trim()}>Save key</button>
-          {hasKey && <button className="btn btn-danger" onClick={async () => { await setApiKey(null); setHasKey(false); }}>Remove</button>}
-        </div>
-        {(keySaved || (hasKey && !key)) && <p className="small" style={{ color: "var(--good)", marginTop: 8 }}>{keySaved ? "Key saved." : "A key is saved. Paste a new one to replace it."}</p>}
-        <p className="help" style={{ marginTop: 10 }}>Get a key at platform.claude.com under Settings → API keys.</p>
+        {hasKey && !replacing ? (
+          <div className="row">
+            <span className="key-mask grow" aria-label="An API key is saved">sk-ant-••••••••••••••••</span>
+            <button className="btn" onClick={() => setReplacing(true)}><Icon name="plus" size={15}/>New key</button>
+            <button className="btn btn-danger" onClick={async () => { await setApiKey(null); setHasKey(false); }}>Remove</button>
+          </div>
+        ) : (
+          <div className="row">
+            <input className="input grow" type="password" value={key} onChange={e => setKey(e.target.value)}
+              aria-label="Anthropic API key" autoFocus={replacing}
+              onKeyDown={e => { if (e.key === "Enter" && key.trim()) saveKey(); if (e.key === "Escape") cancelKey(); }}/>
+            <button className="btn btn-primary" onClick={saveKey} disabled={!key.trim()}>Save key</button>
+            {replacing && <button className="btn btn-quiet" onClick={cancelKey}>Cancel</button>}
+            <a className="btn btn-quiet" href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">Create a key</a>
+          </div>
+        )}
+      </Section>
 
-        <div className="label" style={{ marginTop: 20 }}>Book imports</div>
-        <div className="seg" style={{ marginTop: 8 }}>
+      <Section title="Book imports">
+        <div className="seg">
           {[[true, "Half price"], [false, "Faster"]].map(([v, l]) => (
             <button key={l} className={(s.batchImports !== false) === v ? "on" : ""} onClick={() => set({ batchImports: v })}>{l}</button>
           ))}
         </div>
-        <p className="help" style={{ marginTop: 8 }}>
-          {s.batchImports !== false
-            ? "Questions for imported books are written through Anthropic's Batch API: the same models and quality at half the price. Each chapter usually takes a few extra minutes, occasionally up to an hour when the queue is busy."
-            : "Questions for imported books are written right away, at full price."}
-        </p>
       </Section>
 
-      <Section title="Sync across computers" description="Keep one library on every computer you use. Pick a folder your cloud drive syncs (OneDrive, Dropbox or Google Drive): each computer saves its copy there and merges in the others'. Your API key stays on each computer.">
+      <Section title="Sync across computers">
         {!sync?.status && <p className="muted small">Sync is available in the desktop app.</p>}
         {sync?.status && !sync.status.enabled && (
           <div className="row-wrap">
@@ -156,7 +143,7 @@ export default function Settings() {
               <span className="muted small">This computer</span><span className="small">{sync.status.device?.name}</span>
               <span className="muted small">Other computers</span>
               <span className="small">
-                {sync.status.others.length === 0 ? "None yet. Set up sync on your other computer with the same folder." :
+                {sync.status.others.length === 0 ? "None yet" :
                   sync.status.others.map(o => `${o.name} (saved ${new Date(o.savedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })})`).join(", ")}
               </span>
               <span className="muted small">Last checked</span>
@@ -173,13 +160,20 @@ export default function Settings() {
         )}
       </Section>
 
-      <Section title="Your data" description={syncing ? "Stored on this computer, with a copy in your sync folder." : "Everything is stored locally on this computer."}>
+      <Section title="Appearance">
+        <div className="seg">
+          {[["dark", "Black"], ["light", "White"], ["system", "Match system"]].map(([v, l]) => (
+            <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Your data">
         {backups && (
           <div className="row" style={{ marginBottom: 14, gap: 12 }}>
             <Icon name="check" size={15}/>
             <span className="grow small">
-              A copy is saved automatically each day; the last {backups.keep} are kept.
-              {backups.latest && <span className="muted"> Latest: {new Date(`${backups.latest}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.</span>}
+              Daily backups{backups.latest && <span className="muted"> · latest {new Date(`${backups.latest}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
             </span>
             <button className="btn btn-sm btn-quiet" onClick={() => backupApi.open()}>Open folder</button>
           </div>

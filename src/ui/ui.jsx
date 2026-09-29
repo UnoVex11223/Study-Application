@@ -4,11 +4,11 @@ import { IMPORTANCE } from "../lib/model.js";
 import { STATUS } from "../lib/mastery.js";
 
 // ── Overlays ────────────────────────────────────────────────────────────────
-export function Drawer({ onClose, title, subtitle, actions, children }) {
+export function Drawer({ onClose, title, subtitle, actions, children, modeless = false }) {
   useKey((e) => { if (e.key === "Escape") onClose(); }, [onClose]);
   return (
     <>
-      <div className="scrim" onClick={onClose}/>
+      {!modeless && <div className="scrim" onClick={onClose}/>}
       <aside className="drawer" role="dialog" aria-label={typeof title === "string" ? title : undefined}>
         <div className="drawer-head">
           <div className="grow">

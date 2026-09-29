@@ -71,7 +71,6 @@ export default function Today({ plan }) {
         <article className="hero" style={{ marginTop: 8 }}>
           <div className="hero-label">Get started</div>
           <div className="hero-title">Add what you're studying</div>
-          <p className="hero-sub">Create a course for a book or class, then add a chapter at a time as you work through it. Tenax keeps only the questions worth remembering and schedules short daily reviews so you keep them for good.</p>
           <div className="hero-foot" style={{ flexWrap: "wrap" }}>
             <button className="btn btn-primary btn-lg" onClick={() => nav.go("courses", { create: true })}><Icon name="plus" size={16}/>Create a course</button>
             {sync?.status && !sync.status.enabled && (
@@ -122,13 +121,6 @@ export default function Today({ plan }) {
             ) : (
               <>
                 <div className="hero-title">{doneToday ? "You're done for today" : hasContent ? "Nothing is due right now" : "No questions yet"}</div>
-                <p className="hero-sub">
-                  {doneToday
-                    ? "Everything important is scheduled. Tomorrow's session picks up where this one left off."
-                    : hasContent
-                      ? "Add the next chapter of something you're reading to bring in new concepts."
-                      : "Add material to one of your courses to generate questions."}
-                </p>
                 {plan.laterToday > 0 && <p className="plan-note">{planNote(plan)}</p>}
               </>
             )}
@@ -170,8 +162,7 @@ export default function Today({ plan }) {
 
         <div className="stack" style={{ gap: 28 }}>
           <div className="panel panel-pad">
-            <h2 className="h" style={{ marginBottom: 4 }}>This week</h2>
-            <div className="muted small">Review time already scheduled. The planner keeps new material in check so this stays near your budget.</div>
+            <h2 className="h">This week</h2>
             <Week state={state} now={now}/>
           </div>
           {inbox > 0 && (
@@ -179,7 +170,6 @@ export default function Today({ plan }) {
               <Icon name="note" size={18}/>
               <div className="grow">
                 <div className="list-title">{inbox} note{inbox === 1 ? "" : "s"} in your inbox</div>
-                <div className="muted small">Process {inbox === 1 ? "it" : "them"} to turn what's worth keeping into questions.</div>
               </div>
               <Icon name="chevron" size={16} className="muted"/>
             </button>
@@ -187,7 +177,7 @@ export default function Today({ plan }) {
 
           {slipping.length > 0 && (
             <div className="panel">
-              <div className="panel-head"><h2>Slipping</h2><span className="muted small">prioritized in your sessions</span></div>
+              <div className="panel-head"><h2>Slipping</h2></div>
               <div className="list">
                 {slipping.map(({ c }) => (
                   <button key={c.id} className="list-row" onClick={() => nav.go("course", { courseId: c.courseId, conceptId: c.id })}>

@@ -236,8 +236,8 @@ export default function AddMaterial({ courseId }) {
       <div className="page-head">
         <div>
           <h1>Add material</h1>
-          <div className="page-sub">Add one chapter or lesson at a time, as you finish it.</div>
         </div>
+        {aiBridge() && <button className="btn" onClick={() => nav.go("book", { courseId })}><Icon name="book" size={15}/>Import a whole book</button>}
       </div>
 
       <div className="steps">
@@ -255,11 +255,6 @@ export default function AddMaterial({ courseId }) {
         </div>
       )}
 
-      {step === 0 && aiBridge() && (
-        <p className="muted small" style={{ margin: "-6px 0 14px" }}>
-          Have the whole book as a PDF? <button className="link" onClick={() => nav.go("book", { courseId })}>Import every chapter at once</button> and unlock chapters as you read them.
-        </p>
-      )}
       {step === 0 && (
         <div className="panel panel-pad">
           <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
@@ -316,7 +311,6 @@ export default function AddMaterial({ courseId }) {
                       {book.loading ? <Spinner/> : null}Load these pages
                     </button>
                   </div>
-                  <p className="help" style={{ marginTop: 10 }}>The pages' text goes into the box above so you can check it first. Page numbers are kept so each concept can point back to its page.</p>
                 </>
               )}
             </div>
@@ -328,9 +322,6 @@ export default function AddMaterial({ courseId }) {
             <button className="btn btn-primary" disabled={!source.trim() || !aiBridge() || hasKey === false} onClick={extract}><Icon name="sparkle" size={15}/>Find key concepts</button>
             <span className="muted small grow">{source.length ? `${Math.round(source.length / 1000)}k characters` : ""}</span>
           </div>
-          <p className="help" style={{ marginTop: 14 }}>
-            Code, equations and examples are kept. If a figure or formula didn't survive copying, you'll be told instead of getting a question built on missing information.
-          </p>
         </div>
       )}
 
@@ -341,12 +332,10 @@ export default function AddMaterial({ courseId }) {
             <div className="busy-progress">
               <Bar value={busy.done / busy.total} thin/>
               <p className="muted small">
-                {busy.done} of {busy.total} concept groups done{busy.passed ? `, ${busy.passed} question${busy.passed === 1 ? "" : "s"} passed so far` : ""}. Groups run side by side, so they tend to finish close together.
+                {busy.done} of {busy.total} concept groups done{busy.passed ? `, ${busy.passed} question${busy.passed === 1 ? "" : "s"} passed so far` : ""}
               </p>
             </div>
-          ) : (
-            <p className="muted small" style={{ marginTop: 10 }}>A long chapter can take a minute or two.</p>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -397,13 +386,6 @@ export default function AddMaterial({ courseId }) {
         <>
           <div style={{ marginBottom: 16 }}>
             <div className="h2-lg">{passed} of {review.written} questions passed the quality check</div>
-            <p className="muted" style={{ marginTop: 6, maxWidth: 640 }}>
-              Each question was scored on whether it's worth remembering, clear on its own, needs real recall, can be graded fairly, and is accurate.
-              Only questions scoring 4 or 5 on all five are kept, and at most 3 per core concept. Untick anything you still don't want, or keep a filtered one anyway.
-            </p>
-            <p className="muted" style={{ marginTop: 6, maxWidth: 640 }}>
-              Reviews are scheduled per concept ({chosenConcepts} here), not per question. A concept's questions take turns at its reviews, so extra questions add variety, not review time.
-            </p>
           </div>
           {!review.reviewed && <div style={{ marginBottom: 14 }}><Notice tone="warn" icon="alert">The quality review couldn't run for part of this material, so only the rule checks were applied there. Look those questions over before adding them.</Notice></div>}
           {review.partial && <div style={{ marginBottom: 14 }}><Notice tone="warn" icon="alert">Some sections didn't get questions: {review.partial}</Notice></div>}

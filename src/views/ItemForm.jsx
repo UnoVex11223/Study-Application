@@ -102,7 +102,6 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
         <div className="seg">
           {ABILITY_KEYS.map(k => <button key={k} type="button" className={ability === k ? "on" : ""} onClick={() => setAbility(k)}>{ABILITIES[k].label}</button>)}
         </div>
-        <span className="help">{ABILITIES[ability].blurb}.</span>
       </div>
       <div className="field">
         <label htmlFor="if-prompt">Question</label>
@@ -116,13 +115,11 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
         <div className="field">
           <label htmlFor="if-accept">Accepted answers, one per line</label>
           <textarea id="if-accept" className="textarea" style={{ minHeight: 56 }} value={accept} onChange={e => setAccept(e.target.value)}/>
-          <span className="help">Exact matches are marked correct instantly, with small typos allowed.</span>
         </div>
       )}
       <div className="field">
         <label htmlFor="if-points">Key points a correct answer must include, one per line</label>
         <textarea id="if-points" className="textarea" style={{ minHeight: 70 }} value={points} onChange={e => setPoints(e.target.value)}/>
-        <span className="help">Answers are graded on these ideas, not on wording.</span>
       </div>
       <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
         <div className="field grow">

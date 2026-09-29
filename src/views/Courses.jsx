@@ -20,7 +20,6 @@ export function CourseForm({ course, onSave, onClose }) {
         <label htmlFor="course-name">Name</label>
         <input id="course-name" className="input" value={name} autoFocus onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === "Enter" && save()}/>
-        <span className="help">One course per book, class or subject. You'll add chapters to it as you go.</span>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
         <span className="label">Color</span>
@@ -56,7 +55,6 @@ export default function Courses() {
       <div className="page-head">
         <div>
           <h1>Courses</h1>
-          <div className="page-sub">Everything you're learning. Pause or maintain a course to control how much of your daily time it gets.</div>
         </div>
         <div className="row">
           <button className="btn" onClick={() => nav.go("book")}><Icon name="book" size={15}/>Import a book</button>
@@ -67,7 +65,6 @@ export default function Courses() {
       {courses.length === 0 ? (
         <div className="panel empty">
           <h3>No courses yet</h3>
-          <p>Create one for each book, class or subject you're working through, or import a whole book from its PDF.</p>
           <div className="row" style={{ justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={() => nav.go("book")}><Icon name="book" size={15}/>Import a book</button>
             <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" size={16}/>New course</button>
