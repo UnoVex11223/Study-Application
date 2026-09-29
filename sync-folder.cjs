@@ -31,6 +31,7 @@ function createSync({ store, version = "0" }) {
   }
   const ownFile = () => { const d = device(); return `tenax-${slug(d.name)}-${d.id}.json.gz`; };
   const dir = () => store.get(CONFIG)?.dir || null;
+  const enabled = () => Boolean(dir());
 
   /** Where to suggest: the OneDrive folder if there is one. */
   function suggested() {
@@ -108,7 +109,7 @@ function createSync({ store, version = "0" }) {
     return { ok: true, copies };
   }
 
-  return { device, status, setFolder, stop, push, pull, ownFile };
+  return { device, enabled, status, setFolder, stop, push, pull, ownFile };
 }
 
 module.exports = { createSync, PATTERN };

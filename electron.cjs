@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, nativeTheme, safeStorage, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, nativeTheme, safeStorage, dialog, powerMonitor } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const Store = require("electron-store");
@@ -67,19 +67,23 @@ cleanStart();
 // ── Store bridge ──────────────────────────────────────────────────────────────
 // The renderer can write the API key but never read it back.
 // ── Sync folder (see sync-folder.cjs) ────────────────────────────────────────
-// After the library changes, this computer's copy is written to the sync
-// folder a few seconds later (and on quit); the UI pulls the other copies.
+// This computer's copy is written to the sync folder when you leave Tenax
+// (switch windows, minimize, close it, lock or sleep the computer) and at
+// most every few minutes while you keep studying, not after every answer:
+// each write is a new upload and a new version on the cloud drive. The UI
+// pulls the other computers' copies.
 const sync = createSync({ store, version: app.getVersion?.() ?? "0" });
+const PUSH_EVERY = 5 * 60e3;
 let pushTimer = null, pendingPush = null;
 const flushPush = () => {
   clearTimeout(pushTimer);
+  pushTimer = null;
   if (pendingPush) { sync.push(pendingPush); pendingPush = null; }
 };
 const schedulePush = (state) => {
-  if (!sync.status().enabled) return;
+  if (!sync.enabled()) return;
   pendingPush = state;
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(flushPush, 4000);
+  if (!pushTimer) pushTimer = setTimeout(flushPush, PUSH_EVERY);
 };
 app.on("before-quit", flushPush);
 
@@ -802,6 +806,8 @@ function createWindow() {
   });
   // The window only ever shows the app: a file dropped outside a drop zone, or
   // a stray link, must not navigate it away.
+  // Leaving the window is the moment to hand this computer's changes over.
+  for (const ev of ["blur", "minimize", "hide"]) win.on(ev, flushPush);
   win.webContents.on("will-navigate", (e, url) => {
     if (url !== win.webContents.getURL()) e.preventDefault();
   });
@@ -824,5 +830,7 @@ app.whenReady().then(() => {
   autoBackup();
   setInterval(() => autoBackup(), 6 * 3600e3).unref?.();
   startUpdates();
+  powerMonitor?.on?.("suspend", flushPush);
+  powerMonitor?.on?.("lock-screen", flushPush);
 });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
