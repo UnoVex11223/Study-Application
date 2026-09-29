@@ -8,6 +8,7 @@ import { BackgroundProvider, useBackground } from "./state/background.jsx";
 import { SyncProvider, useSync } from "./state/sync.jsx";
 import ImportBook from "./views/ImportBook.jsx";
 import Notes from "./views/Notes.jsx";
+import Shelf from "./views/Shelf.jsx";
 import { useKey } from "./ui/nav.js";
 import { buildPlan } from "./lib/planner.js";
 import Today from "./views/Today.jsx";
@@ -23,6 +24,7 @@ import Session from "./views/Session.jsx";
 const NAV = [
   { id: "today", label: "Today", icon: "today" },
   { id: "courses", label: "Courses", icon: "courses" },
+  { id: "shelf", label: "Shelf", icon: "shelf" },
   { id: "notes", label: "Notes", icon: "note" },
   { id: "map", label: "Knowledge map", icon: "map" },
   { id: "progress", label: "Progress", icon: "progress" },
@@ -80,6 +82,7 @@ function Shell() {
     case "course": page = state.courses.find(c => c.id === route.courseId)?.kind === "notes"
       ? <Notes/> : <Course courseId={route.courseId} key={route.courseId}/>; break;
     case "notes": page = <Notes/>; break;
+    case "shelf": page = <Shelf/>; break;
     case "import": page = <AddMaterial courseId={route.courseId}/>; break;
     case "book": page = <ImportBook courseId={route.courseId}/>; break;
     case "teach": page = <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>; break;

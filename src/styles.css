@@ -509,3 +509,48 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .note-outcome { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; color: var(--ink-3); }
 .notes-callout { display: flex; align-items: center; gap: 14px; text-align: left; cursor: pointer; color: var(--ink); width: 100%; }
 .notes-callout:hover { border-color: var(--rule-strong); }
+
+/* ── Shelf ─────────────────────────────────────────────────────────────── */
+.shelf-filters { display: flex; justify-content: center; margin-bottom: 22px; }
+.shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: 18px; }
+.shelf-card { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; transition: border-color .12s; }
+.shelf-card:hover { border-color: var(--rule-strong); }
+.shelf-card.dim { opacity: .55; }
+.shelf-cover { position: relative; aspect-ratio: 16 / 10; background: var(--surface-2); cursor: pointer; border-bottom: 1px solid var(--rule); outline: none; }
+.shelf-cover:focus-visible { box-shadow: inset 0 0 0 2px var(--ink-3); }
+.shelf-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shelf-blank { width: 100%; height: 100%; display: grid; place-items: center;
+  background: repeating-linear-gradient(135deg, transparent 0 11px, var(--rule) 11px 12px), var(--surface-2); }
+.shelf-blank span { font-family: var(--mono); font-size: 30px; font-weight: 500; letter-spacing: .04em; color: var(--ink-2);
+  background: var(--surface-2); padding: 6px 14px; border: 1px solid var(--rule-strong); border-radius: 8px; }
+.shelf-done { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--ink); color: var(--bg); }
+.shelf-acts { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; opacity: 0; transition: opacity .12s; }
+.shelf-card:hover .shelf-acts, .shelf-card:focus-within .shelf-acts { opacity: 1; }
+.shelf-act { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--rule-strong);
+  background: var(--surface); color: var(--ink); cursor: pointer; }
+.shelf-act:hover { background: var(--surface-2); }
+.shelf-body { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px; flex: 1; }
+.shelf-title { font-weight: 650; font-size: 14.5px; line-height: 1.35; letter-spacing: -.01em; }
+.shelf-desc { color: var(--ink-3); font-size: 12.5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.shelf-foot { margin-top: auto; padding-top: 10px; display: grid; gap: 8px; }
+.shelf-prog, .shelf-meta { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+.shelf-prog span:first-child { color: var(--ink-2); }
+.shelf-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.shelf-step { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.shelf-step span { font-size: 12px; color: var(--ink-3); }
+.shelf-step .btn { font-size: 16px; line-height: 1; }
+.shelf-confirm { position: absolute; inset: 0; display: grid; align-content: center; gap: 14px; padding: 20px; text-align: center;
+  background: color-mix(in srgb, var(--surface) 94%, transparent); font-weight: 600; }
+.shelf-add { display: grid; place-items: center; align-content: center; gap: 8px; min-height: 260px; border: 1.5px dashed var(--rule-strong);
+  border-radius: 10px; background: transparent; color: var(--ink-3); cursor: pointer; font-weight: 600; font-size: 13px; }
+.shelf-add:hover { color: var(--ink); border-color: var(--ink-3); }
+.shelf-cover-edit { display: flex; align-items: flex-end; gap: 12px; }
+.shelf-cover-edit img { width: 200px; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 8px; border: 1px solid var(--rule); }
+.shelf-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0 12px; }
+.shelf-link { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+.shelf-link:hover { color: var(--ink); }
+.shelf-step .shelf-meta { font-family: var(--mono); font-size: 11px; }
+.shelf-step .shelf-meta { gap: 5px; }
+.shelf-form-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 14px; align-items: end; }
+.shelf-form-top .seg { height: 40px; align-items: stretch; }

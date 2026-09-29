@@ -206,7 +206,7 @@ export default function Settings() {
           <button className="btn btn-danger" onClick={() => setConfirmReset(true)}><Icon name="trash" size={15}/>Reset all progress</button>
         ) : (
           <Notice tone="bad" icon="alert">
-            Delete all {state.courses.length} courses, {state.items.length} questions and your whole review history{syncing ? " on every computer you sync with" : ""}? Settings and your API key are kept. This can't be undone.
+            Delete all {state.courses.length} courses, {state.items.length} questions, your shelf and your whole review history{syncing ? " on every computer you sync with" : ""}? Settings and your API key are kept. This can't be undone.
             <div className="row" style={{ marginTop: 10 }}>
               <button className="btn btn-sm btn-danger" onClick={() => { act("reset"); setConfirmReset(false); }}>Delete everything</button>
               <button className="btn btn-sm btn-quiet" onClick={() => setConfirmReset(false)}>Cancel</button>

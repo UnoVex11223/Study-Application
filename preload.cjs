@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld("tenax", {
     status: () => ipcRenderer.invoke("app:update"),
     install: () => ipcRenderer.invoke("app:update-install"),
   },
+  shelf: {
+    legacy: () => ipcRenderer.invoke("shelf:legacy"),
+  },
   backup: {
     info: () => ipcRenderer.invoke("backup:info"),
     open: () => ipcRenderer.invoke("backup:open"),

@@ -20,7 +20,7 @@
 
 import { newSrs, RATING } from "./fsrs.js";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const ABILITIES = {
   recall:      { label: "Recall",      estSec: 25, rank: 0, blurb: "Produce a term, fact or definition from memory" },
@@ -67,6 +67,7 @@ export function emptyState() {
     days: {}, // per study day: { extraSec }
     bookJobs: [], // whole-book imports in progress (see state/bookImport.jsx)
     notes: [], // your own notes, raw (see lib/notes.js); what they became lives in the Notes space
+    shelf: [], // books and courses on your shelf, with covers (see lib/shelf.js)
   };
 }
 
@@ -76,7 +77,7 @@ export function normalizeState(s) {
   const out = { ...base, ...s, settings: { ...base.settings, ...(s?.settings || {}) } };
   // The monochrome redesign defaults to the black theme once; later choices stick.
   if (s?.settings && s.settings.themeVersion !== 2) out.settings = { ...out.settings, theme: "dark", themeVersion: 2 };
-  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes"]) {
+  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes", "shelf"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }
   if (!out.tombstones || typeof out.tombstones !== "object" || Array.isArray(out.tombstones)) out.tombstones = {};

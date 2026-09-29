@@ -33,13 +33,32 @@ function apply(state, action) {
     case "course/delete": {
       const ids = state.concepts.filter(c => c.courseId === action.id).map(c => c.id);
       const next = removeConcepts(state, ids);
+      // Its shelf item stays, as a standalone entry with the progress it had.
+      const course = state.courses.find(c => c.id === action.id);
+      const sections = state.sections.filter(s => s.courseId === action.id);
       return {
         ...next,
         courses: next.courses.filter(c => c.id !== action.id),
         sections: next.sections.filter(s => s.courseId !== action.id),
         bookJobs: next.bookJobs.filter(j => j.courseId !== action.id),
+        shelf: next.shelf.some(it => it.courseId === action.id)
+          ? next.shelf.map(it => (it.courseId !== action.id ? it : {
+            ...it, courseId: null, title: it.title || course?.name || "Untitled",
+            total: Math.max(it.total || 0, sections.length), done: Math.max(it.done || 0, sections.filter(s => !s.locked).length),
+          }))
+          : next.shelf,
       };
     }
+
+    // The shelf (see lib/shelf.js).
+    case "shelf/add":
+      return { ...state, shelf: [...state.shelf, action.item] };
+    case "shelf/import":
+      return { ...state, shelf: [...state.shelf, ...action.items] };
+    case "shelf/update":
+      return { ...state, shelf: state.shelf.map(it => (it.id === action.id ? { ...it, ...action.patch } : it)) };
+    case "shelf/remove":
+      return { ...state, shelf: state.shelf.filter(it => it.id !== action.id) };
 
     case "section/update":
       return { ...state, sections: state.sections.map(s => (s.id === action.id ? { ...s, ...action.patch } : s)) };
@@ -224,7 +243,7 @@ function apply(state, action) {
 // several computers uses these to keep the newest version of each record and
 // to carry deletions across. Loads, restores and merges aren't user edits and
 // aren't stamped.
-const TRACKED = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs"];
+const TRACKED = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf"];
 // A restore ("replace") *is* tracked: every restored record counts as edited
 // now and everything else as deleted, so the restore wins on your other
 // computers too instead of being overridden by their newer copies.
