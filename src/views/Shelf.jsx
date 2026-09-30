@@ -1,21 +1,31 @@
-// The shelf: the books and courses you're working through, with covers and
-// progress. Tenax courses are on it automatically (see lib/shelf.js). Books and
-// courses you add yourself also keep notes in your own words, a rating, and a
-// recall now and then: say what you remember, then compare with your notes
-// (see lib/recall.js).
+// The shelf, in two parts: Reading (books you read for their own sake) and
+// Textbooks & courses (what you study; Tenax courses are on it automatically,
+// see lib/shelf.js). Reading books also keep notes in your own words, a
+// rating, and a recall now and then: say what you remember, then compare with
+// your notes (see lib/recall.js).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
 import { useNav, pct } from "../ui/nav.js";
-import { Bar, Drawer, Modal, Notice, Spinner } from "../ui/ui.jsx";
+import { Bar, Drawer, Modal, Spinner } from "../ui/ui.jsx";
 import Icon from "../ui/Icon.jsx";
-import { shelfEntries, shelfStats, SHELF_FILTERS, SHELF_KINDS, SHELF_STATUS, makeShelfItem, itemFinished, fromAeroShelf } from "../lib/shelf.js";
+import { shelfEntries, shelfStats, SHELF_FILTERS, SHELF_KINDS, SHELF_CATEGORIES, categoryOf, makeShelfItem, itemFinished } from "../lib/shelf.js";
 import { dueForRecall, recallWhen, hasNotes, RECALL_RATINGS } from "../lib/recall.js";
 import { shrinkImage } from "../lib/image.js";
 
-const legacyBridge = () => (typeof window !== "undefined" ? window.tenax?.shelf : null);
 const initials = (t) => String(t || "?").split(/\s+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
 const longDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+const monthYear = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+
+// "Want to read" is "Up next" for textbooks and courses.
+const STATUS = {
+  reading: { active: "Reading", finished: "Finished", want: "Want to read" },
+  study: { active: "In progress", finished: "Finished", want: "Up next" },
+};
+
+// The part of the shelf you looked at last.
+const CATEGORY_KEY = "tenax.shelfCategory";
+const savedCategory = () => { try { return localStorage.getItem(CATEGORY_KEY) === "study" ? "study" : "reading"; } catch { return "reading"; } };
 
 function Stars({ value, onChange, size = 15 }) {
   const [hover, setHover] = useState(0);
@@ -34,104 +44,119 @@ function Stars({ value, onChange, size = 15 }) {
   );
 }
 
-/** A cover that fits any shape: book covers stand in front of a blurred copy of themselves. */
+/** A cover image filling its box, or the title's initials. */
 function Cover({ src, title, className = "" }) {
-  const [wide, setWide] = useState(false);
   if (!src) return <div className={`shelf-blank ${className}`}><span>{initials(title)}</span></div>;
-  return (
-    <div className={`cover-frame${wide ? " wide" : ""} ${className}`}>
-      <img className="cover-bg" src={src} alt="" draggable={false} aria-hidden="true"/>
-      <img className="cover-fg" src={src} alt="" draggable={false}
-        onLoad={(e) => setWide(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight > 1.25)}/>
-    </div>
-  );
+  return <img className={`cover-img ${className}`} src={src} alt="" draggable={false}/>;
 }
 
 export default function Shelf({ recall: startRecall = false }) {
   const { state, act } = useStore();
   const nav = useNav();
+  const [category, setCategoryState] = useState(() => (startRecall ? "reading" : savedCategory()));
   const [filter, setFilter] = useState("all");
   const [showHidden, setShowHidden] = useState(false);
   const [editing, setEditing] = useState(null); // null | { entry } (entry null = new)
-  const [importing, setImporting] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [recallQueue, setRecallQueue] = useState(() => (startRecall ? dueForRecall(state.shelf, Date.now()).map(it => it.id) : null));
 
-  const entries = useMemo(() => shelfEntries(state, nav.now), [state, nav.now]);
+  const setCategory = (c) => {
+    setCategoryState(c); setFilter("all"); setShowHidden(false);
+    try { localStorage.setItem(CATEGORY_KEY, c); } catch { /* remembered for this visit only */ }
+  };
+
+  const all = useMemo(() => shelfEntries(state, nav.now), [state, nav.now]);
+  const entries = all.filter(e => e.category === category);
   const stats = shelfStats(entries);
   const due = dueForRecall(state.shelf, nav.now);
-  const test = SHELF_FILTERS.find(f => f.id === filter).test;
+  const test = SHELF_FILTERS[category].find(f => f.id === filter).test;
   const shown = entries.filter(e => !e.hidden && test(e));
   const hidden = entries.filter(e => e.hidden);
-  const canImport = Boolean(legacyBridge()) && !state.settings.aeroshelfImportedAt;
-  const open = state.shelf.find(it => it.id === openId && !it.courseId) || null;
+  const reading = category === "reading";
+  const open = state.shelf.find(it => it.id === openId && it.kind === "reading" && !it.courseId) || null;
+  const add = () => setEditing({ entry: null });
 
   // Log a chapter by hand. On a Tenax course you can't go below what Tenax counts.
   const bump = (e, d) => {
     const done = Math.max(e.read, e.done + d, 0);
     const capped = e.total ? Math.min(e.total, done) : done;
     if (e.item) act("shelf/update", { id: e.item.id, patch: { done: capped } });
-    else act("shelf/add", { item: makeShelfItem({ courseId: e.course.id, kind: e.kind, done: capped }) });
+    else act("shelf/add", { item: makeShelfItem({ courseId: e.course.id, kind: e.kind, unitLabel: e.unit, done: capped }) });
   };
   const setHidden = (e, hide) => (e.item
     ? act("shelf/update", { id: e.item.id, patch: { hidden: hide } })
-    : act("shelf/add", { item: makeShelfItem({ courseId: e.course.id, kind: e.kind, hidden: hide }) }));
-  const openEntry = (e) => (e.course ? nav.go("course", { courseId: e.course.id }) : setOpenId(e.item.id));
+    : act("shelf/add", { item: makeShelfItem({ courseId: e.course.id, kind: e.kind, unitLabel: e.unit, hidden: hide }) }));
+  const openEntry = (e) => (e.course ? nav.go("course", { courseId: e.course.id })
+    : e.category === "reading" ? setOpenId(e.item.id)
+    : setEditing({ entry: e }));
 
   return (
     <div className="page">
       <div className="page-head">
         <div><h1>Shelf</h1></div>
         <div className="row">
-          {canImport && <button className="btn" onClick={() => setImporting(true)}><Icon name="download" size={15}/>Import from AeroShelf</button>}
-          {due.length > 0 && (
+          {reading && due.length > 0 && (
             <button className="btn" onClick={() => setRecallQueue(due.map(it => it.id))}>
               <Icon name="play" size={12}/>Recall {due.length}
             </button>
           )}
-          <button className="btn btn-primary" onClick={() => setEditing({ entry: null })}><Icon name="plus" size={16}/>Add to shelf</button>
+          <button className="btn btn-primary" onClick={add}><Icon name="plus" size={16}/>{SHELF_CATEGORIES[category].add}</button>
         </div>
+      </div>
+
+      <div className="seg shelf-tabs" role="tablist" aria-label="Shelf">
+        {Object.entries(SHELF_CATEGORIES).map(([k, v]) => (
+          <button key={k} role="tab" aria-selected={category === k} className={category === k ? "on" : ""} onClick={() => setCategory(k)}>
+            {v.label}
+            {k === "reading" && due.length > 0 && <span className="shelf-tab-count">{due.length}</span>}
+          </button>
+        ))}
       </div>
 
       {entries.length === 0 ? (
         <div className="panel empty">
-          <h3>Your shelf is empty</h3>
+          <h3>{reading ? "No books yet" : "No textbooks or courses yet"}</h3>
           <div className="row" style={{ justifyContent: "center" }}>
-            <button className="btn btn-primary" onClick={() => setEditing({ entry: null })}><Icon name="plus" size={16}/>Add to shelf</button>
-            {canImport && <button className="btn" onClick={() => setImporting(true)}><Icon name="download" size={15}/>Import from AeroShelf</button>}
+            <button className="btn btn-primary" onClick={add}><Icon name="plus" size={16}/>{SHELF_CATEGORIES[category].add}</button>
           </div>
         </div>
       ) : (
         <>
           <div className="stats" style={{ marginBottom: 22 }}>
-            <div className="stat"><div className="stat-value">{stats.count}</div><div className="stat-label">On the shelf</div></div>
-            <div className="stat"><div className="stat-value">{stats.active}</div><div className="stat-label">In progress</div></div>
-            <div className="stat"><div className="stat-value">{stats.finished}</div><div className="stat-label">Finished</div></div>
-            <div className="stat"><div className="stat-value">{stats.due}</div><div className="stat-label">To recall</div></div>
+            {reading ? <>
+              <div className="stat"><div className="stat-value">{stats.count}</div><div className="stat-label">Books</div></div>
+              <div className="stat"><div className="stat-value">{stats.active}</div><div className="stat-label">In progress</div></div>
+              <div className="stat"><div className="stat-value">{stats.finished}</div><div className="stat-label">Finished</div></div>
+              <div className="stat"><div className="stat-value">{stats.due}</div><div className="stat-label">To recall</div></div>
+            </> : <>
+              <div className="stat"><div className="stat-value">{entries.filter(e => !e.hidden && e.kind === "textbook").length}</div><div className="stat-label">Textbooks</div></div>
+              <div className="stat"><div className="stat-value">{entries.filter(e => !e.hidden && e.kind === "course").length}</div><div className="stat-label">Courses</div></div>
+              <div className="stat"><div className="stat-value">{stats.active}</div><div className="stat-label">In progress</div></div>
+              <div className="stat"><div className="stat-value">{stats.finished}</div><div className="stat-label">Finished</div></div>
+            </>}
           </div>
 
           <div className="shelf-filters">
             <div className="seg" role="tablist" aria-label="Show">
-              {SHELF_FILTERS.map(f => (
+              {SHELF_FILTERS[category].map(f => (
                 <button key={f.id} role="tab" aria-selected={filter === f.id} className={filter === f.id ? "on" : ""} onClick={() => setFilter(f.id)}>{f.label}</button>
               ))}
             </div>
           </div>
 
-          <div className="shelf-grid">
+          <div className={`shelf-grid ${category}`}>
             {shown.map(e => (
               <ShelfCard key={e.key} entry={e}
                 onOpen={() => openEntry(e)}
-                onSetTotal={() => setEditing({ entry: e })}
                 onEdit={() => setEditing({ entry: e })}
                 onBump={(d) => bump(e, d)}
                 onHide={() => setHidden(e, true)}
                 onRemove={() => act("shelf/remove", { id: e.item.id })}/>
             ))}
             {filter === "all" && (
-              <button className="shelf-add" onClick={() => setEditing({ entry: null })}>
+              <button className="shelf-add" onClick={add}>
                 <Icon name="plus" size={22}/>
-                <span>Add a book or course</span>
+                <span>{SHELF_CATEGORIES[category].add}</span>
               </button>
             )}
           </div>
@@ -143,7 +168,7 @@ export default function Shelf({ recall: startRecall = false }) {
                 {showHidden ? "Done" : `Hidden from the shelf (${hidden.length})`}
               </button>
               {showHidden && (
-                <div className="shelf-grid" style={{ marginTop: 16, textAlign: "left" }}>
+                <div className={`shelf-grid ${category}`} style={{ marginTop: 16, textAlign: "left" }}>
                   {hidden.map(e => (
                     <ShelfCard key={e.key} entry={e} dim
                       onOpen={() => setHidden(e, false)} onEdit={() => setEditing({ entry: e })}
@@ -157,19 +182,30 @@ export default function Shelf({ recall: startRecall = false }) {
       )}
 
       {open && <ItemPanel key={open.id} item={open} now={nav.now} onClose={() => setOpenId(null)}
-        onEdit={() => setEditing({ entry: entries.find(e => e.item?.id === open.id) })}
+        onEdit={() => setEditing({ entry: all.find(e => e.item?.id === open.id) })}
         onRecall={() => setRecallQueue([open.id])}/>}
-      {editing && <ShelfForm entry={editing.entry} onClose={() => setEditing(null)}
-        onCreated={(id, standalone) => { setEditing(null); if (standalone) setOpenId(id); }}/>}
-      {importing && <ImportAeroShelf onClose={() => setImporting(false)}/>}
+      {editing && <ShelfForm entry={editing.entry} category={editing.entry?.category || category} onClose={() => setEditing(null)}
+        onSaved={(item, created) => {
+          setEditing(null);
+          if (categoryOf(item.kind) !== category) setCategory(categoryOf(item.kind));
+          if (item.kind !== "reading") setOpenId(null);
+          else if (created) setOpenId(item.id);
+        }}/>}
       {recallQueue && <RecallSession queue={recallQueue} onClose={() => setRecallQueue(null)}/>}
     </div>
   );
 }
 
-function ShelfCard({ entry: e, dim, onOpen, onEdit, onBump, onHide, onRemove, onSetTotal }) {
+function ShelfCard({ entry: e, dim, onOpen, onEdit, onBump, onHide, onRemove }) {
   const [confirming, setConfirming] = useState(false);
   const stop = (fn) => (ev) => { ev.stopPropagation(); fn(); };
+  const reading = e.category === "reading";
+  const status = STATUS[e.category];
+  const progress = e.total
+    ? `${e.done} / ${e.total} ${e.unit}`
+    : e.finished ? (e.finishedAt ? monthYear(e.finishedAt) : "Done")
+    : e.want ? status.want
+    : e.done ? `${e.done} ${e.unit} ${reading ? "read" : "done"}` : "Not started";
   return (
     <article className={`shelf-card${dim ? " dim" : ""}`}>
       <div className="shelf-cover" onClick={onOpen} role="button" tabIndex={0}
@@ -177,7 +213,7 @@ function ShelfCard({ entry: e, dim, onOpen, onEdit, onBump, onHide, onRemove, on
         onKeyDown={(ev) => { if (ev.key === "Enter") onOpen(); }}>
         <Cover src={e.cover} title={e.title}/>
         {e.finished && <span className="shelf-done"><Icon name="check" size={13}/>Finished</span>}
-        {e.want && <span className="shelf-done quiet">Want to read</span>}
+        {e.want && <span className="shelf-done quiet">{status.want}</span>}
         {e.recallDue && !dim && <span className="shelf-due">Recall</span>}
         <div className="shelf-acts">
           <button className="shelf-act" title="Edit" aria-label="Edit" onClick={stop(onEdit)}><Icon name="edit" size={15}/></button>
@@ -192,32 +228,33 @@ function ShelfCard({ entry: e, dim, onOpen, onEdit, onBump, onHide, onRemove, on
       </div>
       <div className="shelf-body">
         <div className="shelf-title">{e.title}</div>
-        {(e.author || e.rating > 0) && (
+        {reading && (e.author || e.rating > 0) && (
           <div className="shelf-byline">
             {e.author && <span className="ell">{e.author}</span>}
             {e.rating > 0 && <Stars value={e.rating} size={11}/>}
           </div>
         )}
-        {e.description && <div className="shelf-desc">{e.description}</div>}
         <div className="shelf-foot">
           <div className="shelf-prog">
-            <span>{e.total ? `${e.done} / ${e.total} ${e.unit}` : e.finished ? (e.finishedAt ? new Date(e.finishedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "Done") : e.done ? `${e.done} ${e.unit} read` : `No ${e.unit} yet`}</span>
+            <span>{progress}</span>
             {e.total > 0
               ? <span>{pct(e.pct)}</span>
-              : !dim && !e.finished && onSetTotal && <button className="shelf-link" onClick={onSetTotal}>Set total</button>}
+              : !dim && !e.finished && !e.want && <button className="shelf-link" onClick={onEdit}>Set total</button>}
           </div>
           <Bar value={e.pct} tone={e.finished ? "good" : undefined} thin/>
-          <div className="shelf-step">
-            <button className="btn btn-sm btn-icon" disabled={dim || e.done <= e.read} onClick={() => onBump(-1)} aria-label={`One ${e.unit.replace(/s$/, "")} less`}>−</button>
-            {e.linked ? (
-              <span className="shelf-meta" title="Chapters read and mastery in Tenax">
-                <Icon name="link" size={12}/>{e.read} read{e.mastery != null && e.read > 0 ? ` · ${pct(e.mastery)} mastered` : ""}
-              </span>
-            ) : (
-              <span>{e.finished ? "Finished" : `Log ${e.unit}`}</span>
-            )}
-            <button className="btn btn-sm btn-icon" disabled={dim || (e.total > 0 && e.done >= e.total)} onClick={() => onBump(1)} aria-label={`One more ${e.unit.replace(/s$/, "")}`}>+</button>
-          </div>
+          {!reading && (
+            <div className="shelf-step">
+              <button className="btn btn-sm btn-icon" disabled={dim || e.done <= e.read} onClick={() => onBump(-1)} aria-label={`One ${e.unit.replace(/s$/, "")} less`}>−</button>
+              {e.linked ? (
+                <span className="shelf-meta" title="Chapters read and mastery in Tenax">
+                  <Icon name="link" size={12}/>{e.read} read{e.mastery != null && e.read > 0 ? ` · ${pct(e.mastery)} mastered` : ""}
+                </span>
+              ) : (
+                <span>{e.finished ? "Finished" : `Log ${e.unit}`}</span>
+              )}
+              <button className="btn btn-sm btn-icon" disabled={dim || (e.total > 0 && e.done >= e.total)} onClick={() => onBump(1)} aria-label={`One more ${e.unit.replace(/s$/, "")}`}>+</button>
+            </div>
+          )}
         </div>
       </div>
       {confirming && (
@@ -253,7 +290,7 @@ function useDraft(item, act) {
   return [draft, change];
 }
 
-/** A book or course you track yourself: status, progress, rating, notes and recall. */
+/** A book you're reading: status, pages, rating, notes and recall. */
 function ItemPanel({ item, now, onClose, onEdit, onRecall }) {
   const { act } = useStore();
   const [draft, change] = useDraft(item, act);
@@ -261,7 +298,7 @@ function ItemPanel({ item, now, onClose, onEdit, onRecall }) {
   const patch = (p) => act("shelf/update", { id: item.id, patch: p });
   const finished = itemFinished(item);
   const status = item.status === "want" && !finished ? "want" : finished ? "finished" : "active";
-  const unit = item.unitLabel || "chapters";
+  const unit = item.unitLabel || "pages";
 
   return (
     <Drawer onClose={onClose} title={item.title} subtitle={item.author || undefined}
@@ -270,8 +307,8 @@ function ItemPanel({ item, now, onClose, onEdit, onRecall }) {
         <Cover src={item.cover} title={item.title} className="panel-cover"/>
         <div className="stack" style={{ gap: 12, minWidth: 0 }}>
           <div className="seg" role="group" aria-label="Status">
-            {Object.entries(SHELF_STATUS).map(([k, v]) => (
-              <button key={k} className={status === k ? "on" : ""} onClick={() => patch({ status: k })}>{v.label}</button>
+            {Object.entries(STATUS.reading).map(([k, label]) => (
+              <button key={k} className={status === k ? "on" : ""} onClick={() => patch({ status: k })}>{label}</button>
             ))}
           </div>
           {status !== "want" && (
@@ -333,18 +370,18 @@ function ItemPanel({ item, now, onClose, onEdit, onRecall }) {
   );
 }
 
-function ShelfForm({ entry, onClose, onCreated }) {
+function ShelfForm({ entry, category, onClose, onSaved }) {
   const { state, act } = useStore();
   const item = entry?.item || null;
-  const [kind, setKind] = useState(entry?.kind || "book");
+  const linkedAlready = Boolean(entry?.course);
+  const [kind, setKind] = useState(entry?.kind || (category === "reading" ? "reading" : "textbook"));
   const [title, setTitle] = useState(entry?.title || "");
   const [author, setAuthor] = useState(entry?.author || "");
   const [cover, setCover] = useState(entry?.cover || null);
-  const [description, setDescription] = useState(entry?.description || "");
   const [courseId, setCourseId] = useState(entry?.course?.id || "");
   const [status, setStatus] = useState(entry ? (entry.want ? "want" : entry.finished ? "finished" : "active") : "active");
-  const [unitLabel, setUnitLabel] = useState(entry?.unit || SHELF_KINDS[entry?.kind || "book"].unit);
-  const [unitTouched, setUnitTouched] = useState(Boolean(entry));
+  const [unitLabel, setUnitLabel] = useState(entry && entry.category === "study" ? entry.unit : SHELF_KINDS[kind].unit);
+  const [unitTouched, setUnitTouched] = useState(Boolean(entry && entry.category === "study"));
   const [total, setTotal] = useState(item?.total || "");
   const [done, setDone] = useState(entry?.done ?? 0);
   const [error, setError] = useState("");
@@ -352,12 +389,21 @@ function ShelfForm({ entry, onClose, onCreated }) {
   const [over, setOver] = useState(false);
   const fileRef = useRef(null);
 
-  const course = state.courses.find(c => c.id === courseId) || null;
+  const reading = kind === "reading";
+  // Books are counted in pages, unless one of yours was already counted another way.
+  const readingUnit = entry?.category === "reading" && entry.unit ? entry.unit : "pages";
+  const course = reading ? null : state.courses.find(c => c.id === courseId) || null;
   // A course can be on the shelf once.
   const taken = new Set(state.shelf.filter(it => it.courseId && it.id !== item?.id).map(it => it.courseId));
   const options = state.courses.filter(c => c.kind !== "notes" && (!taken.has(c.id) || c.id === courseId));
+  // Adding shows the kinds of the part of the shelf you're on; a book or course
+  // of your own can be moved to the other part when you edit it.
+  const kinds = Object.keys(SHELF_KINDS).filter(k => (item && !linkedAlready ? true : categoryOf(k) === (entry?.category || category)));
 
-  const pickKind = (k) => { setKind(k); if (!unitTouched) setUnitLabel(SHELF_KINDS[k].unit); };
+  const pickKind = (k) => {
+    setKind(k);
+    if (k !== "reading" && !unitTouched) setUnitLabel(SHELF_KINDS[k].unit);
+  };
   const pickCourse = (id) => {
     setCourseId(id);
     const c = state.courses.find(x => x.id === id);
@@ -375,41 +421,44 @@ function ShelfForm({ entry, onClose, onCreated }) {
     if (!t) return setError("Give it a title.");
     const tot = Math.max(0, parseInt(total, 10) || 0);
     const fields = {
-      kind, cover, description: description.trim(), author: kind === "book" ? author.trim() : "",
+      kind, cover, author: reading ? author.trim() : "",
       title: course && t === course.name ? "" : t, // follows the course's name unless you changed it
-      unitLabel: unitLabel.trim() || SHELF_KINDS[kind].unit,
+      unitLabel: reading ? readingUnit : unitLabel.trim() || SHELF_KINDS[kind].unit,
       total: tot,
-      done: Math.max(0, tot ? Math.min(tot, parseInt(done, 10) || 0) : parseInt(done, 10) || 0),
+      done: status === "want" ? 0 : Math.max(0, tot ? Math.min(tot, parseInt(done, 10) || 0) : parseInt(done, 10) || 0),
       courseId: course?.id ?? null,
       ...(course ? {} : { status }),
     };
-    if (item) { act("shelf/update", { id: item.id, patch: fields }); onClose(); return; }
+    if (item) { act("shelf/update", { id: item.id, patch: fields }); onSaved({ ...item, ...fields }, false); return; }
     const created = makeShelfItem(fields);
     act("shelf/add", { item: created });
-    onCreated(created.id, !course);
+    onSaved(created, true);
   };
 
+  const statuses = STATUS[categoryOf(kind)];
   return (
-    <Modal title={entry ? "Edit" : "Add to your shelf"} onClose={onClose} width={580}
+    <Modal title={entry ? "Edit" : reading ? "Add a book" : "Add a textbook or course"} onClose={onClose} width={580}
       footer={<>
         <button className="btn btn-quiet" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={busy}>{entry ? "Save changes" : "Add to shelf"}</button>
       </>}>
-      <div className="shelf-form-top">
-        <div className="field">
-          <span className="label">Type</span>
-          <div className="seg">
-            {Object.entries(SHELF_KINDS).map(([k, v]) => (
-              <button key={k} type="button" className={kind === k ? "on" : ""} onClick={() => pickKind(k)}>{v.label}</button>
-            ))}
+      <div className={kinds.length > 1 ? "shelf-form-top" : undefined}>
+        {kinds.length > 1 && (
+          <div className="field">
+            <span className="label">Type</span>
+            <div className="seg">
+              {kinds.map(k => (
+                <button key={k} type="button" className={kind === k ? "on" : ""} onClick={() => pickKind(k)}>{SHELF_KINDS[k].label}</button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         <div className="field">
           <label htmlFor="shelf-title">Title</label>
           <input id="shelf-title" className="input" value={title} autoFocus={!entry} onChange={e => setTitle(e.target.value)}/>
         </div>
       </div>
-      {kind === "book" && (
+      {reading && (
         <div className="field">
           <label htmlFor="shelf-author">Author</label>
           <input id="shelf-author" className="input" value={author} onChange={e => setAuthor(e.target.value)}/>
@@ -419,7 +468,7 @@ function ShelfForm({ entry, onClose, onCreated }) {
         <span className="label">Cover</span>
         {cover ? (
           <div className="shelf-cover-edit">
-            <Cover src={cover} title={title} className="edit-cover"/>
+            <Cover src={cover} title={title} className={`edit-cover${reading ? " portrait" : ""}`}/>
             <button type="button" className="btn btn-sm" onClick={() => setCover(null)}><Icon name="x" size={14}/>Remove</button>
           </div>
         ) : (
@@ -432,39 +481,39 @@ function ShelfForm({ entry, onClose, onCreated }) {
         )}
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { takeFile(e.target.files?.[0]); e.target.value = ""; }}/>
       </div>
-      <div className="field">
-        <label htmlFor="shelf-desc">What it's about</label>
-        <textarea id="shelf-desc" className="textarea" style={{ minHeight: 64 }} value={description} onChange={e => setDescription(e.target.value)}/>
-      </div>
-      <div className="field">
-        <label htmlFor="shelf-course">Tenax course</label>
-        <select id="shelf-course" className="select" value={courseId} onChange={e => pickCourse(e.target.value)}>
-          <option value="">None: track progress here</option>
-          {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
+      {!reading && (
+        <div className="field">
+          <label htmlFor="shelf-course">Tenax course</label>
+          <select id="shelf-course" className="select" value={courseId} onChange={e => pickCourse(e.target.value)}>
+            <option value="">None: track progress here</option>
+            {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
       {!course && (
         <div className="field">
           <span className="label">Status</span>
           <div className="seg" style={{ alignSelf: "flex-start" }}>
-            {Object.entries(SHELF_STATUS).map(([k, v]) => (
-              <button key={k} type="button" className={status === k ? "on" : ""} onClick={() => setStatus(k)}>{v.label}</button>
+            {Object.entries(statuses).map(([k, label]) => (
+              <button key={k} type="button" className={status === k ? "on" : ""} onClick={() => setStatus(k)}>{label}</button>
             ))}
           </div>
         </div>
       )}
       <div className="shelf-form-row">
+        {!reading && (
+          <div className="field">
+            <label htmlFor="shelf-unit">Counted in</label>
+            <input id="shelf-unit" className="input" value={unitLabel} onChange={e => { setUnitLabel(e.target.value); setUnitTouched(true); }}/>
+          </div>
+        )}
         <div className="field">
-          <label htmlFor="shelf-unit">Counted in</label>
-          <input id="shelf-unit" className="input" value={unitLabel} onChange={e => { setUnitLabel(e.target.value); setUnitTouched(true); }}/>
-        </div>
-        <div className="field">
-          <label htmlFor="shelf-total">Total</label>
+          <label htmlFor="shelf-total">{reading ? readingUnit[0].toUpperCase() + readingUnit.slice(1) : "Total"}</label>
           <input id="shelf-total" className="input" type="number" min="0" value={total} onChange={e => setTotal(e.target.value)}/>
         </div>
         {status !== "want" && (
           <div className="field">
-            <label htmlFor="shelf-done">Done so far</label>
+            <label htmlFor="shelf-done">{reading ? "Read so far" : "Done so far"}</label>
             <input id="shelf-done" className="input" type="number" min="0" value={done} onChange={e => setDone(e.target.value)}/>
           </div>
         )}
@@ -538,86 +587,6 @@ function RecallSession({ queue, onClose }) {
             ))}
           </div>
         </>
-      )}
-    </Modal>
-  );
-}
-
-function ImportAeroShelf({ onClose }) {
-  const { state, act } = useStore();
-  const [found, setFound] = useState(null); // { items, file } | { error }
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef(null);
-
-  useEffect(() => {
-    let alive = true;
-    const miss = { error: "AeroShelf's data isn't on this computer." };
-    Promise.resolve(legacyBridge()?.legacy())
-      .then(r => { if (alive) setFound(r?.ok ? { items: r.items, file: r.file } : r?.error ? { error: r.error } : miss); })
-      .catch(() => { if (alive) setFound(miss); });
-    return () => { alive = false; };
-  }, []);
-
-  const readFile = (file) => {
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        const data = JSON.parse(String(r.result));
-        const items = Array.isArray(data) ? data : data?.as_items;
-        if (!Array.isArray(items)) throw new Error();
-        setFound({ items, file: file.name });
-      } catch { setFound({ error: "That file isn't AeroShelf's data (its config.json)." }); }
-    };
-    r.readAsText(file);
-  };
-
-  const plan = found?.items ? fromAeroShelf(found.items, state) : null;
-
-  const run = async () => {
-    setBusy(true);
-    const items = [];
-    for (const it of plan.items) {
-      let cover = it.cover;
-      if (cover) { try { cover = await shrinkImage(cover); } catch { cover = null; } }
-      items.push({ ...it, cover });
-    }
-    act("shelf/import", { items });
-    act("settings", { patch: { aeroshelfImportedAt: Date.now() } });
-    onClose();
-  };
-
-  return (
-    <Modal title="Import from AeroShelf" onClose={onClose}
-      footer={<>
-        <button className="btn btn-quiet" onClick={onClose}>{plan && !plan.items.length ? "Close" : "Cancel"}</button>
-        {plan?.items.length > 0 && (
-          <button className="btn btn-primary" onClick={run} disabled={busy}>{busy ? <Spinner/> : <Icon name="download" size={15}/>}Import {plan.items.length}</button>
-        )}
-      </>}>
-      {!found && <p className="muted"><Spinner/> Looking for AeroShelf's data…</p>}
-      {found?.error && (
-        <div className="stack" style={{ gap: 12 }}>
-          <Notice icon="info">{found.error} On the computer you used it on, it's <code>%APPDATA%\aeroshelf\config.json</code>.</Notice>
-          <div><button className="btn" onClick={() => fileRef.current?.click()}><Icon name="upload" size={15}/>Choose the file…</button></div>
-          <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={e => { readFile(e.target.files?.[0]); e.target.value = ""; }}/>
-        </div>
-      )}
-      {plan && (
-        <div className="stack" style={{ gap: 10 }}>
-          <p>
-            {plan.items.length
-              ? <>Found <strong>{plan.items.length}</strong> {plan.items.length === 1 ? "book or course" : "books and courses"} to add, with their covers and progress.</>
-              : "Everything in AeroShelf is already on your shelf."}
-            {plan.skipped > 0 && plan.items.length > 0 && <span className="muted"> {plan.skipped} already on your shelf {plan.skipped === 1 ? "is" : "are"} skipped.</span>}
-          </p>
-          {plan.linked.length > 0 && (
-            <p className="small">
-              Linked to your Tenax courses, so their progress comes from Tenax:{" "}
-              {plan.linked.map(l => l.course).join(", ")}.
-            </p>
-          )}
-        </div>
       )}
     </Modal>
   );

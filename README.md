@@ -24,7 +24,7 @@
 - **Written answers, graded.** You answer in your own words. Claude checks each key point, quotes what you wrote, and shows the model answer and the passage from your source.
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
 - **Notes.** Jot down things you learn outside a course. Each note becomes new concepts, extra questions on something you already study, or nothing if it isn't worth remembering, without inflating a course's totals.
-- **Shelf.** Every book and course you're working through, with covers, progress and star ratings. Tenax courses show up on their own; add anything else, like a novel or a video course, by hand. For those you can jot down what it's about, what you thought and the ideas worth keeping, and every so often Tenax asks what you remember before showing your notes again: a few days later, then further apart each time it sticks.
+- **Shelf.** Two shelves in one. **Reading** is for books you read for fun: covers, pages, star ratings, and a few notes in your own words (what it's about, what you thought, ideas worth keeping); every so often Tenax asks what you remember before showing your notes again, a few days later, then further apart each time it sticks. **Textbooks & courses** is for what you study: your Tenax courses show up on their own, and anything else you add by hand and count chapter by chapter.
 - **Knowledge map.** A sky of solar systems: each book is a sun with its name beneath it, its chapters are orbits, and its concepts are planets going round, lit up as you master them. Links between ideas stretch between the planets, across books too. Point at a planet and the sky stops; click it to glide over and open it.
 - **Every computer, one library.** Sync through a folder your cloud drive already syncs (OneDrive, Dropbox, Google Drive). No server, no account.
 
@@ -77,4 +77,4 @@ Electron main process (`electron.cjs`: storage, Claude calls with structured out
 
 ## History
 
-Tenax started as **AeroFlash**, a flashcard app, and was rebuilt around concepts, graded written answers and a daily time budget. **AeroShelf**, a separate tracker for books and courses ([Personal-Learning-Tracker](https://github.com/UnoVex11223/Personal-Learning-Tracker)), is now the Shelf page; its data can be imported from there in one click.
+Tenax started as **AeroFlash**, a flashcard app, and was rebuilt around concepts, graded written answers and a daily time budget. **AeroShelf**, a separate tracker for books and courses ([Personal-Learning-Tracker](https://github.com/UnoVex11223/Personal-Learning-Tracker)), became the Shelf page.

@@ -55,8 +55,6 @@ function apply(state, action) {
     // The shelf (see lib/shelf.js).
     case "shelf/add":
       return { ...state, shelf: [...state.shelf, updateShelfItem(action.item, {}, action.now ?? Date.now())] };
-    case "shelf/import":
-      return { ...state, shelf: [...state.shelf, ...action.items] };
     case "shelf/update":
       return { ...state, shelf: state.shelf.map(it => (it.id === action.id ? updateShelfItem(it, action.patch, action.now ?? Date.now()) : it)) };
     case "shelf/remove":

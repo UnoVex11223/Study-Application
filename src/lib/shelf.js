@@ -1,5 +1,5 @@
 // The shelf: every book and course you're working through, with its cover and
-// how far along you are (this used to be a separate app, AeroShelf).
+// how far along you are.
 //
 // Your Tenax courses are on it automatically, with progress taken from the
 // chapters you've read in Tenax (or what you log by hand, if that's more:
@@ -7,31 +7,33 @@
 // track, like a novel or a video course, is added by hand and counted with
 // + and −. A course built a chapter at a time has no known total until you
 // set one, so it's never shown as finished just because you're caught up.
-// A shelf item with a courseId dresses up a Tenax course (cover, description,
-// its own total); one without is a standalone entry.
+// A shelf item with a courseId dresses up a Tenax course (cover, its own
+// total); one without is a standalone entry.
 //
-// Standalone items (books you read for fun, a video course…) also keep notes
-// in your own words, a star rating and dates, and Tenax asks you to recall
-// them now and then (see lib/recall.js). This used to be a separate Reading tab.
+// Two categories: Reading (books you read for their own sake) and Textbooks &
+// courses (what you study). Reading books also keep notes in your own words,
+// a star rating and dates, and Tenax asks you to recall them now and then
+// (see lib/recall.js).
 
 import { uid, index } from "./model.js";
 import { courseMastery } from "./mastery.js";
 import { hasNotes, firstRecall } from "./recall.js";
 
 export const SHELF_KINDS = {
-  book: { label: "Book", unit: "chapters" },
-  course: { label: "Course", unit: "modules" },
+  reading: { label: "Book", unit: "pages", category: "reading" },
+  textbook: { label: "Textbook", unit: "chapters", category: "study" },
+  course: { label: "Course", unit: "modules", category: "study" },
 };
 
-export const SHELF_STATUS = {
-  active: { label: "In progress" },
-  finished: { label: "Finished" },
-  want: { label: "Want to read" },
+export const SHELF_CATEGORIES = {
+  reading: { label: "Reading", add: "Add a book" },
+  study: { label: "Textbooks & courses", add: "Add a textbook or course" },
 };
+export const categoryOf = (kind) => SHELF_KINDS[kind]?.category ?? "study";
 
 export const makeShelfItem = (fields = {}) => ({
-  id: uid("sh"), kind: "book", title: "", author: "", description: "", cover: null,
-  unitLabel: "chapters", total: 0, done: 0, courseId: null, hidden: false,
+  id: uid("sh"), kind: "reading", title: "", author: "", description: "", cover: null,
+  unitLabel: SHELF_KINDS[fields.kind]?.unit || "pages", total: 0, done: 0, courseId: null, hidden: false,
   status: "active", rating: 0, thoughts: "", ideas: "", recall: null, startedAt: null, finishedAt: null,
   createdAt: Date.now(), ...fields,
 });
@@ -52,7 +54,7 @@ export function updateShelfItem(it, patch, now = Date.now()) {
   if (is && !next.finishedAt) next.finishedAt = now;
   if (!is && was && patch.finishedAt == null) next.finishedAt = null;
   if (next.status !== "want" && !next.startedAt && ((next.done || 0) > 0 || patch.status === "active")) next.startedAt = now;
-  if (!next.courseId && !next.recall && hasNotes(next)) next.recall = firstRecall(now);
+  if (next.kind === "reading" && !next.courseId && !next.recall && hasNotes(next)) next.recall = firstRecall(now);
   return next;
 }
 
@@ -72,8 +74,8 @@ const isFinished = (e) => e.total > 0 && e.done >= e.total;
 /**
  * Everything on the shelf, ready to show: your items, plus every Tenax course
  * that doesn't have one yet. Each entry:
- * { key, item | null, course | null, title, kind, description, cover, unit,
- *   total, done, pct, finished, linked, mastery, hidden }
+ * { key, item | null, course | null, title, kind, category, description, cover,
+ *   unit, total, done, pct, finished, linked, mastery, hidden }
  */
 export function shelfEntries(state, now = Date.now()) {
   const ix = index(state);
@@ -91,8 +93,8 @@ export function shelfEntries(state, now = Date.now()) {
     return {
       key: item ? item.id : `course:${course.id}`, item: item || null, course,
       title: item?.title || course.name,
-      kind: item?.kind || (booky ? "book" : "course"),
-      description: item?.description || "",
+      kind: item && categoryOf(item.kind) === "study" ? item.kind : booky ? "textbook" : "course",
+      description: "",
       cover: item?.cover || null,
       unit: item?.unitLabel || "chapters",
       total, done, read, linked: true, hidden: Boolean(item?.hidden),
@@ -108,18 +110,20 @@ export function shelfEntries(state, now = Date.now()) {
     if (course && course.kind !== "notes") { out.push(fromCourse(course, it)); continue; }
     const finished = itemFinished(it);
     out.push({
-      key: it.id, item: it, course: null, title: it.title, kind: it.kind, description: it.description || "",
+      key: it.id, item: it, course: null, title: it.title, kind: it.kind,
+      description: it.kind === "reading" ? it.description || "" : "",
       cover: it.cover || null, unit: it.unitLabel || SHELF_KINDS[it.kind]?.unit || "chapters",
       total: it.total || 0, done: it.total > 0 ? Math.min(it.done || 0, it.total) : (it.done || 0), read: 0, linked: false, hidden: Boolean(it.hidden),
       mastery: null, author: it.author || "", rating: it.rating || 0,
       want: it.status === "want" && !finished, finishedFlag: finished,
-      recallDue: Boolean(hasNotes(it) && it.recall && it.recall.due <= now),
+      recallDue: Boolean(it.kind === "reading" && hasNotes(it) && it.recall && it.recall.due <= now),
       createdAt: it.createdAt, finishedAt: it.finishedAt || null,
     });
   }
   for (const c of courses) if (!byCourse.has(c.id)) out.push(fromCourse(c, null));
 
   for (const e of out) {
+    e.category = categoryOf(e.kind);
     e.finished = e.finishedFlag ?? isFinished(e);
     e.pct = e.total > 0 ? e.done / e.total : e.finished ? 1 : 0;
     delete e.finishedFlag;
@@ -144,63 +148,17 @@ export function shelfStats(entries) {
   };
 }
 
-export const SHELF_FILTERS = [
-  { id: "all", label: "All", test: () => true },
-  { id: "book", label: "Books", test: (e) => e.kind === "book" },
-  { id: "course", label: "Courses", test: (e) => e.kind === "course" },
-  { id: "active", label: "In progress", test: (e) => !e.finished && !e.want },
-  { id: "done", label: "Finished", test: (e) => e.finished },
-  { id: "want", label: "Want to read", test: (e) => e.want },
-];
+const ALL = { id: "all", label: "All", test: () => true };
+const ACTIVE = { id: "active", label: "In progress", test: (e) => !e.finished && !e.want };
+const DONE = { id: "done", label: "Finished", test: (e) => e.finished };
 
-// ── Importing from AeroShelf ────────────────────────────────────────────────
-const norm = (s) => String(s || "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
-
-/** A Tenax course with (nearly) the same title, if there is exactly one. */
-function matchCourse(title, courses) {
-  const t = norm(title);
-  if (!t) return null;
-  const exact = courses.filter(c => norm(c.name) === t);
-  if (exact.length === 1) return exact[0];
-  if (t.length < 6) return null;
-  const close = courses.filter(c => {
-    const n = norm(c.name);
-    return n.length >= 6 && (n.includes(t) || t.includes(n));
-  });
-  return close.length === 1 ? close[0] : null;
-}
-
-/**
- * AeroShelf's items (its `as_items`) as shelf items. Items already on the shelf
- * (same title) are skipped; ones matching a Tenax course are linked to it.
- * Returns { items, linked: [{ title, course }], skipped }.
- */
-export function fromAeroShelf(raw, state) {
-  const list = Array.isArray(raw) ? raw : Array.isArray(raw?.as_items) ? raw.as_items : [];
-  const courses = state.courses.filter(c => c.kind !== "notes");
-  const ix = index(state);
-  // Already on the shelf as an item of its own. (A Tenax course that's only on
-  // the shelf automatically isn't: the AeroShelf item links to it instead.)
-  const taken = new Set(state.shelf.map(it => norm(it.title || ix.course[it.courseId]?.name)));
-  const linkedCourses = new Set(state.shelf.map(it => it.courseId).filter(Boolean));
-  const items = [], linked = [];
-  let skipped = 0;
-  for (const a of list) {
-    const title = String(a?.title || "").trim();
-    if (!title || taken.has(norm(title))) { skipped++; continue; }
-    taken.add(norm(title));
-    const kind = a.kind === "course" ? "course" : "book";
-    const total = Math.max(0, Math.floor(Number(a.total) || 0));
-    const course = matchCourse(title, courses.filter(c => !linkedCourses.has(c.id)));
-    if (course) { linkedCourses.add(course.id); linked.push({ title, course: course.name }); }
-    items.push(makeShelfItem({
-      kind, title, description: String(a.description || "").trim(),
-      cover: typeof a.image === "string" && a.image.startsWith("data:image/") ? a.image : null,
-      unitLabel: String(a.unitLabel || "").trim() || SHELF_KINDS[kind].unit,
-      total, done: Math.max(0, Math.min(total, Math.floor(Number(a.done) || 0))),
-      courseId: course?.id ?? null,
-      createdAt: Number(a.createdAt) || Date.now(),
-    }));
-  }
-  return { items, linked, skipped };
-}
+/** The filters for each category of the shelf. */
+export const SHELF_FILTERS = {
+  reading: [ALL, ACTIVE, DONE, { id: "want", label: "Want to read", test: (e) => e.want }],
+  study: [
+    ALL,
+    { id: "textbook", label: "Textbooks", test: (e) => e.kind === "textbook" },
+    { id: "course", label: "Courses", test: (e) => e.kind === "course" },
+    ACTIVE, DONE,
+  ],
+};

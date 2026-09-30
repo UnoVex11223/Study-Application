@@ -170,22 +170,6 @@ function autoBackup(now = new Date()) {
   } catch { /* best effort: a failed backup never blocks the app */ }
 }
 
-// ── AeroShelf (the old shelf app) ───────────────────────────────────────────
-// Its items, read once so they can be imported onto the Tenax shelf.
-ipcMain.handle("shelf:legacy", () => {
-  for (const name of ["aeroshelf", "AeroShelf"]) {
-    const file = path.join(app.getPath("appData"), name, "config.json");
-    if (!fs.existsSync(file)) continue;
-    try {
-      const data = JSON.parse(fs.readFileSync(file, "utf8"));
-      return { ok: true, file, items: Array.isArray(data?.as_items) ? data.as_items : [] };
-    } catch {
-      return { ok: false, file, error: "AeroShelf's data file couldn't be read." };
-    }
-  }
-  return { ok: false, error: "AeroShelf's data isn't on this computer." };
-});
-
 ipcMain.handle("backup:info", () => {
   autoBackup();
   const files = fs.existsSync(backupsDir()) ? fs.readdirSync(backupsDir()).filter(f => BACKUP_NAME.test(f)).sort() : [];

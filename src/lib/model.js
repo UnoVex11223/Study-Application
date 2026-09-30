@@ -20,7 +20,7 @@
 
 import { newSrs, RATING } from "./fsrs.js";
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const ABILITIES = {
   recall:      { label: "Recall",      estSec: 25, rank: 0, blurb: "Produce a term, fact or definition from memory" },
@@ -75,7 +75,7 @@ export function emptyState() {
 function shelfFromReading(b, id) {
   const finished = b.status === "finished";
   return {
-    id, kind: "book", title: b.title || "", author: b.author || "", cover: b.cover || null,
+    id, kind: "reading", title: b.title || "", author: b.author || "", cover: b.cover || null,
     description: b.about || "", thoughts: b.thoughts || "", ideas: b.ideas || "",
     unitLabel: "pages", total: b.totalPages || 0, done: finished && b.totalPages ? b.totalPages : (b.currentPage || 0),
     status: b.status === "want" ? "want" : finished ? "finished" : "active", rating: b.rating || 0,
@@ -127,6 +127,15 @@ export function normalizeState(s) {
   delete out.reading;
   for (const [id, ts] of Object.entries(out.tombstones)) {
     if (id.startsWith("rb_") && !(out.tombstones[`sh_${id}`] >= ts)) out.tombstones = { ...out.tombstones, [`sh_${id}`]: ts };
+  }
+  // v8: the shelf split into Reading and Textbooks & courses. A "book" linked
+  // to a Tenax course is a textbook, and so is one brought over from AeroShelf
+  // (counted in chapters, no author or notes); one from the old Reading tab, or
+  // with an author, a rating or your thoughts, is reading. (You can move either.)
+  if (out.shelf.some(it => it.kind === "book")) {
+    const reading = (it) => !it.courseId && (String(it.id).startsWith("sh_rb_") || it.unitLabel === "pages"
+      || Boolean(it.author || it.rating || it.thoughts || it.ideas || it.status === "want"));
+    out.shelf = out.shelf.map(it => (it.kind === "book" ? { ...it, kind: reading(it) ? "reading" : "textbook" } : it));
   }
   out.version = SCHEMA_VERSION;
   return out;

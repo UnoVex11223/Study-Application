@@ -249,15 +249,3 @@ test("sync folder: saving the library writes this computer's copy there", async 
   await handlers["sync:stop"]();
   assert.equal((await handlers["sync:status"]()).enabled, false);
 });
-
-test("AeroShelf's items are read from its data folder for importing", async () => {
-  const assert = require("assert/strict");
-  assert.deepEqual(await handlers["shelf:legacy"](), { ok: false, error: "AeroShelf's data isn't on this computer." });
-  fs.mkdirSync(path.join(appData, "aeroshelf"), { recursive: true });
-  fs.writeFileSync(path.join(appData, "aeroshelf", "config.json"), JSON.stringify({ as_items: [{ id: "a1", title: "Dune", total: 48, done: 3 }] }));
-  const r = await handlers["shelf:legacy"]();
-  assert.equal(r.ok, true);
-  assert.equal(r.items[0].title, "Dune");
-  fs.writeFileSync(path.join(appData, "aeroshelf", "config.json"), "{ broken");
-  assert.equal((await handlers["shelf:legacy"]()).ok, false);
-});

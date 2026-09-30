@@ -1,4 +1,4 @@
-// Recall for things on your shelf: a few notes in your own words (what it's
+// Recall for the books you read: a few notes in your own words (what it's
 // about, what you thought, ideas worth keeping), and every so often Tenax asks
 // what you remember before showing you those notes again. Recalls are spaced
 // out further each time you remember well, so a finished book comes up a
@@ -38,10 +38,10 @@ export function nextRecall(recall, rating, now = Date.now()) {
   };
 }
 
-/** Shelf items to recall now (with notes, not linked to a Tenax course), most overdue first. */
+/** Reading books to recall now (with notes, not linked to a Tenax course), most overdue first. */
 export function dueForRecall(items, now = Date.now()) {
   return items
-    .filter(it => !it.courseId && !it.hidden && hasNotes(it) && it.recall && it.recall.due <= now)
+    .filter(it => it.kind === "reading" && !it.courseId && !it.hidden && hasNotes(it) && it.recall && it.recall.due <= now)
     .sort((a, b) => a.recall.due - b.recall.due);
 }
 
