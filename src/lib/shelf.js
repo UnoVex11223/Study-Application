@@ -111,7 +111,7 @@ export function shelfEntries(state, now = Date.now()) {
       cover: it.cover || null, unit: it.unitLabel || SHELF_KINDS[it.kind]?.unit || "chapters",
       total: it.total || 0, done: it.total > 0 ? Math.min(it.done || 0, it.total) : (it.done || 0), read: 0, linked: false, hidden: Boolean(it.hidden),
       mastery: null, author: it.author || "", rating: it.rating || 0,
-      want: it.status === "want" && !finished, finishedFlag: finished,
+      want: it.kind === "reading" && it.status === "want" && !finished, finishedFlag: finished,
       recallDue: Boolean(it.kind === "reading" && hasNotes(it) && it.recall && it.recall.due <= now),
       createdAt: it.createdAt, finishedAt: it.finishedAt || null,
     });

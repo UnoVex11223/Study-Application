@@ -146,7 +146,7 @@ Notes are reviewed and introduced like everything else, but they're their own sp
 The Shelf page shows every book, textbook and course you're working through as a card with a cover and how far along you are. The tabs across the top are All, **Reading** (books you read for their own sake), **Textbooks**, **Courses**, In progress and Finished; the stats row counts what's on the shelf, in progress, finished and due for a recall.
 
 - **Reading**: a book's author, pages read out of the total, a status (reading, finished, want to read), dates and, once finished, a star rating.
-- **Textbooks and courses**: your Tenax courses are on the shelf automatically (an imported book as a textbook, a course you built as a course; either can be changed in Edit). Anything else, like a video course or a textbook you aren't studying in Tenax, you add yourself and count with + and −. These cards show the cover and progress only, with no description.
+- **Textbooks and courses**: your Tenax courses are on the shelf automatically (an imported book as a textbook, a course you built as a course; either can be changed in Edit). Anything else, like a video course or a textbook you aren't studying in Tenax, you add yourself and count with + and −; it's in progress or finished. These cards show the cover and progress only, with no description.
 
 **Add to shelf** asks which kind it is (Book, Textbook or Course), starting with the tab you're on. Something you added yourself can be changed to another kind in Edit.
 

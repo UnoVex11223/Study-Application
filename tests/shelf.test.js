@@ -86,6 +86,8 @@ test("reading and study are separate: textbooks and courses have no description,
   assert.deepEqual(tab("reading"), ["Dune"]);
   assert.deepEqual(tab("textbook"), ["The C Programming Language"]);
   assert.deepEqual(tab("course"), ["CS50", "SQLite"]);
+  act("shelf/add", { item: makeShelfItem({ title: "SICP lectures", kind: "course", status: "want" }) });
+  assert.equal(shelfEntries(get(), T0).find(e => e.title === "SICP lectures").want, false, "only books are 'want to read'");
   const course = updateShelfItem(makeShelfItem({ title: "CS50", kind: "course" }), { description: "x", thoughts: "y" }, T0);
   assert.equal(course.recall, null, "only reading books come up for recall");
 });

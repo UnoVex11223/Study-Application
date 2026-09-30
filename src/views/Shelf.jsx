@@ -17,11 +17,12 @@ const initials = (t) => String(t || "?").split(/\s+/).filter(w => /^[\p{L}\p{N}]
 const longDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const monthYear = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 
-// "Want to read" is "Up next" for textbooks and courses.
+// "Want to read" is for books only.
 const STATUS = {
   reading: { active: "Reading", finished: "Finished", want: "Want to read" },
-  study: { active: "In progress", finished: "Finished", want: "Up next" },
+  study: { active: "In progress", finished: "Finished" },
 };
+const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 function Stars({ value, onChange, size = 15 }) {
   const [hover, setHover] = useState(0);
@@ -342,16 +343,15 @@ function ItemPanel({ item, now, onClose, onEdit, onRecall }) {
 }
 
 function ShelfForm({ entry, startKind, onClose, onSaved }) {
-  const { state, act } = useStore();
+  const { act } = useStore();
   const item = entry?.item || null;
   const linkedAlready = Boolean(entry?.course);
   const [kind, setKind] = useState(entry?.kind || startKind);
   const [title, setTitle] = useState(entry?.title || "");
   const [author, setAuthor] = useState(entry?.author || "");
   const [cover, setCover] = useState(entry?.cover || null);
-  const [courseId, setCourseId] = useState(entry?.course?.id || "");
   const [status, setStatus] = useState(entry ? (entry.want ? "want" : entry.finished ? "finished" : "active") : "active");
-  const [unitLabel, setUnitLabel] = useState(entry && entry.category === "study" ? entry.unit : SHELF_KINDS[kind].unit);
+  const [unitLabel, setUnitLabel] = useState(capitalize(entry && entry.category === "study" ? entry.unit : SHELF_KINDS[kind].unit));
   const [unitTouched, setUnitTouched] = useState(Boolean(entry && entry.category === "study"));
   const [total, setTotal] = useState(item?.total || "");
   const [done, setDone] = useState(entry?.done ?? 0);
@@ -363,21 +363,16 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
   const reading = kind === "reading";
   // Books are counted in pages, unless one of yours was already counted another way.
   const readingUnit = entry?.category === "reading" && entry.unit ? entry.unit : "pages";
-  const course = reading ? null : state.courses.find(c => c.id === courseId) || null;
-  // A course can be on the shelf once.
-  const taken = new Set(state.shelf.filter(it => it.courseId && it.id !== item?.id).map(it => it.courseId));
-  const options = state.courses.filter(c => c.kind !== "notes" && (!taken.has(c.id) || c.id === courseId));
+  // Tenax courses are on the shelf by themselves; editing one keeps it linked.
+  const course = entry?.course || null;
+  const statuses = STATUS[categoryOf(kind)];
+  const shownStatus = statuses[status] ? status : "active";
   // A Tenax course is a textbook or a course; anything else can be any kind.
   const kinds = Object.keys(SHELF_KINDS).filter(k => !linkedAlready || categoryOf(k) === "study");
 
   const pickKind = (k) => {
     setKind(k);
-    if (k !== "reading" && !unitTouched) setUnitLabel(SHELF_KINDS[k].unit);
-  };
-  const pickCourse = (id) => {
-    setCourseId(id);
-    const c = state.courses.find(x => x.id === id);
-    if (c && !title.trim()) setTitle(c.name);
+    if (k !== "reading" && !unitTouched) setUnitLabel(capitalize(SHELF_KINDS[k].unit));
   };
   const takeFile = async (file) => {
     if (!file) return;
@@ -390,14 +385,17 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
     const t = title.trim() || course?.name || "";
     if (!t) return setError("Give it a title.");
     const tot = Math.max(0, parseInt(total, 10) || 0);
+    const unit = unitLabel.trim();
+    const st = shownStatus;
     const fields = {
       kind, cover, author: reading ? author.trim() : "",
       title: course && t === course.name ? "" : t, // follows the course's name unless you changed it
-      unitLabel: reading ? readingUnit : unitLabel.trim() || SHELF_KINDS[kind].unit,
+      // Shown capitalized here; cards read "4 / 12 chapters".
+      unitLabel: reading ? readingUnit : /^(chapters|modules)$/i.test(unit) ? unit.toLowerCase() : unit || SHELF_KINDS[kind].unit,
       total: tot,
-      done: status === "want" ? 0 : Math.max(0, tot ? Math.min(tot, parseInt(done, 10) || 0) : parseInt(done, 10) || 0),
+      done: st === "want" ? 0 : Math.max(0, tot ? Math.min(tot, parseInt(done, 10) || 0) : parseInt(done, 10) || 0),
       courseId: course?.id ?? null,
-      ...(course ? {} : { status }),
+      ...(course ? {} : { status: st }),
     };
     if (item) { act("shelf/update", { id: item.id, patch: fields }); onSaved({ ...item, ...fields }, false); return; }
     const created = makeShelfItem(fields);
@@ -405,7 +403,6 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
     onSaved(created, true);
   };
 
-  const statuses = STATUS[categoryOf(kind)];
   return (
     <Modal title={entry ? "Edit" : "Add to your shelf"} onClose={onClose} width={580}
       footer={<>
@@ -451,21 +448,12 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
         )}
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { takeFile(e.target.files?.[0]); e.target.value = ""; }}/>
       </div>
-      {!reading && (
-        <div className="field">
-          <label htmlFor="shelf-course">Tenax course</label>
-          <select id="shelf-course" className="select" value={courseId} onChange={e => pickCourse(e.target.value)}>
-            <option value="">None: track progress here</option>
-            {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      )}
       {!course && (
         <div className="field">
           <span className="label">Status</span>
           <div className="seg" style={{ alignSelf: "flex-start" }}>
             {Object.entries(statuses).map(([k, label]) => (
-              <button key={k} type="button" className={status === k ? "on" : ""} onClick={() => setStatus(k)}>{label}</button>
+              <button key={k} type="button" className={shownStatus === k ? "on" : ""} onClick={() => setStatus(k)}>{label}</button>
             ))}
           </div>
         </div>
@@ -478,10 +466,10 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
           </div>
         )}
         <div className="field">
-          <label htmlFor="shelf-total">{reading ? readingUnit[0].toUpperCase() + readingUnit.slice(1) : "Total"}</label>
+          <label htmlFor="shelf-total">{reading ? capitalize(readingUnit) : "Total"}</label>
           <input id="shelf-total" className="input" type="number" min="0" value={total} onChange={e => setTotal(e.target.value)}/>
         </div>
-        {status !== "want" && (
+        {shownStatus !== "want" && (
           <div className="field">
             <label htmlFor="shelf-done">{reading ? "Read so far" : "Done so far"}</label>
             <input id="shelf-done" className="input" type="number" min="0" value={done} onChange={e => setDone(e.target.value)}/>
