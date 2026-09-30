@@ -1,7 +1,7 @@
 // Merging copies of your library from several computers (see the sync folder
 // in electron.cjs). Each computer writes its own copy; on start-up and every
 // few minutes, the others' copies are merged into this one:
-//   • records (courses, sections, concepts, questions, links, notes, imports, shelf):
+//   • records (courses, sections, concepts, questions, links, notes, imports, shelf, reading):
 //     the newest version of each wins, by updatedAt
 //   • deletions: a record deleted after its last edit elsewhere stays deleted
 //   • review history: combined from all computers
@@ -10,7 +10,7 @@
 
 import { normalizeState, SCHEMA_VERSION } from "./model.js";
 
-const COLLECTIONS = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf"];
+const COLLECTIONS = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf", "reading"];
 const MAX_ATTEMPTS = 30000;
 
 const attemptKey = (a) => `${a.ts}|${a.itemId}|${a.mode || ""}|${a.rating ?? ""}`;

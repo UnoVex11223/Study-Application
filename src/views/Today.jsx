@@ -1,5 +1,6 @@
 import { useStore } from "../state/store.jsx";
 import { useSync } from "../state/sync.jsx";
+import { dueBooks } from "../lib/reading.js";
 import { Bar, StatusDot, Notice } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
@@ -59,6 +60,7 @@ export default function Today({ plan }) {
   const courses = state.courses.filter(c => c.status !== "paused" && c.kind !== "notes");
   const flagged = state.items.filter(i => i.flag).length;
   const inbox = state.notes.filter(n => n.status === "inbox").length;
+  const recallDue = dueBooks(state.reading, now).length;
   const dateLabel = new Date(now).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const doneToday = plan.tasks.length === 0 && plan.spentSec > 0;
 
@@ -170,6 +172,15 @@ export default function Today({ plan }) {
               <Icon name="note" size={18}/>
               <div className="grow">
                 <div className="list-title">{inbox} note{inbox === 1 ? "" : "s"} in your inbox</div>
+              </div>
+              <Icon name="chevron" size={16} className="muted"/>
+            </button>
+          )}
+          {recallDue > 0 && (
+            <button className="panel panel-pad notes-callout" onClick={() => nav.go("reading", { recall: true, at: Date.now() })}>
+              <Icon name="reading" size={18}/>
+              <div className="grow">
+                <div className="list-title">{recallDue} book{recallDue === 1 ? "" : "s"} to recall</div>
               </div>
               <Icon name="chevron" size={16} className="muted"/>
             </button>

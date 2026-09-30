@@ -6,6 +6,7 @@ import { mergeEdges } from "../lib/graph.js";
 import { dayKey } from "../lib/time.js";
 import { LEECH_LAPSES, DISPUTE_LIMIT } from "../lib/quality.js";
 import { mergeStates } from "../lib/sync.js";
+import { updateBook, nextRecall } from "../lib/reading.js";
 
 const MAX_ATTEMPTS = 30000;
 
@@ -59,6 +60,27 @@ function apply(state, action) {
       return { ...state, shelf: state.shelf.map(it => (it.id === action.id ? { ...it, ...action.patch } : it)) };
     case "shelf/remove":
       return { ...state, shelf: state.shelf.filter(it => it.id !== action.id) };
+
+    // Reading (see lib/reading.js).
+    case "reading/add":
+      return { ...state, reading: [...state.reading, updateBook(action.book, {}, action.now ?? Date.now())] };
+    case "reading/update":
+      return { ...state, reading: state.reading.map(b => (b.id === action.id ? updateBook(b, action.patch, action.now ?? Date.now()) : b)) };
+    case "reading/remove":
+      return { ...state, reading: state.reading.filter(b => b.id !== action.id) };
+    case "reading/recall": {
+      const now = action.now ?? Date.now();
+      return { ...state, reading: state.reading.map(b => {
+        if (b.id !== action.id) return b;
+        const note = (action.note || "").trim();
+        const day = new Date(now).toISOString().slice(0, 10);
+        return {
+          ...b,
+          recall: nextRecall(b.recall, action.rating, now),
+          ...(note ? { thoughts: `${(b.thoughts || "").trim()}${b.thoughts?.trim() ? "\n\n" : ""}${day}: ${note}` } : {}),
+        };
+      }) };
+    }
 
     case "section/update":
       return { ...state, sections: state.sections.map(s => (s.id === action.id ? { ...s, ...action.patch } : s)) };
@@ -243,7 +265,7 @@ function apply(state, action) {
 // several computers uses these to keep the newest version of each record and
 // to carry deletions across. Loads, restores and merges aren't user edits and
 // aren't stamped.
-const TRACKED = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf"];
+const TRACKED = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf", "reading"];
 // A restore ("replace") *is* tracked: every restored record counts as edited
 // now and everything else as deleted, so the restore wins on your other
 // computers too instead of being overridden by their newer copies.

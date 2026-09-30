@@ -151,6 +151,12 @@ Covers are scaled down to 560px JPEGs (tens of KB) before they're saved, so they
 
 **Importing from AeroShelf:** Shelf → Import from AeroShelf reads AeroShelf's data from `%APPDATA%\aeroshelf\config.json` on the computer you used it on (or a copy of that file you pick). Items with the same title as a Tenax course are linked to it; anything already on the shelf is skipped, so importing twice adds nothing. Import on one computer; sync takes it to the others.
 
+### Reading
+
+The Reading tab is for books you read for their own sake rather than study: novels, popular science, biographies. Each book has a cover, author, status (reading, finished, want to read), pages read, dates, a star rating once finished, and three short notes in your own words: **What it's about**, **What I thought** and **Ideas worth keeping** (they save as you type).
+
+Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the book's notes, dated, so your thoughts build up over time. Due recalls show on the Reading tab, as a count in the sidebar and on Today; they're extra practice, separate from the daily session and its time budget. No AI is involved, so recalls cost nothing.
+
 ### Preparing material with another AI
 
 The extractor handles raw chapters well; the most useful prep is simply splitting a book by chapter and adding each one as you finish it. If you do pre-process, keep: definitions, explanations with the "why", worked examples (code included, with a sentence on what it demonstrates), explicit comparisons, and common mistakes. Drop exercises' instructions, cross-references and chapter intros.
@@ -175,7 +181,7 @@ Data saved before per-concept scheduling is converted on first load: each concep
 
 Settings → Sync across computers. Pick a folder your cloud drive already syncs (one click for OneDrive; Dropbox or Google Drive via "Choose a folder…") and do the same on each computer. There's no server and no account: each computer keeps working on its own local copy, also writes it as `tenax-<computer>-<id>.json.gz` into that folder when you leave the app (switch windows, minimize, close, lock or sleep) and at most every 5 minutes while you keep studying, so the cloud drive gets a handful of uploads a day rather than one per answer, and reads the other computers' files on start-up, every 3 minutes and whenever the window gets focus. Each computer only ever writes its own file, so the cloud drive never has to resolve a conflict.
 
-Merging works record by record: for every course, chapter, concept, question, link, note, import and shelf item, the most recently edited version wins; a deletion wins over edits made before it; review history is combined from all computers; settings come from whichever computer changed them last. Restoring a backup counts as an edit, so it carries over to the other computers instead of being undone by them; resetting deletes everywhere (both warnings say so when sync is on). A copy written by a newer version of Tenax is skipped (Settings says which computer to update) rather than merged by code that doesn't understand it.
+Merging works record by record: for every course, chapter, concept, question, link, note, import, shelf item and book, the most recently edited version wins; a deletion wins over edits made before it; review history is combined from all computers; settings come from whichever computer changed them last. Restoring a backup counts as an edit, so it carries over to the other computers instead of being undone by them; resetting deletes everywhere (both warnings say so when sync is on). A copy written by a newer version of Tenax is skipped (Settings says which computer to update) rather than merged by code that doesn't understand it.
 
 Size: one compressed file per computer, overwritten each time (it doesn't grow with each sync). Under 1 KB per question once compressed, so about 10–15 MB for a library the size of 20 books; review history is capped at the last 30,000 reviews.
 
@@ -193,9 +199,9 @@ This version starts from an empty library. The first time it runs, anything save
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates
 sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, sync (merging)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, reading, shelf, sync (merging)
 src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
-src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, KnowledgeMap, Progress, TeachBack, Settings
+src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Reading, Shelf, KnowledgeMap, Progress, TeachBack, Settings
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```
 

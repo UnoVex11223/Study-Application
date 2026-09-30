@@ -9,6 +9,8 @@ import { SyncProvider, useSync } from "./state/sync.jsx";
 import ImportBook from "./views/ImportBook.jsx";
 import Notes from "./views/Notes.jsx";
 import Shelf from "./views/Shelf.jsx";
+import Reading from "./views/Reading.jsx";
+import { dueBooks } from "./lib/reading.js";
 import { useKey } from "./ui/nav.js";
 import { buildPlan } from "./lib/planner.js";
 import Today from "./views/Today.jsx";
@@ -33,6 +35,7 @@ const NAV_GROUPS = [
     { id: "map", label: "Knowledge map", icon: "map" },
   ],
   [
+    { id: "reading", label: "Reading", icon: "reading" },
     { id: "shelf", label: "Shelf", icon: "shelf" },
   ],
 ];
@@ -64,6 +67,7 @@ function Shell() {
 
   const plan = useMemo(() => (state ? buildPlan(state, { now }) : null), [state, now]);
   const inboxCount = state ? state.notes.filter(n => n.status === "inbox").length : 0;
+  const recallCount = state ? dueBooks(state.reading, now).length : 0;
   // Ctrl+Shift+N: capture a note from anywhere.
   useKey((e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "N" || e.key === "n")) {
@@ -93,6 +97,7 @@ function Shell() {
       ? <Notes/> : <Course courseId={route.courseId} key={route.courseId}/>; break;
     case "notes": page = <Notes/>; break;
     case "shelf": page = <Shelf/>; break;
+    case "reading": page = <Reading key={route.recall ? `recall-${route.at}` : "reading"} recall={Boolean(route.recall)}/>; break;
     case "import": page = <AddMaterial courseId={route.courseId}/>; break;
     case "book": page = <ImportBook courseId={route.courseId}/>; break;
     case "teach": page = <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>; break;
@@ -114,6 +119,7 @@ function Shell() {
                   <Icon name={n.icon}/>{n.label}
                   {n.id === "today" && plan?.tasks.length > 0 && <span className="nav-count">{plan.tasks.length}</span>}
                   {n.id === "notes" && inboxCount > 0 && <span className="nav-count" title="Notes waiting to be processed">{inboxCount}</span>}
+                  {n.id === "reading" && recallCount > 0 && <span className="nav-count" title="Books to recall">{recallCount}</span>}
                 </button>
               ))}
             </div>
