@@ -1,15 +1,15 @@
-// The shelf, in two parts: Reading (books you read for their own sake) and
-// Textbooks & courses (what you study; Tenax courses are on it automatically,
-// see lib/shelf.js). Reading books also keep notes in your own words, a
-// rating, and a recall now and then: say what you remember, then compare with
-// your notes (see lib/recall.js).
+// The shelf: books you read for their own sake, textbooks and courses, each
+// with its own tab (Tenax courses are on it automatically, see lib/shelf.js).
+// Reading books also keep notes in your own words, a rating, and a recall now
+// and then: say what you remember, then compare with your notes (see
+// lib/recall.js).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import { Bar, Drawer, Modal, Spinner } from "../ui/ui.jsx";
 import Icon from "../ui/Icon.jsx";
-import { shelfEntries, shelfStats, SHELF_FILTERS, SHELF_KINDS, SHELF_CATEGORIES, categoryOf, makeShelfItem, itemFinished } from "../lib/shelf.js";
+import { shelfEntries, shelfStats, SHELF_FILTERS, SHELF_KINDS, categoryOf, makeShelfItem, itemFinished } from "../lib/shelf.js";
 import { dueForRecall, recallWhen, hasNotes, RECALL_RATINGS } from "../lib/recall.js";
 import { shrinkImage } from "../lib/image.js";
 
@@ -22,10 +22,6 @@ const STATUS = {
   reading: { active: "Reading", finished: "Finished", want: "Want to read" },
   study: { active: "In progress", finished: "Finished", want: "Up next" },
 };
-
-// The part of the shelf you looked at last.
-const CATEGORY_KEY = "tenax.shelfCategory";
-const savedCategory = () => { try { return localStorage.getItem(CATEGORY_KEY) === "study" ? "study" : "reading"; } catch { return "reading"; } };
 
 function Stars({ value, onChange, size = 15 }) {
   const [hover, setHover] = useState(0);
@@ -53,26 +49,18 @@ function Cover({ src, title, className = "" }) {
 export default function Shelf({ recall: startRecall = false }) {
   const { state, act } = useStore();
   const nav = useNav();
-  const [category, setCategoryState] = useState(() => (startRecall ? "reading" : savedCategory()));
   const [filter, setFilter] = useState("all");
   const [showHidden, setShowHidden] = useState(false);
   const [editing, setEditing] = useState(null); // null | { entry } (entry null = new)
   const [openId, setOpenId] = useState(null);
   const [recallQueue, setRecallQueue] = useState(() => (startRecall ? dueForRecall(state.shelf, Date.now()).map(it => it.id) : null));
 
-  const setCategory = (c) => {
-    setCategoryState(c); setFilter("all"); setShowHidden(false);
-    try { localStorage.setItem(CATEGORY_KEY, c); } catch { /* remembered for this visit only */ }
-  };
-
-  const all = useMemo(() => shelfEntries(state, nav.now), [state, nav.now]);
-  const entries = all.filter(e => e.category === category);
+  const entries = useMemo(() => shelfEntries(state, nav.now), [state, nav.now]);
   const stats = shelfStats(entries);
   const due = dueForRecall(state.shelf, nav.now);
-  const test = SHELF_FILTERS[category].find(f => f.id === filter).test;
-  const shown = entries.filter(e => !e.hidden && test(e));
+  const tab = SHELF_FILTERS.find(f => f.id === filter);
+  const shown = entries.filter(e => !e.hidden && tab.test(e));
   const hidden = entries.filter(e => e.hidden);
-  const reading = category === "reading";
   const open = state.shelf.find(it => it.id === openId && it.kind === "reading" && !it.courseId) || null;
   const add = () => setEditing({ entry: null });
 
@@ -87,7 +75,7 @@ export default function Shelf({ recall: startRecall = false }) {
     ? act("shelf/update", { id: e.item.id, patch: { hidden: hide } })
     : act("shelf/add", { item: makeShelfItem({ courseId: e.course.id, kind: e.kind, unitLabel: e.unit, hidden: hide }) }));
   const openEntry = (e) => (e.course ? nav.go("course", { courseId: e.course.id })
-    : e.category === "reading" ? setOpenId(e.item.id)
+    : e.kind === "reading" ? setOpenId(e.item.id)
     : setEditing({ entry: e }));
 
   return (
@@ -95,56 +83,40 @@ export default function Shelf({ recall: startRecall = false }) {
       <div className="page-head">
         <div><h1>Shelf</h1></div>
         <div className="row">
-          {reading && due.length > 0 && (
+          {due.length > 0 && (
             <button className="btn" onClick={() => setRecallQueue(due.map(it => it.id))}>
               <Icon name="play" size={12}/>Recall {due.length}
             </button>
           )}
-          <button className="btn btn-primary" onClick={add}><Icon name="plus" size={16}/>{SHELF_CATEGORIES[category].add}</button>
+          <button className="btn btn-primary" onClick={add}><Icon name="plus" size={16}/>Add to shelf</button>
         </div>
-      </div>
-
-      <div className="seg shelf-tabs" role="tablist" aria-label="Shelf">
-        {Object.entries(SHELF_CATEGORIES).map(([k, v]) => (
-          <button key={k} role="tab" aria-selected={category === k} className={category === k ? "on" : ""} onClick={() => setCategory(k)}>
-            {v.label}
-            {k === "reading" && due.length > 0 && <span className="shelf-tab-count">{due.length}</span>}
-          </button>
-        ))}
       </div>
 
       {entries.length === 0 ? (
         <div className="panel empty">
-          <h3>{reading ? "No books yet" : "No textbooks or courses yet"}</h3>
+          <h3>Your shelf is empty</h3>
           <div className="row" style={{ justifyContent: "center" }}>
-            <button className="btn btn-primary" onClick={add}><Icon name="plus" size={16}/>{SHELF_CATEGORIES[category].add}</button>
+            <button className="btn btn-primary" onClick={add}><Icon name="plus" size={16}/>Add to shelf</button>
           </div>
         </div>
       ) : (
         <>
           <div className="stats" style={{ marginBottom: 22 }}>
-            {reading ? <>
-              <div className="stat"><div className="stat-value">{stats.count}</div><div className="stat-label">Books</div></div>
-              <div className="stat"><div className="stat-value">{stats.active}</div><div className="stat-label">In progress</div></div>
-              <div className="stat"><div className="stat-value">{stats.finished}</div><div className="stat-label">Finished</div></div>
-              <div className="stat"><div className="stat-value">{stats.due}</div><div className="stat-label">To recall</div></div>
-            </> : <>
-              <div className="stat"><div className="stat-value">{entries.filter(e => !e.hidden && e.kind === "textbook").length}</div><div className="stat-label">Textbooks</div></div>
-              <div className="stat"><div className="stat-value">{entries.filter(e => !e.hidden && e.kind === "course").length}</div><div className="stat-label">Courses</div></div>
-              <div className="stat"><div className="stat-value">{stats.active}</div><div className="stat-label">In progress</div></div>
-              <div className="stat"><div className="stat-value">{stats.finished}</div><div className="stat-label">Finished</div></div>
-            </>}
+            <div className="stat"><div className="stat-value">{stats.count}</div><div className="stat-label">On the shelf</div></div>
+            <div className="stat"><div className="stat-value">{stats.active}</div><div className="stat-label">In progress</div></div>
+            <div className="stat"><div className="stat-value">{stats.finished}</div><div className="stat-label">Finished</div></div>
+            <div className="stat"><div className="stat-value">{stats.due}</div><div className="stat-label">To recall</div></div>
           </div>
 
           <div className="shelf-filters">
             <div className="seg" role="tablist" aria-label="Show">
-              {SHELF_FILTERS[category].map(f => (
+              {SHELF_FILTERS.map(f => (
                 <button key={f.id} role="tab" aria-selected={filter === f.id} className={filter === f.id ? "on" : ""} onClick={() => setFilter(f.id)}>{f.label}</button>
               ))}
             </div>
           </div>
 
-          <div className={`shelf-grid ${category}`}>
+          <div className="shelf-grid">
             {shown.map(e => (
               <ShelfCard key={e.key} entry={e}
                 onOpen={() => openEntry(e)}
@@ -153,14 +125,14 @@ export default function Shelf({ recall: startRecall = false }) {
                 onHide={() => setHidden(e, true)}
                 onRemove={() => act("shelf/remove", { id: e.item.id })}/>
             ))}
-            {filter === "all" && (
+            {(filter === "all" || tab.kind) && (
               <button className="shelf-add" onClick={add}>
                 <Icon name="plus" size={22}/>
-                <span>{SHELF_CATEGORIES[category].add}</span>
+                <span>{tab.kind ? `Add a ${SHELF_KINDS[tab.kind].label.toLowerCase()}` : "Add to shelf"}</span>
               </button>
             )}
           </div>
-          {shown.length === 0 && filter !== "all" && <p className="muted small" style={{ textAlign: "center", marginTop: 28 }}>Nothing here yet.</p>}
+          {shown.length === 0 && !tab.kind && filter !== "all" && <p className="muted small" style={{ textAlign: "center", marginTop: 28 }}>Nothing here yet.</p>}
 
           {hidden.length > 0 && (
             <div style={{ marginTop: 28, textAlign: "center" }}>
@@ -168,7 +140,7 @@ export default function Shelf({ recall: startRecall = false }) {
                 {showHidden ? "Done" : `Hidden from the shelf (${hidden.length})`}
               </button>
               {showHidden && (
-                <div className={`shelf-grid ${category}`} style={{ marginTop: 16, textAlign: "left" }}>
+                <div className="shelf-grid" style={{ marginTop: 16, textAlign: "left" }}>
                   {hidden.map(e => (
                     <ShelfCard key={e.key} entry={e} dim
                       onOpen={() => setHidden(e, false)} onEdit={() => setEditing({ entry: e })}
@@ -182,12 +154,11 @@ export default function Shelf({ recall: startRecall = false }) {
       )}
 
       {open && <ItemPanel key={open.id} item={open} now={nav.now} onClose={() => setOpenId(null)}
-        onEdit={() => setEditing({ entry: all.find(e => e.item?.id === open.id) })}
+        onEdit={() => setEditing({ entry: entries.find(e => e.item?.id === open.id) })}
         onRecall={() => setRecallQueue([open.id])}/>}
-      {editing && <ShelfForm entry={editing.entry} category={editing.entry?.category || category} onClose={() => setEditing(null)}
+      {editing && <ShelfForm entry={editing.entry} startKind={tab.kind || "reading"} onClose={() => setEditing(null)}
         onSaved={(item, created) => {
           setEditing(null);
-          if (categoryOf(item.kind) !== category) setCategory(categoryOf(item.kind));
           if (item.kind !== "reading") setOpenId(null);
           else if (created) setOpenId(item.id);
         }}/>}
@@ -370,11 +341,11 @@ function ItemPanel({ item, now, onClose, onEdit, onRecall }) {
   );
 }
 
-function ShelfForm({ entry, category, onClose, onSaved }) {
+function ShelfForm({ entry, startKind, onClose, onSaved }) {
   const { state, act } = useStore();
   const item = entry?.item || null;
   const linkedAlready = Boolean(entry?.course);
-  const [kind, setKind] = useState(entry?.kind || (category === "reading" ? "reading" : "textbook"));
+  const [kind, setKind] = useState(entry?.kind || startKind);
   const [title, setTitle] = useState(entry?.title || "");
   const [author, setAuthor] = useState(entry?.author || "");
   const [cover, setCover] = useState(entry?.cover || null);
@@ -396,9 +367,8 @@ function ShelfForm({ entry, category, onClose, onSaved }) {
   // A course can be on the shelf once.
   const taken = new Set(state.shelf.filter(it => it.courseId && it.id !== item?.id).map(it => it.courseId));
   const options = state.courses.filter(c => c.kind !== "notes" && (!taken.has(c.id) || c.id === courseId));
-  // Adding shows the kinds of the part of the shelf you're on; a book or course
-  // of your own can be moved to the other part when you edit it.
-  const kinds = Object.keys(SHELF_KINDS).filter(k => (item && !linkedAlready ? true : categoryOf(k) === (entry?.category || category)));
+  // A Tenax course is a textbook or a course; anything else can be any kind.
+  const kinds = Object.keys(SHELF_KINDS).filter(k => !linkedAlready || categoryOf(k) === "study");
 
   const pickKind = (k) => {
     setKind(k);
@@ -437,7 +407,7 @@ function ShelfForm({ entry, category, onClose, onSaved }) {
 
   const statuses = STATUS[categoryOf(kind)];
   return (
-    <Modal title={entry ? "Edit" : reading ? "Add a book" : "Add a textbook or course"} onClose={onClose} width={580}
+    <Modal title={entry ? "Edit" : "Add to your shelf"} onClose={onClose} width={580}
       footer={<>
         <button className="btn btn-quiet" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={busy}>{entry ? "Save changes" : "Add to shelf"}</button>

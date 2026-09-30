@@ -82,9 +82,10 @@ test("reading and study are separate: textbooks and courses have no description,
   assert.equal(by("Dune").description, "Spice.");
   assert.equal(by("CS50").category, "study");
   assert.equal(by("The C Programming Language").description, "", "no description on textbooks and courses");
-  const study = entries.filter(e => e.category === "study");
-  assert.deepEqual(study.filter(SHELF_FILTERS.study.find(f => f.id === "textbook").test).map(e => e.title), ["The C Programming Language"]);
-  assert.deepEqual(study.filter(SHELF_FILTERS.study.find(f => f.id === "course").test).map(e => e.title).sort(), ["CS50", "SQLite"]);
+  const tab = (id) => entries.filter(SHELF_FILTERS.find(f => f.id === id).test).map(e => e.title).sort();
+  assert.deepEqual(tab("reading"), ["Dune"]);
+  assert.deepEqual(tab("textbook"), ["The C Programming Language"]);
+  assert.deepEqual(tab("course"), ["CS50", "SQLite"]);
   const course = updateShelfItem(makeShelfItem({ title: "CS50", kind: "course" }), { description: "x", thoughts: "y" }, T0);
   assert.equal(course.recall, null, "only reading books come up for recall");
 });

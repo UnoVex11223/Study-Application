@@ -143,20 +143,22 @@ Notes are reviewed and introduced like everything else, but they're their own sp
 
 ### Shelf
 
-The Shelf page has two parts, switched at the top (it opens on whichever you used last):
+The Shelf page shows every book, textbook and course you're working through as a card with a cover and how far along you are. The tabs across the top are All, **Reading** (books you read for their own sake), **Textbooks**, **Courses**, In progress and Finished; the stats row counts what's on the shelf, in progress, finished and due for a recall.
 
-- **Reading**: books you read for their own sake. Each has a portrait cover, the author, pages read out of the total, a status (reading, finished, want to read), dates and, once finished, a star rating. Filters: in progress, finished, want to read.
-- **Textbooks & courses**: what you study. Your Tenax courses are on it automatically; anything else, like a video course or a textbook you aren't studying in Tenax, you add yourself and count with + and −. Each is a textbook or a course (an imported book shows up as a textbook, a course you built as a course; either can be changed in Edit). The cards show the cover and progress only, with no description. Filters: textbooks, courses, in progress, finished.
+- **Reading**: a book's author, pages read out of the total, a status (reading, finished, want to read), dates and, once finished, a star rating.
+- **Textbooks and courses**: your Tenax courses are on the shelf automatically (an imported book as a textbook, a course you built as a course; either can be changed in Edit). Anything else, like a video course or a textbook you aren't studying in Tenax, you add yourself and count with + and −. These cards show the cover and progress only, with no description.
+
+**Add to shelf** asks which kind it is (Book, Textbook or Course), starting with the tab you're on. Something you added yourself can be changed to another kind in Edit.
 
 Covers fill their box (cropped from the top down if the shapes differ) and are scaled down to 560px JPEGs (tens of KB) before they're saved, so they don't bloat your library or the sync folder.
 
 For a Tenax course, progress is the number of chapters read in Tenax (chapters of an imported book count once you mark them read) or the number you log yourself, whichever is higher, so chapters you read before you started using Tenax count too. An imported book knows how many chapters it has. A course you build a chapter at a time doesn't, so it shows "3 chapters done" with a Set total link rather than calling itself finished just because you've caught up. Hiding a course only takes it off the shelf (Hidden from the shelf at the bottom brings it back); deleting a course keeps its shelf card with the progress it had.
 
-A book or course you added yourself can be moved between the two parts: Edit → Type (Book, Textbook or Course). When the shelf was split, anything linked to a Tenax course or brought over from AeroShelf became a textbook, and books from the old Reading tab, or with an author, rating or notes, went under Reading.
+When books were split into reading and textbooks, anything linked to a Tenax course or brought over from AeroShelf became a textbook, and books from the old Reading tab, or with an author, rating or notes, became reading.
 
 **Notes, ratings and recall (Reading only).** Clicking a book opens three short notes in your own words: **What it's about**, **What I thought** and **Ideas worth keeping**; they save as you type. They aren't shown on the card, so they don't give the answer away before a recall. Textbooks and courses have none of this: the ones in Tenax have real questions instead.
 
-Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the notes, dated, so your thoughts build up over time. Due recalls show as a count on Shelf in the sidebar and on the Reading tab, a **Recall** button on the Reading page and a card on Today; they're extra practice, separate from the daily session and its time budget, and use no AI.
+Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the notes, dated, so your thoughts build up over time. Due recalls show as a count on Shelf in the sidebar, a **Recall** button on the Shelf page and a card on Today; they're extra practice, separate from the daily session and its time budget, and use no AI.
 
 ### Preparing material with another AI
 

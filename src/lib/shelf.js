@@ -10,10 +10,10 @@
 // A shelf item with a courseId dresses up a Tenax course (cover, its own
 // total); one without is a standalone entry.
 //
-// Two categories: Reading (books you read for their own sake) and Textbooks &
-// courses (what you study). Reading books also keep notes in your own words,
-// a star rating and dates, and Tenax asks you to recall them now and then
-// (see lib/recall.js).
+// Three kinds, each with its own tab: reading (books you read for their own
+// sake), textbooks and courses (what you study). Reading books also keep notes
+// in your own words, a star rating and dates, and Tenax asks you to recall
+// them now and then (see lib/recall.js).
 
 import { uid, index } from "./model.js";
 import { courseMastery } from "./mastery.js";
@@ -25,10 +25,6 @@ export const SHELF_KINDS = {
   course: { label: "Course", unit: "modules", category: "study" },
 };
 
-export const SHELF_CATEGORIES = {
-  reading: { label: "Reading", add: "Add a book" },
-  study: { label: "Textbooks & courses", add: "Add a textbook or course" },
-};
 export const categoryOf = (kind) => SHELF_KINDS[kind]?.category ?? "study";
 
 export const makeShelfItem = (fields = {}) => ({
@@ -148,17 +144,12 @@ export function shelfStats(entries) {
   };
 }
 
-const ALL = { id: "all", label: "All", test: () => true };
-const ACTIVE = { id: "active", label: "In progress", test: (e) => !e.finished && !e.want };
-const DONE = { id: "done", label: "Finished", test: (e) => e.finished };
-
-/** The filters for each category of the shelf. */
-export const SHELF_FILTERS = {
-  reading: [ALL, ACTIVE, DONE, { id: "want", label: "Want to read", test: (e) => e.want }],
-  study: [
-    ALL,
-    { id: "textbook", label: "Textbooks", test: (e) => e.kind === "textbook" },
-    { id: "course", label: "Courses", test: (e) => e.kind === "course" },
-    ACTIVE, DONE,
-  ],
-};
+/** The shelf's tabs. The kind tabs also set what "Add" starts with. */
+export const SHELF_FILTERS = [
+  { id: "all", label: "All", test: () => true },
+  { id: "reading", label: "Reading", kind: "reading", test: (e) => e.kind === "reading" },
+  { id: "textbook", label: "Textbooks", kind: "textbook", test: (e) => e.kind === "textbook" },
+  { id: "course", label: "Courses", kind: "course", test: (e) => e.kind === "course" },
+  { id: "active", label: "In progress", test: (e) => !e.finished && !e.want },
+  { id: "done", label: "Finished", test: (e) => e.finished },
+];
