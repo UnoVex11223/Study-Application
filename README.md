@@ -24,9 +24,8 @@
 - **Written answers, graded.** You answer in your own words. Claude checks each key point, quotes what you wrote, and shows the model answer and the passage from your source.
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
 - **Notes.** Jot down things you learn outside a course. Each note becomes new concepts, extra questions on something you already study, or nothing if it isn't worth remembering, without inflating a course's totals.
-- **Reading.** A log of the books you read for fun, with covers, pages and a star rating. Jot down what a book is about, what you thought and the ideas worth keeping, and every so often Tenax asks what you remember before showing your notes again: a few days after you write them, then further apart each time it sticks.
-- **Shelf.** Every book and course you're working through, with covers and progress. Tenax courses show up on their own; add anything else, like a novel or a video course, by hand.
-- **Knowledge map.** A sky of solar systems: each book is a star with its name at the centre, its chapters are orbits, and its concepts are planets going round, lit up as you master them. Links between ideas stretch between the planets, across books too. Point at a planet and the sky stops; click it to glide over and open it.
+- **Shelf.** Every book and course you're working through, with covers, progress and star ratings. Tenax courses show up on their own; add anything else, like a novel or a video course, by hand. For those you can jot down what it's about, what you thought and the ideas worth keeping, and every so often Tenax asks what you remember before showing your notes again: a few days later, then further apart each time it sticks.
+- **Knowledge map.** A sky of solar systems: each book is a sun with its name beneath it, its chapters are orbits, and its concepts are planets going round, lit up as you master them. Links between ideas stretch between the planets, across books too. Point at a planet and the sky stops; click it to glide over and open it.
 - **Every computer, one library.** Sync through a folder your cloud drive already syncs (OneDrive, Dropbox, Google Drive). No server, no account.
 
 | | |

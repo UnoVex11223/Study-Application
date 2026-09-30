@@ -32,7 +32,6 @@ const PATHS = {
   lock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></>,
   unlock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></>,
   note: <><path d="M5 4h10l4 4v12H5z"/><path d="M14 4v5h5M9 13h6M9 17h4"/></>,
-  reading: <><path d="M3 5.6c3-1.3 6-1.2 9 .9 3-2.1 6-2.2 9-.9v13.2c-3-1.3-6-1.2-9 .9-3-2.1-6-2.2-9-.9z"/><path d="M12 6.5v13.6"/></>,
   shelf: <><path d="M3 20.5h18"/><rect x="4.5" y="4.5" width="3.6" height="16" rx=".8"/><rect x="9.8" y="7.5" width="3.6" height="13" rx=".8"/><path d="M15.2 9.3l3.4-.9 2.9 11.2-3.4.9z"/><path d="M6.3 8v2M11.6 11v2"/></>,
   book: <><path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 1h13v-3"/><path d="M9 7h6"/></>,
 };

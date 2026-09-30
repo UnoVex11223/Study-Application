@@ -15,7 +15,8 @@ import ConceptPanel from "./ConceptPanel.jsx";
 import { index } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
 import { layeredLayout } from "../lib/graph.js";
-import { orbitalLayout, planetAt, systemBounds, seeded, TILT } from "../lib/orbits.js";
+import { orbitalLayout, planetAt, systemBounds, TILT } from "../lib/orbits.js";
+import { sunSprites, starTile, paintGalaxy } from "../ui/sky.js";
 
 const RADIUS = { core: 6, supporting: 4.6, detail: 3.6 };
 const SLIPPING = "#F2A65A";
@@ -25,26 +26,19 @@ const short = (n) => (n.length > MAX_LABEL ? `${n.slice(0, MAX_LABEL - 1)}…` :
 const stillPreferred = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-/** A tile of stars for the background, as an SVG data URL (same stars every time). */
-function starTile(size, count, salt, bright) {
-  let dots = "";
-  for (let i = 0; i < count; i++) {
-    const x = (seeded(`x${i}`, salt) * size).toFixed(1), y = (seeded(`y${i}`, salt) * size).toFixed(1);
-    const r = (0.35 + seeded(`r${i}`, salt) * 0.95).toFixed(2);
-    const o = (0.25 + seeded(`o${i}`, salt) * 0.75 * bright).toFixed(2);
-    const tint = seeded(`t${i}`, salt);
-    const fill = tint < 0.12 ? "#bcd0ff" : tint > 0.93 ? "#ffe2b8" : "#ffffff";
-    dots += `<circle cx='${x}' cy='${y}' r='${r}' fill='${fill}' fill-opacity='${o}'/>`;
-  }
-  return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>${dots}</svg>`)}")`;
-}
-const STARS_FAR = starTile(300, 70, 11, 0.6);
-const STARS_NEAR = starTile(520, 34, 23, 1);
-const STARS_TWINKLE = starTile(410, 18, 37, 1);
+// The starfield: three layers of stars at different depths (they drift at
+// different speeds as you move), the Milky Way behind them, and a faint
+// colour wash. Painted once per session and reused.
+let tiles = null;
+const starTiles = () => (tiles ||= {
+  far: starTile(640, 420, 11, { bright: 0.7, spikes: false }),
+  near: starTile(900, 70, 23, { bright: 1 }),
+  twinkle: starTile(700, 40, 37, { bright: 0.9, spikes: false }),
+});
 const NEBULA = [
-  "radial-gradient(ellipse 60% 45% at 18% 28%, rgba(111, 127, 212, .16), transparent 70%)",
-  "radial-gradient(ellipse 50% 40% at 82% 72%, rgba(162, 134, 204, .13), transparent 70%)",
-  "radial-gradient(ellipse 45% 35% at 62% 12%, rgba(94, 162, 191, .09), transparent 70%)",
+  "radial-gradient(ellipse 60% 45% at 18% 28%, rgba(111, 127, 212, .12), transparent 70%)",
+  "radial-gradient(ellipse 50% 40% at 82% 72%, rgba(162, 134, 204, .1), transparent 70%)",
+  "radial-gradient(ellipse 45% 35% at 62% 12%, rgba(94, 162, 191, .07), transparent 70%)",
 ];
 
 function withAlpha(hex, a) {
@@ -91,6 +85,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
   const canvasRef = useRef(null);
   const spaceRef = useRef(null);
   const twinkleRef = useRef(null);
+  const galaxyRef = useRef(null);
   const sceneRef = useRef(null);
   const cam = useRef({ x: 0, y: 0, k: 1 });
   const camAnim = useRef(null);         // { from, to (a view, or a function giving one), t0, ms }
@@ -152,7 +147,11 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       adj.get(a.id).add(b.id);
       adj.get(b.id).add(a.id);
     }
-    return { planets, byId, links, adj, systems: orbit?.systems || [], prereqMode, sky: scope === "all", showAllLabels: planets.length <= 60 };
+    // Each book is a sun, a little bigger the more it holds.
+    const perSystem = new Map();
+    for (const p of planets) perSystem.set(p.courseId, (perSystem.get(p.courseId) || 0) + 1);
+    const systems = (orbit?.systems || []).map(sys => ({ ...sys, sunR: 15 + Math.min(13, Math.sqrt(perSystem.get(sys.id) || 1) * 1.6) }));
+    return { planets, byId, links, adj, systems, prereqMode, sky: scope === "all", showAllLabels: planets.length <= 60 };
   }, [concepts, orbit, staticPos, state, ix, scope, prereqMode]);
 
   const bounds = useMemo(() => {
@@ -174,8 +173,14 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
     cam.current = v;
     dirty.current = true;
     // The stars drift a little as you move: far ones less than near ones.
-    if (spaceRef.current) spaceRef.current.style.backgroundPosition = `${v.x * 0.03}px ${v.y * 0.03}px, ${v.x * 0.08}px ${v.y * 0.08}px, 0 0, 0 0, 0 0`;
-    if (twinkleRef.current) twinkleRef.current.style.backgroundPosition = `${v.x * 0.055}px ${v.y * 0.055}px`;
+    if (spaceRef.current) spaceRef.current.style.backgroundPosition = `${v.x * 0.02}px ${v.y * 0.02}px, ${v.x * 0.07}px ${v.y * 0.07}px, 0 0, 0 0, 0 0`;
+    if (twinkleRef.current) twinkleRef.current.style.backgroundPosition = `${v.x * 0.045}px ${v.y * 0.045}px`;
+    const g = galaxyRef.current;
+    if (g) {
+      const { w, h } = size.current;
+      const clamp = (n, m) => Math.max(-m, Math.min(m, n));
+      g.style.transform = `translate(${clamp(v.x * 0.012, w * 0.05)}px, ${clamp(v.y * 0.012, h * 0.05)}px)`;
+    }
   }, []);
   /** Glide the camera; the target can be a function, to follow a moving planet. */
   const glideTo = useCallback((to, ms = 560) => {
@@ -238,6 +243,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       size.current = { w: r.width, h: r.height, dpr };
       canvas.width = Math.round(r.width * dpr);
       canvas.height = Math.round(r.height * dpr);
+      if (galaxyRef.current) paintGalaxy(galaxyRef.current, r.width * 1.1, r.height * 1.1, Math.min(1.5, dpr));
       if (!fitted.current) { const v = viewFor(bounds); if (v) { setCam(v); fitted.current = true; } }
       dirty.current = true;
     };
@@ -279,14 +285,25 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       const px = 1 / k;                 // one screen pixel, in map units
       const holdsFocus = (sys) => !focusId || s.planets.some(p => p.courseId === sys.id && isNear(p.id));
 
-      // Stars: a slowly breathing glow, and the chapter orbits around it.
-      const breathe = still ? 1 : 0.86 + 0.14 * Math.sin((now / 1000) * (2 * Math.PI / 8));
+      // Suns: a breathing corona and slowly turning rays, then the chapter orbits.
+      const secs = now / 1000;
+      const breathe = still ? 1 : 1 + 0.035 * Math.sin(secs * (2 * Math.PI / 7));
       for (const sys of s.systems) {
         const a = holdsFocus(sys) ? 1 : 1 - 0.6 * fade.mix;
-        const R = sys.rings[0].r * 1.1;
-        ctx.globalAlpha = a * breathe;
-        ctx.drawImage(glow(sys.color), sys.x - R, sys.y - R, R * 2, R * 2);
-        ctx.globalAlpha = a;
+        const sp = sunSprites(sys.color);
+        const R = sys.sunR * 5.2 * breathe;
+        ctx.globalAlpha = a * 0.95;
+        ctx.drawImage(sp.corona, sys.x - R, sys.y - R, R * 2, R * 2);
+        const rayR = sys.sunR * 4.4;
+        ctx.save();
+        ctx.translate(sys.x, sys.y);
+        ctx.rotate(still ? 0 : secs * 0.035);
+        ctx.globalAlpha = a * 0.85;
+        ctx.drawImage(sp.rays, -rayR, -rayR, rayR * 2, rayR * 2);
+        ctx.restore();
+      }
+      for (const sys of s.systems) {
+        ctx.globalAlpha = holdsFocus(sys) ? 1 : 1 - 0.6 * fade.mix;
         ctx.lineWidth = px;
         ctx.strokeStyle = "rgba(210, 218, 240, .09)";
         for (const ring of sys.rings) {
@@ -348,10 +365,11 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       }
       ctx.setLineDash([]);
 
-      // Planets, far side first, so nearer ones pass in front.
+      // Planets, far side first, so nearer ones pass in front; each sun sits between
+      // the planets behind it and the ones in front.
       const order = s.prereqMode ? s.planets : [...s.planets].sort((a, b) => a.depth - b.depth);
       const pulse = still ? 0.6 : 0.5 + 0.5 * Math.sin((now / 1000) * 2.6);
-      for (const p of order) {
+      const drawPlanet = (p) => {
         const r = p.r * (1 + 0.16 * p.depth);
         const a = focusId && !isNear(p.id) ? dimA : 1;
         if (p.look.halo) {
@@ -371,7 +389,21 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
           ctx.strokeStyle = "#fff";
           ctx.stroke();
         }
+      };
+      let sunsDrawn = s.systems.length === 0;
+      const drawSuns = () => {
+        for (const sys of s.systems) {
+          ctx.globalAlpha = holdsFocus(sys) ? 1 : 1 - 0.5 * fade.mix;
+          const body = sunSprites(sys.color).body, R = sys.sunR * (256 / 224) * (1 + (breathe - 1) * 0.4);
+          ctx.drawImage(body, sys.x - R, sys.y - R, R * 2, R * 2);
+        }
+        sunsDrawn = true;
+      };
+      for (const p of order) {
+        if (!sunsDrawn && p.depth >= 0) drawSuns();
+        drawPlanet(p);
       }
+      if (!sunsDrawn) drawSuns();
 
       // Names: book names first (they're kept readable when zoomed out), then
       // planet names by priority (the focus and its links, then core concepts,
@@ -382,9 +414,11 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
         placed.push([x0, y0, x1, y1]);
         return true;
       };
-      const fs = Math.max(13, 11.5 / k), lh = fs * 1.25;
+      // Text stays between comfortable on-screen sizes whatever the zoom.
+      const fs = Math.max(11.5 / k, Math.min(13, 20 / k)), lh = fs * 1.25;
+      const pfs = Math.max(10 / k, Math.min(10.5, 15 / k));
       const suns = s.systems.map(sys => {
-        const y0 = sys.y - ((sys.lines.length - 1) * lh) / 2 + fs * 0.35;
+        const y0 = sys.y + sys.sunR + 6 + fs;
         const half = Math.max(...sys.lines.map(l => l.length)) * fs * 0.3;
         placed.push([sys.x - half, y0 - fs, sys.x + half, y0 + (sys.lines.length - 1) * lh + fs * 0.4]);
         return { sys, y0 };
@@ -392,18 +426,22 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
 
       ctx.textAlign = "center";
       ctx.lineJoin = "round";
-      ctx.font = `600 10.5px ${font}`;
-      ctx.lineWidth = 3.5;
+      ctx.font = `600 ${pfs}px ${font}`;
+      ctx.lineWidth = pfs / 3;
       ctx.strokeStyle = "#05060B";
       ctx.fillStyle = "#D9DDE8";
       const rank = (p) => (focusId && isNear(p.id) ? 0 : p.core ? 1 : 2);
       const candidates = order.filter(p => s.showAllLabels || k > 1.2 || (p.core && k > 0.8) || (focusId && isNear(p.id)))
         .sort((a, b) => rank(a) - rank(b) || b.depth - a.depth);
       for (const p of candidates) {
-        if (p.labelW == null) p.labelW = ctx.measureText(p.name).width;
-        const y = s.prereqMode ? p.y - p.r - 8 : p.y + p.r * (1 + 0.16 * p.depth) + 12;
-        const half = p.labelW / 2 + 2;
-        if (!claim(p.x - half, y - 10, p.x + half, y + 3)) continue;
+        if (p.labelW == null) { // measured once at the base size, then scaled
+          ctx.font = `600 10.5px ${font}`;
+          p.labelW = ctx.measureText(p.name).width;
+          ctx.font = `600 ${pfs}px ${font}`;
+        }
+        const y = s.prereqMode ? p.y - p.r - pfs * 0.75 : p.y + p.r * (1 + 0.16 * p.depth) + pfs * 1.15;
+        const half = (p.labelW * pfs) / 10.5 / 2 + 2 / k;
+        if (!claim(p.x - half, y - pfs, p.x + half, y + pfs * 0.3)) continue;
         ctx.globalAlpha = focusId && !isNear(p.id) ? dimA : 1;
         ctx.strokeText(p.name, p.x, y);
         ctx.fillText(p.name, p.x, y);
@@ -480,8 +518,11 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
     }
     return best;
   };
-  const sunAtPoint = (wx, wy) => (sceneRef.current?.systems || [])
-    .find(sys => Math.hypot((sys.x - wx) / 1.6, sys.y - wy) < sys.rings[0].r * 0.5);
+  const sunAtPoint = (wx, wy) => (sceneRef.current?.systems || []).find(sys => {
+    if (Math.hypot(sys.x - wx, sys.y - wy) < sys.sunR * 1.4) return true;
+    const half = Math.max(...sys.lines.map(l => l.length)) * 4;
+    return Math.abs(wx - sys.x) < half && wy > sys.y + sys.sunR && wy < sys.y + sys.sunR + 12 + sys.lines.length * 18;
+  });
 
   const onPointerDown = (e) => {
     camAnim.current = null;
@@ -584,8 +625,9 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
         </div>
       ) : (
         <div className="map-wrap space" ref={wrapRef}>
-          <div className="space-bg" ref={spaceRef} style={{ backgroundImage: [STARS_FAR, STARS_NEAR, ...NEBULA].join(", ") }}/>
-          <div className="space-twinkle" ref={twinkleRef} style={{ backgroundImage: STARS_TWINKLE }}/>
+          <canvas className="space-galaxy" ref={galaxyRef} aria-hidden="true"/>
+          <div className="space-bg" ref={spaceRef} style={{ backgroundImage: [starTiles().far, starTiles().near, ...NEBULA].join(", ") }}/>
+          <div className="space-twinkle" ref={twinkleRef} style={{ backgroundImage: starTiles().twinkle }}/>
           <div className="shooting-star"/>
           <canvas ref={canvasRef} className="map-canvas" role="img" aria-label="Knowledge map"
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerLeave}/>

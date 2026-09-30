@@ -149,13 +149,11 @@ For a Tenax course, progress is the number of chapters read in Tenax (chapters o
 
 Covers are scaled down to 560px JPEGs (tens of KB) before they're saved, so they don't bloat your library or the sync folder.
 
+**Notes, ratings and recall.** Anything you track by hand (not a Tenax course, which has real questions) can hold three short notes in your own words: **What it's about** (shown on the card), **What I thought** and **Ideas worth keeping**; they save as you type. Click the card to open them, along with its status (in progress, finished, want to read), progress, dates and, once finished, a star rating. Books have an author too.
+
+Once something has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the notes, dated, so your thoughts build up over time. Due recalls show as a count on Shelf in the sidebar, a **Recall** button on the Shelf page and a card on Today; they're extra practice, separate from the daily session and its time budget, and use no AI. (This was briefly a separate Reading tab; books added there moved onto the shelf automatically.)
+
 **Importing from AeroShelf:** Shelf → Import from AeroShelf reads AeroShelf's data from `%APPDATA%\aeroshelf\config.json` on the computer you used it on (or a copy of that file you pick). Items with the same title as a Tenax course are linked to it; anything already on the shelf is skipped, so importing twice adds nothing. Import on one computer; sync takes it to the others.
-
-### Reading
-
-The Reading tab is for books you read for their own sake rather than study: novels, popular science, biographies. Each book has a cover, author, status (reading, finished, want to read), pages read, dates, a star rating once finished, and three short notes in your own words: **What it's about**, **What I thought** and **Ideas worth keeping** (they save as you type).
-
-Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the book's notes, dated, so your thoughts build up over time. Due recalls show on the Reading tab, as a count in the sidebar and on Today; they're extra practice, separate from the daily session and its time budget. No AI is involved, so recalls cost nothing.
 
 ### Preparing material with another AI
 
@@ -165,7 +163,9 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 
 ## Knowledge map
 
-A sky of solar systems. Each book or course is a star with its name at the centre; its chapters are orbits (the first chapter innermost, chapters you haven't read as dashed orbits) and its concepts are planets on them, sized by importance: a filled planet with a glow is mastered, filled is being learned, amber and pulsing is slipping, a hollow ring hasn't been started, grey is in a chapter you haven't read. Orbits are tilted, and inner ones turn faster (roughly Kepler's law); the whole sky turns slowly, starting from where the real clock puts it.
+A sky of solar systems. Each book or course is a sun (tinted with the course's colour, a little bigger the more it holds, with a glowing corona and slowly turning rays) with its name beneath it; its chapters are orbits (the first chapter innermost, chapters you haven't read as dashed orbits) and its concepts are planets on them, sized by importance: a filled planet with a glow is mastered, filled is being learned, amber and pulsing is slipping, a hollow ring hasn't been started, grey is in a chapter you haven't read. Orbits are tilted, and inner ones turn faster (roughly Kepler's law); the whole sky turns slowly, starting from where the real clock puts it.
+
+Planets on the far side of their orbit pass behind the sun. The background is a painted starfield in three layers that drift at different speeds as you move, with the Milky Way behind them.
 
 Links between concepts stretch between planets: links between books are always shown (fainter when there are many); links inside a book appear when you point at or open one of its planets, or when the map shows a single course. Pointing at a planet brings the sky to a stop so it's easy to click; clicking glides the camera to it and opens its panel beside the map (you can keep clicking other planets); clicking a book's name zooms to its system. Pick a single course to see just its system, or switch it to **Prerequisites** for the left-to-right chart of what builds on what.
 
@@ -181,7 +181,7 @@ Data saved before per-concept scheduling is converted on first load: each concep
 
 Settings → Sync across computers. Pick a folder your cloud drive already syncs (one click for OneDrive; Dropbox or Google Drive via "Choose a folder…") and do the same on each computer. There's no server and no account: each computer keeps working on its own local copy, also writes it as `tenax-<computer>-<id>.json.gz` into that folder when you leave the app (switch windows, minimize, close, lock or sleep) and at most every 5 minutes while you keep studying, so the cloud drive gets a handful of uploads a day rather than one per answer, and reads the other computers' files on start-up, every 3 minutes and whenever the window gets focus. Each computer only ever writes its own file, so the cloud drive never has to resolve a conflict.
 
-Merging works record by record: for every course, chapter, concept, question, link, note, import, shelf item and book, the most recently edited version wins; a deletion wins over edits made before it; review history is combined from all computers; settings come from whichever computer changed them last. Restoring a backup counts as an edit, so it carries over to the other computers instead of being undone by them; resetting deletes everywhere (both warnings say so when sync is on). A copy written by a newer version of Tenax is skipped (Settings says which computer to update) rather than merged by code that doesn't understand it.
+Merging works record by record: for every course, chapter, concept, question, link, note, import and shelf item, the most recently edited version wins; a deletion wins over edits made before it; review history is combined from all computers; settings come from whichever computer changed them last. Restoring a backup counts as an edit, so it carries over to the other computers instead of being undone by them; resetting deletes everywhere (both warnings say so when sync is on). A copy written by a newer version of Tenax is skipped (Settings says which computer to update) rather than merged by code that doesn't understand it.
 
 Size: one compressed file per computer, overwritten each time (it doesn't grow with each sync). Under 1 KB per question once compressed, so about 10–15 MB for a library the size of 20 books; review history is capped at the last 30,000 reviews.
 
@@ -199,9 +199,9 @@ This version starts from an empty library. The first time it runs, anything save
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates
 sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, reading, shelf, sync (merging)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, recall, sync (merging)
 src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
-src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Reading, Shelf, KnowledgeMap, Progress, TeachBack, Settings
+src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, KnowledgeMap, Progress, TeachBack, Settings
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```
 

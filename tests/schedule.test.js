@@ -105,7 +105,7 @@ test("saved data from before keeps its progress: the latest-reviewed question's 
   old.items.find(i => i.id === aApply.id).srs = { ...reviewSrs(NOW + 2 * DAY), lastReview: NOW - 5 * DAY, stability: 4 };
 
   const out = normalizeState(old);
-  assert.equal(out.version, 6);
+  assert.equal(out.version, 7);
   const na = out.concepts.find(c => c.id === a.id), nb = out.concepts.find(c => c.id === b.id);
   assert.equal(na.srs.stability, 12);
   assert.equal(na.srs.due, NOW + 9 * DAY);

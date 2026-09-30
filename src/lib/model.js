@@ -20,7 +20,7 @@
 
 import { newSrs, RATING } from "./fsrs.js";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const ABILITIES = {
   recall:      { label: "Recall",      estSec: 25, rank: 0, blurb: "Produce a term, fact or definition from memory" },
@@ -67,18 +67,29 @@ export function emptyState() {
     days: {}, // per study day: { extraSec }
     bookJobs: [], // whole-book imports in progress (see state/bookImport.jsx)
     notes: [], // your own notes, raw (see lib/notes.js); what they became lives in the Notes space
-    shelf: [], // books and courses on your shelf, with covers (see lib/shelf.js)
-    reading: [], // books read for their own sake, with your notes and recalls (see lib/reading.js)
+    shelf: [], // books and courses on your shelf, with covers, notes and recalls (see lib/shelf.js)
   };
 }
 
 /** Fill in anything missing from a stored state (forward-compatible loads). */
+function shelfFromReading(b, id) {
+  const finished = b.status === "finished";
+  return {
+    id, kind: "book", title: b.title || "", author: b.author || "", cover: b.cover || null,
+    description: b.about || "", thoughts: b.thoughts || "", ideas: b.ideas || "",
+    unitLabel: "pages", total: b.totalPages || 0, done: finished && b.totalPages ? b.totalPages : (b.currentPage || 0),
+    status: b.status === "want" ? "want" : finished ? "finished" : "active", rating: b.rating || 0,
+    recall: b.recall || null, startedAt: b.startedAt || null, finishedAt: b.finishedAt || null,
+    courseId: null, hidden: false, createdAt: b.createdAt || 0, ...(b.updatedAt ? { updatedAt: b.updatedAt } : {}),
+  };
+}
+
 export function normalizeState(s) {
   const base = emptyState();
   const out = { ...base, ...s, settings: { ...base.settings, ...(s?.settings || {}) } };
   // The monochrome redesign defaults to the black theme once; later choices stick.
   if (s?.settings && s.settings.themeVersion !== 2) out.settings = { ...out.settings, theme: "dark", themeVersion: 2 };
-  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes", "shelf", "reading"]) {
+  for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes", "shelf"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }
   if (!out.tombstones || typeof out.tombstones !== "object" || Array.isArray(out.tombstones)) out.tombstones = {};
@@ -102,6 +113,21 @@ export function normalizeState(s) {
     const { srs, lapsesAtClear, ...rest } = i; // eslint-disable-line no-unused-vars
     return { accept: [], points: [], misconceptions: [], hint: "", ...rest };
   });
+  // v7: the Reading tab joined the shelf. Its books become shelf items with the
+  // same notes and recalls, under ids derived from theirs, so a copy synced from
+  // a computer still on the old version is never added twice (and a book
+  // deleted there stays deleted).
+  if (Array.isArray(out.reading)) {
+    const have = new Set(out.shelf.map(it => it.id));
+    for (const b of out.reading) {
+      const id = `sh_${b.id}`;
+      if (!have.has(id)) { out.shelf = [...out.shelf, shelfFromReading(b, id)]; have.add(id); }
+    }
+  }
+  delete out.reading;
+  for (const [id, ts] of Object.entries(out.tombstones)) {
+    if (id.startsWith("rb_") && !(out.tombstones[`sh_${id}`] >= ts)) out.tombstones = { ...out.tombstones, [`sh_${id}`]: ts };
+  }
   out.version = SCHEMA_VERSION;
   return out;
 }

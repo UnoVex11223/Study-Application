@@ -9,20 +9,52 @@
 // set one, so it's never shown as finished just because you're caught up.
 // A shelf item with a courseId dresses up a Tenax course (cover, description,
 // its own total); one without is a standalone entry.
+//
+// Standalone items (books you read for fun, a video course…) also keep notes
+// in your own words, a star rating and dates, and Tenax asks you to recall
+// them now and then (see lib/recall.js). This used to be a separate Reading tab.
 
 import { uid, index } from "./model.js";
 import { courseMastery } from "./mastery.js";
+import { hasNotes, firstRecall } from "./recall.js";
 
 export const SHELF_KINDS = {
   book: { label: "Book", unit: "chapters" },
   course: { label: "Course", unit: "modules" },
 };
 
+export const SHELF_STATUS = {
+  active: { label: "In progress" },
+  finished: { label: "Finished" },
+  want: { label: "Want to read" },
+};
+
 export const makeShelfItem = (fields = {}) => ({
-  id: uid("sh"), kind: "book", title: "", description: "", cover: null,
+  id: uid("sh"), kind: "book", title: "", author: "", description: "", cover: null,
   unitLabel: "chapters", total: 0, done: 0, courseId: null, hidden: false,
+  status: "active", rating: 0, thoughts: "", ideas: "", recall: null, startedAt: null, finishedAt: null,
   createdAt: Date.now(), ...fields,
 });
+
+/** A standalone item is finished when it's all logged, or marked finished if it has no total. */
+export const itemFinished = (it) => (it.total > 0 ? (it.done || 0) >= it.total : it.status === "finished");
+
+/** The item with its fields changed, keeping dates, status and the first recall in step. */
+export function updateShelfItem(it, patch, now = Date.now()) {
+  const next = { ...it, ...patch };
+  if (patch.status === "finished" && next.total > 0) next.done = next.total;
+  if (patch.status === "active" && itemFinished(next) && next.total > 0 && patch.done == null) next.done = Math.max(0, next.total - 1);
+  if (next.status === "want" && (next.done || 0) > 0 && patch.status !== "want") next.status = "active";
+  if (patch.status === "want") next.done = 0;
+  const was = itemFinished(it), is = itemFinished(next);
+  if (is && next.status !== "finished") next.status = "finished";
+  if (!is && next.status === "finished") next.status = "active";
+  if (is && !next.finishedAt) next.finishedAt = now;
+  if (!is && was && patch.finishedAt == null) next.finishedAt = null;
+  if (next.status !== "want" && !next.startedAt && ((next.done || 0) > 0 || patch.status === "active")) next.startedAt = now;
+  if (!next.courseId && !next.recall && hasNotes(next)) next.recall = firstRecall(now);
+  return next;
+}
 
 /** Chapters of a Tenax course: how many there are, and how many you've read. */
 export function courseChapters(state, courseId, ix = index(state)) {
@@ -65,7 +97,8 @@ export function shelfEntries(state, now = Date.now()) {
       unit: item?.unitLabel || "chapters",
       total, done, read, linked: true, hidden: Boolean(item?.hidden),
       mastery: courseMastery(state, course.id, now).masteryPct,
-      createdAt: item?.createdAt ?? course.createdAt,
+      author: item?.author || "", rating: item?.rating || 0, want: false, recallDue: false,
+      createdAt: item?.createdAt ?? course.createdAt, finishedAt: null,
     };
   };
 
@@ -73,21 +106,28 @@ export function shelfEntries(state, now = Date.now()) {
   for (const it of state.shelf) {
     const course = it.courseId ? ix.course[it.courseId] : null;
     if (course && course.kind !== "notes") { out.push(fromCourse(course, it)); continue; }
+    const finished = itemFinished(it);
     out.push({
       key: it.id, item: it, course: null, title: it.title, kind: it.kind, description: it.description || "",
       cover: it.cover || null, unit: it.unitLabel || SHELF_KINDS[it.kind]?.unit || "chapters",
-      total: it.total || 0, done: Math.min(it.done || 0, it.total || 0), read: 0, linked: false, hidden: Boolean(it.hidden),
-      mastery: null, createdAt: it.createdAt,
+      total: it.total || 0, done: it.total > 0 ? Math.min(it.done || 0, it.total) : (it.done || 0), read: 0, linked: false, hidden: Boolean(it.hidden),
+      mastery: null, author: it.author || "", rating: it.rating || 0,
+      want: it.status === "want" && !finished, finishedFlag: finished,
+      recallDue: Boolean(hasNotes(it) && it.recall && it.recall.due <= now),
+      createdAt: it.createdAt, finishedAt: it.finishedAt || null,
     });
   }
   for (const c of courses) if (!byCourse.has(c.id)) out.push(fromCourse(c, null));
 
   for (const e of out) {
-    e.pct = e.total > 0 ? e.done / e.total : 0;
-    e.finished = isFinished(e);
+    e.finished = e.finishedFlag ?? isFinished(e);
+    e.pct = e.total > 0 ? e.done / e.total : e.finished ? 1 : 0;
+    delete e.finishedFlag;
   }
-  // In progress first (most recently added first), then finished.
-  return out.sort((a, b) => Number(a.finished) - Number(b.finished) || (b.createdAt || 0) - (a.createdAt || 0));
+  // In progress first (most recently added first), then want to read, then finished (most recent first).
+  const group = (e) => (e.finished ? 2 : e.want ? 1 : 0);
+  return out.sort((a, b) => group(a) - group(b)
+    || (group(a) === 2 ? (b.finishedAt || b.createdAt || 0) - (a.finishedAt || a.createdAt || 0) : (b.createdAt || 0) - (a.createdAt || 0)));
 }
 
 /** Totals for the stats row (hidden entries don't count). */
@@ -97,15 +137,20 @@ export function shelfStats(entries) {
   const units = counted.reduce((n, e) => n + e.total, 0);
   const unitsDone = counted.reduce((n, e) => n + e.done, 0);
   const finished = shown.filter(e => e.finished).length;
-  return { count: shown.length, active: shown.length - finished, finished, pct: units ? unitsDone / units : 0 };
+  const want = shown.filter(e => e.want).length;
+  return {
+    count: shown.length, active: shown.length - finished - want, finished, want,
+    due: shown.filter(e => e.recallDue).length, pct: units ? unitsDone / units : 0,
+  };
 }
 
 export const SHELF_FILTERS = [
   { id: "all", label: "All", test: () => true },
   { id: "book", label: "Books", test: (e) => e.kind === "book" },
   { id: "course", label: "Courses", test: (e) => e.kind === "course" },
-  { id: "active", label: "In progress", test: (e) => !e.finished },
+  { id: "active", label: "In progress", test: (e) => !e.finished && !e.want },
   { id: "done", label: "Finished", test: (e) => e.finished },
+  { id: "want", label: "Want to read", test: (e) => e.want },
 ];
 
 // ── Importing from AeroShelf ────────────────────────────────────────────────

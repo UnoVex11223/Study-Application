@@ -37,7 +37,7 @@ test("Tenax courses are on the shelf on their own, with chapters read out of all
   assert.equal(k.total, 4);
   assert.equal(k.linked, true);
   assert.equal(entries.find(e => e.course?.id === sql.id).kind, "course");
-  assert.deepEqual(shelfStats(entries), { count: 2, active: 2, finished: 0, pct: 2 / 4 });
+  assert.deepEqual(shelfStats(entries), { count: 2, active: 2, finished: 0, want: 0, due: 0, pct: 2 / 4 });
 });
 
 test("dressing up a course, adding standalone items, hiding and finishing", () => {
