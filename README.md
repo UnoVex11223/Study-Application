@@ -13,6 +13,13 @@
   <a href="https://github.com/UnoVex11223/Study-Application/releases/latest"><b>Download for Windows</b></a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/UnoVex11223/Study-Application/releases/latest"><img src="https://img.shields.io/github/v/release/UnoVex11223/Study-Application?label=version&color=2f6feb" alt="Latest version"></a>
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Platform: Windows">
+  <img src="https://img.shields.io/badge/Electron%20%2B%20React%2019-47848F?logo=electron&logoColor=white" alt="Electron + React 19">
+  <img src="https://img.shields.io/badge/AI-Claude%20API-d97757" alt="Uses the Claude API">
+</p>
+
 ![Today's session](docs/screenshots/today.png)
 
 *Tenax* is Latin for "holding fast". The app is built for studying several subjects at once without the reviews piling up: you add material as you work through it, Claude turns it into questions, and a scheduler decides what's worth reviewing each day within the time you give it.
@@ -77,4 +84,4 @@ Electron main process (`electron.cjs`: storage, Claude calls with structured out
 
 ## History
 
-Tenax started as **AeroFlash**, a flashcard app, and was rebuilt around concepts, graded written answers and a daily time budget. **AeroShelf**, a separate tracker for books and courses ([Personal-Learning-Tracker](https://github.com/UnoVex11223/Personal-Learning-Tracker)), became the Shelf page.
+Tenax started as **AeroFlash**, a flashcard app, and was rebuilt around concepts, graded written answers and a daily time budget. **AeroShelf**, a separate tracker for books and courses, became the Shelf page.
