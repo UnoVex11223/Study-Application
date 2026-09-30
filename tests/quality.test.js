@@ -67,12 +67,28 @@ test("selection caps questions per concept, preferring variety and higher scores
   ];
   const reviews = { a: review("keep", {}), b: review("keep", { clarity: 4 }), c: review("keep", {}), d: review("keep", { importance: 4 }), e: review("drop", { importance: 2 }), f: review("keep", { clarity: 4, retrieval: 4 }) };
   const { kept, dropped } = selectForConcept(cands, reviews, "core");
-  assert.equal(kept.length, 4);
-  assert.deepEqual(new Set(kept.map(k => k.ability)), new Set(["explain", "apply", "recall"]));
+  assert.equal(kept.length, 2);
+  assert.deepEqual(kept.map(k => k.id), ["a", "c"], "one to know the idea, one to use it");
   assert.ok(dropped.find(d => d.id === "e"));
-  assert.ok(dropped.find(d => d.id === "f").reasons[0].includes("already has its 4"));
+  assert.ok(dropped.find(d => d.id === "f").reasons[0].includes("already has its 2"));
+  const supporting = selectForConcept(cands, reviews, "supporting");
+  assert.deepEqual(supporting.kept.map(k => k.id), ["a"], "the single best question");
   const detail = selectForConcept(cands.slice(0, 3), reviews, "detail");
   assert.equal(detail.kept.length, 1);
+});
+
+test("a core concept's pair covers knowing and using the idea, even when a same-group question scores higher", () => {
+  const cands = [
+    q({ id: "rc", ability: "recall", prompt: "What term describes an unexplained numeric literal in source code?", answer: "Magic number", accept: ["magic number"] }),
+    q({ id: "ex", ability: "explain", prompt: "Why do C programmers name numeric constants instead of writing them inline?" }),
+    q({ id: "ap", ability: "apply", prompt: "Rewrite `for (i = 0; i < 12; i++)` so the loop bound says what 12 means.", points: ["Introduces a named constant for 12"] }),
+  ];
+  const reviews = { rc: review("keep", {}), ex: review("keep", {}), ap: review("keep", { clarity: 4 }) };
+  const { kept } = selectForConcept(cands, reviews, "core");
+  assert.deepEqual(kept.map(k => k.id), ["rc", "ap"]);
+  // With no "use" question passing, the second slot goes to the other "know" type.
+  const noUse = selectForConcept(cands.slice(0, 2), reviews, "core");
+  assert.deepEqual(noUse.kept.map(k => k.id), ["rc", "ex"]);
 });
 
 test("without the critic, the rules alone still filter", () => {
@@ -143,7 +159,6 @@ test("a rewritten question starts fresh", () => {
 test("topping up counts existing questions, skips their duplicates and fills missing types first", () => {
   const existing = [
     q({ ability: "explain", prompt: "Why do C programmers name numeric constants instead of writing them inline?" }),
-    q({ ability: "explain", prompt: "What goes wrong when one unexplained literal is repeated across a codebase?" }),
   ];
   const cands = [
     q({ id: "dup", ability: "explain", prompt: "Why do C programmers name numeric constants instead of writing them inline?" }),
@@ -153,9 +168,10 @@ test("topping up counts existing questions, skips their duplicates and fills mis
   ];
   const reviews = Object.fromEntries(cands.map(c => [c.id, review("keep", {})]));
   const { kept, dropped } = selectForConcept(cands, reviews, "core", { existing });
-  assert.equal(kept.length, 2, "4 allowed, 2 already there");
-  assert.deepEqual(kept.map(k => k.id).sort(), ["ap", "rc"]);
+  assert.equal(kept.length, 1, "2 allowed, 1 already there");
+  assert.deepEqual(kept.map(k => k.id), ["ap"], "the missing 'use' question goes first");
   assert.ok(dropped.find(d => d.id === "dup"));
-  assert.equal(selectForConcept(cands, reviews, "supporting", { existing: [...existing, existing[0]] }).kept.length, 0);
+  assert.equal(selectForConcept(cands, reviews, "supporting", { existing }).kept.length, 0);
+  assert.equal(selectForConcept(cands, reviews, "core", { existing, extra: 1 }).kept.length, 2, "a note's extra slot");
 });
 

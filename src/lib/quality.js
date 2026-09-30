@@ -10,8 +10,9 @@
 //      question 1–5 on importance, clarity, retrieval, gradability and
 //      accuracy, and keeps, rewrites or drops it. Only questions scoring 4+ on
 //      every dimension pass.
-//   3. Caps: at most 3 questions for a core concept, 2 for supporting, 1 for a
-//      detail — the best-scoring ones, covering different question types first.
+//   3. Caps: at most 2 questions for a core concept (one to know the idea, one
+//      to use it, when both pass) and 1 for a supporting or detail concept —
+//      the best-scoring ones.
 // After import, questions you report, miss 5+ times, or whose grading you
 // dispute twice are pulled from sessions until you fix or restore them.
 
@@ -19,9 +20,14 @@ import { normalize } from "./grade.js";
 
 export const PASS_SCORE = 4;
 // Questions per concept. Memory is scheduled per concept and its questions take
-// turns, so more (good) variants cost no review time and keep you from
-// memorizing one prompt's wording.
-export const QUESTION_CAP = { core: 4, supporting: 3, detail: 1 };
+// turns, so a second question on a core concept keeps you from memorizing one
+// prompt's wording; beyond that, more questions mostly mean more to read
+// through on import, so sections stay a manageable size.
+export const QUESTION_CAP = { core: 2, supporting: 1, detail: 1 };
+
+// With only a couple of slots, a core concept's pair should cover knowing the
+// idea (recall, explain) and using it (distinguish, apply, connect).
+const ABILITY_GROUP = { recall: "know", explain: "know", distinguish: "use", apply: "use", connect: "use" };
 export const DIMENSIONS = {
   importance: "Worth remembering",
   clarity: "Clear on its own",
@@ -174,7 +180,9 @@ export function selectForConcept(candidates, reviews, importance = "supporting",
   passing.sort((a, b) => (b.score ?? 3.5) - (a.score ?? 3.5));
 
   const full = (QUESTION_CAP[importance] ?? 2) + extra;
-  const cap = Math.max(0, full - existing.length);
+  // An extra slot (a note's own example) is always available, even on a
+  // concept that already has more than today's cap from an earlier version.
+  const cap = Math.max(extra, full - existing.length);
   const kept = [];
   const tryAdd = (e) => {
     const lint = lintQuestion(e, { others: [...existing, ...kept] });
@@ -185,14 +193,23 @@ export function selectForConcept(candidates, reviews, importance = "supporting",
     kept.push({ ...e, warnings: lint.issues.filter(i => i.severity === "warn").map(i => i.message) });
     return true;
   };
-  // First pass: one per question type, so a concept gets both recall and use.
+  // First pass: one to know the idea and one to use it. Second pass: other
+  // question types the concept doesn't have yet. Then the best of the rest.
+  const seenGroup = new Set(existing.map(q => ABILITY_GROUP[q.ability]));
   const seenAbility = new Set(existing.map(q => q.ability));
-  const rest = [];
+  let rest = [];
   for (const e of passing) {
-    if (kept.length < cap && !seenAbility.has(e.ability)) {
-      if (tryAdd(e)) seenAbility.add(e.ability);
+    if (kept.length < cap && !seenGroup.has(ABILITY_GROUP[e.ability])) {
+      if (tryAdd(e)) { seenGroup.add(ABILITY_GROUP[e.ability]); seenAbility.add(e.ability); }
     } else rest.push(e);
   }
+  const later = [];
+  for (const e of rest) {
+    if (kept.length < cap && !seenAbility.has(e.ability)) {
+      if (tryAdd(e)) seenAbility.add(e.ability);
+    } else later.push(e);
+  }
+  rest = later;
   for (const e of rest) {
     if (kept.length >= cap) { dropped.push({ ...e, reasons: [`This ${importance} concept already has its ${full} best question${full === 1 ? "" : "s"}.`] }); continue; }
     tryAdd(e);

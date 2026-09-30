@@ -55,7 +55,7 @@ Only questions worth years of repetitions get in. Every candidate question passe
 
 1. **Rules** (no AI): drops questions that contain their own answer, yes/no questions, anything that refers to "the text", "this chapter" or a figure (it won't make sense later), recall answers that are really sentences, questions with no gradable key points, and near-duplicates.
 2. **Independent review**: a separate Claude pass scores each question 1–5 on *worth remembering*, *clear on its own*, *needs real recall*, *gradable* and *accurate*. A question is kept only if it scores 4 or 5 on all five. Fixable questions are rewritten by the reviewer (and re-scored); the rest are dropped with a reason.
-3. **Caps**: up to 4 questions for a core concept, 3 for a supporting one, 1 for a detail — the best-scoring, covering different question types first. Because a concept's questions take turns at its reviews, more good variants cost no review time; they keep you from memorizing one prompt's wording.
+3. **Caps**: up to 2 questions for a core concept (one to know the idea, recall or explain, and one to use it, apply or distinguish, when both pass) and 1 for a supporting or detail concept, the best-scoring first. A typical section ends up with about one and a half questions per concept. A core concept's two questions take turns at its reviews, which keeps you from memorizing one prompt's wording.
 
 Before anything is saved you see a **Review questions** step: what passed (with its score), what was filtered out and why, and you can untick or rescue any question. Concepts left with no good question aren't added.
 

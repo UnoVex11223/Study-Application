@@ -129,9 +129,9 @@ function knownConcepts(state, notes, { limit = 700, detailed = 80 } = {}) {
 }
 
 const NOTE_EXCERPT = 900;
-// Notes may add questions to a concept that already has its full set: your
+// Notes may add a question to a concept that already has its full set: your
 // own example is worth a slot.
-const NOTE_EXTRA = 2;
+const NOTE_EXTRA = 1;
 
 /**
  * Turn inbox notes into reviewable results.

@@ -121,7 +121,7 @@ test("notes become new concepts in Notes, extra questions on matching concepts, 
   assert.ok(calls.notes[0].known.some(k => k.id === ptr.id), "Claude sees what you already study");
   const merged = calls.items.find(c => c.key === kr.concepts[0].key);
   assert.equal(merged.existing.length, 4, "the writer sees the concept's current questions");
-  assert.equal(kr.concepts[0].group.kept.length, 2, "a note may add questions beyond the usual target");
+  assert.equal(kr.concepts[0].group.kept.length, 1, "a note adds its question even to a concept already past the usual target");
 
   const payload = buildNotesImport({ state: s, entries: res.entries });
   const next = reducer(s, { type: "notes/import", payload });
@@ -132,7 +132,7 @@ test("notes become new concepts in Notes, extra questions on matching concepts, 
   const newConcept = ix.conceptsByCourse[space.id][0];
   assert.equal(newConcept.filledIn, true);
   assert.match(newConcept.source.label, /^Your note \(Tenax\)/);
-  assert.equal((ix.itemsByConcept[ptr.id] || []).length, 6, "the matching note became two more questions on Pointer arithmetic");
+  assert.equal((ix.itemsByConcept[ptr.id] || []).length, 5, "the matching note became one more question on Pointer arithmetic");
   assert.ok(next.edges.some(e => e.from === newConcept.id && e.to === ptr.id && e.type === "related"));
   assert.deepEqual(next.notes.map(n => n.status), ["done", "done", "skipped"]);
   assert.deepEqual(next.notes[1].result.merged, [ptr.id]);

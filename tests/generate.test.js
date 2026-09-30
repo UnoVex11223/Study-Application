@@ -133,12 +133,12 @@ test("topping up adds new variants only where a concept is below its target", as
   delete globalThis.window;
 
   assert.equal(res.ok, true);
-  assert.equal(res.added, 3, "core target is 4; it had 1");
+  assert.equal(res.added, 1, "core target is 2; it had 1");
   assert.deepEqual(seen.map(c => c.key), [core.id], "a concept at its target isn't sent");
   assert.equal(seen[0].existing.length, 1);
   const prompts = state.items.filter(i => i.conceptId === core.id).map(i => i.prompt);
-  assert.equal(prompts.length, 4);
-  assert.equal(new Set(prompts).size, 4, "the repeated question was dropped");
+  assert.equal(prompts.length, 2);
+  assert.equal(new Set(prompts).size, 2, "the repeated question was dropped");
   assert.ok(state.items.filter(i => i.conceptId === core.id).slice(1).every(i => i.topUp));
 });
 

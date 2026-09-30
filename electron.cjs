@@ -361,9 +361,9 @@ const QUALITY_BAR = `QUALITY BAR — every question will be reviewed for years, 
 const ITEMS_SYSTEM = `You write retrieval-practice questions. The learner answers every question by typing from memory; there are never multiple-choice options. The goal is durable memory plus the ability to explain and use each idea without help.
 
 HOW MANY
-Write candidates generously — a separate reviewer keeps only the best:
-core concept: 5–6 candidates. supporting: 3–4. detail: 1, and only if the detail is genuinely worth knowing.
-A concept's questions take turns at its reviews, so each should come at the idea differently (a different facet, a different use, a different ability), never the same question reworded. Varied questions are what make the knowledge stick beyond the wording of one prompt.
+Write a few strong candidates — a separate reviewer keeps only the best, and each concept keeps at most 2 questions (core) or 1 (supporting, detail):
+core concept: 3–4 candidates, covering both knowing the idea (recall or explain) and using it (apply or distinguish). supporting: 2. detail: 1, and only if the detail is genuinely worth knowing.
+Candidates for the same concept should come at the idea differently (a different facet, a different use, a different ability), never the same question reworded.
 If a concept lists already_asked questions, it already has those: write only as many new candidates as its "write" line asks for, each clearly different from the ones already asked.
 Write at most one "connect" question for the concepts you're given, and only if 2–3 of them genuinely work together; attach it to the most central one.
 
