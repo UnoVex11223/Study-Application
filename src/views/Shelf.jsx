@@ -3,17 +3,25 @@
 // Reading books also keep notes in your own words, a rating, and a recall now
 // and then: say what you remember, then compare with your notes (see
 // lib/recall.js).
+//
+// Everything stands on shelves as a book: a cover with real thickness (from
+// its length), page edges and a spine, drawn in CSS 3D. Books are set down on
+// the shelf when the page opens, turn toward you and follow the pointer when
+// you point at one, open their cover when you log a chapter, and a book due
+// for a recall has a bookmark sticking out of the top. The shelf's edge
+// catches the light under the pointer. With reduced motion, all of it stands
+// still. Covers are shaped by lib/cover.js.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useStore } from "../state/store.jsx";
 import { useNav, pct } from "../ui/nav.js";
-import { Bar, Drawer, Modal, Spinner } from "../ui/ui.jsx";
+import { Drawer, Modal, Spinner } from "../ui/ui.jsx";
 import Icon from "../ui/Icon.jsx";
-import { shelfEntries, shelfStats, SHELF_FILTERS, SHELF_KINDS, categoryOf, makeShelfItem, itemFinished } from "../lib/shelf.js";
+import { shelfEntries, SHELF_FILTERS, SHELF_KINDS, categoryOf, makeShelfItem, itemFinished } from "../lib/shelf.js";
 import { dueForRecall, recallWhen, hasNotes, RECALL_RATINGS } from "../lib/recall.js";
 import { shrinkImage } from "../lib/image.js";
+import { analyzeCover, peekCover, subscribeCovers, clothFor, bookThickness } from "../lib/cover.js";
 
-const initials = (t) => String(t || "?").split(/\s+/).filter(w => /^[\p{L}\p{N}]/u.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
 const longDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const monthYear = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 
@@ -23,6 +31,12 @@ const STATUS = {
   study: { active: "In progress", finished: "Finished" },
 };
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+// Shelf geometry: the narrowest a book column gets, and the space between books.
+const BOOK_MIN = 150;
+const BOOK_GAP = 40;
+
+const stillMotion = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 
 function Stars({ value, onChange, size = 15 }) {
   const [hover, setHover] = useState(0);
@@ -41,11 +55,97 @@ function Stars({ value, onChange, size = 15 }) {
   );
 }
 
-/** A cover image filling its box, or the title's initials. */
-function Cover({ src, title, className = "" }) {
-  if (!src) return <div className={`shelf-blank ${className}`}><span>{initials(title)}</span></div>;
-  return <img className={`cover-img ${className}`} src={src} alt="" draggable={false}/>;
+/** What lib/cover.js has worked out about a picture (null until it's looked at it). */
+function useCoverInfo(src) {
+  const info = useSyncExternalStore(subscribeCovers, () => (src ? peekCover(src) : null));
+  useEffect(() => { if (src) analyzeCover(src); }, [src]);
+  return info;
 }
+
+/** A book cover, 2:3: the picture (margins cropped, odd shapes set on a plate), or plain cloth with the title. */
+function CoverArt({ src, title, author, className = "" }) {
+  const info = useCoverInfo(src);
+  if (!src) {
+    const cloth = clothFor(title);
+    return (
+      <div className={`cover-art cloth ${className}`} style={{ "--cloth": cloth.bg, "--cloth-ink": cloth.ink }}>
+        <div className="cloth-title">{title || "Untitled"}</div>
+        {author && <div className="cloth-author">{author}</div>}
+      </div>
+    );
+  }
+  if (!info) return <div className={`cover-art loading ${className}`}/>;
+  if (info.fit === "fill") return <div className={`cover-art ${className}`}><img className="cover-fill" src={info.src} alt="" draggable={false}/></div>;
+  return (
+    <div className={`cover-art framed ${className}`}>
+      <img className="cover-haze" src={info.src} alt="" draggable={false}/>
+      <img className="cover-plate" src={info.src} alt="" draggable={false}/>
+    </div>
+  );
+}
+
+/** The browser's pointer, smoothed to one update a frame, as CSS variables on an element. */
+function usePointerVars(onMove, onLeave) {
+  const frame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  return {
+    onPointerMove: (ev) => {
+      const { currentTarget: el, clientX, clientY } = ev;
+      cancelAnimationFrame(frame.current);
+      frame.current = requestAnimationFrame(() => onMove(el, clientX, clientY));
+    },
+    onPointerLeave: (ev) => {
+      const el = ev.currentTarget;
+      cancelAnimationFrame(frame.current);
+      onLeave(el);
+    },
+  };
+}
+
+const TILT_VARS = ["--ry", "--rx", "--gx", "--gy"];
+
+/** One book standing on the shelf, in 3D. */
+function Book({ entry: e, opening, onOpen, actions }) {
+  const info = useCoverInfo(e.cover);
+  const cloth = e.cover ? null : clothFor(e.title);
+  const spine = cloth ? cloth.bg : info?.spine || "#24262B";
+  const tilt = usePointerVars(
+    (el, x, y) => {
+      el.classList.add("lifted");
+      if (stillMotion()) return;
+      const r = el.getBoundingClientRect();
+      const fx = Math.min(1, Math.max(0, (x - r.left) / r.width)), fy = Math.min(1, Math.max(0, (y - r.top) / r.height));
+      el.style.setProperty("--ry", `${((fx - 0.5) * 24).toFixed(2)}deg`);
+      el.style.setProperty("--rx", `${((0.5 - fy) * 14).toFixed(2)}deg`);
+      el.style.setProperty("--gx", `${(fx * 100).toFixed(1)}%`);
+      el.style.setProperty("--gy", `${(fy * 100).toFixed(1)}%`);
+    },
+    (el) => { el.classList.remove("lifted"); for (const v of TILT_VARS) el.style.removeProperty(v); },
+  );
+  return (
+    <div className={`book-hold${e.category === "reading" ? " slim" : ""}${e.want ? " want" : ""}${opening ? ` open-${opening % 2}` : ""}`}
+      style={{ "--t": `${bookThickness(e)}px`, "--spine": spine }} {...tilt}>
+      <div className="book" role="button" tabIndex={0} aria-label={`Open ${e.title}`} onClick={onOpen}
+        onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onOpen(); } }}>
+        <div className="book-face book-back"/>
+        <div className="book-face book-pages"/>
+        <div className="book-face book-top"/>
+        <div className="book-face book-spine"/>
+        <div className="book-face book-leaf"/>
+        {e.recallDue && <span className="book-mark" title="Due for a recall"/>}
+        <div className="book-face book-front">
+          <CoverArt src={e.cover} title={e.title} author={e.category === "reading" ? e.author : ""}/>
+          <span className="book-hinge"/>
+          <span className="book-glare"/>
+        </div>
+      </div>
+      {actions}
+    </div>
+  );
+}
+
+/** The plank a row of books stands on; each card brings its own length of it. */
+const Ledge = () => <div className="ledge" aria-hidden="true"/>;
 
 export default function Shelf({ recall: startRecall = false }) {
   const { state, act } = useStore();
@@ -55,15 +155,56 @@ export default function Shelf({ recall: startRecall = false }) {
   const [editing, setEditing] = useState(null); // null | { entry } (entry null = new)
   const [openId, setOpenId] = useState(null);
   const [recallQueue, setRecallQueue] = useState(() => (startRecall ? dueForRecall(state.shelf, Date.now()).map(it => it.id) : null));
+  const [cols, setCols] = useState(5);
+  const shelfRef = useRef(null);
+  const tabsRef = useRef(null);
+  const inkRef = useRef(null);
 
   const entries = useMemo(() => shelfEntries(state, nav.now), [state, nav.now]);
-  const stats = shelfStats(entries);
   const due = dueForRecall(state.shelf, nav.now);
   const tab = SHELF_FILTERS.find(f => f.id === filter);
-  const shown = entries.filter(e => !e.hidden && tab.test(e));
+  const visible = entries.filter(e => !e.hidden);
+  const shown = visible.filter(tab.test);
   const hidden = entries.filter(e => e.hidden);
+  const counts = Object.fromEntries(SHELF_FILTERS.map(f => [f.id, visible.filter(f.test).length]));
   const open = state.shelf.find(it => it.id === openId && it.kind === "reading" && !it.courseId) || null;
   const add = () => setEditing({ entry: null });
+  const addLabel = tab.kind ? `Add a ${SHELF_KINDS[tab.kind].label.toLowerCase()}` : "Add to shelf";
+  const countKey = SHELF_FILTERS.map(f => counts[f.id]).join(",");
+
+  // How many books fit across, so the last row's shelf can run the full width.
+  useEffect(() => {
+    const el = shelfRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      setCols(Math.max(1, Math.floor((entry.contentRect.width + BOOK_GAP) / (BOOK_MIN + BOOK_GAP))));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // The line under the tabs slides to the one that's picked.
+  const placeInk = useCallback(() => {
+    const on = tabsRef.current?.querySelector('[aria-selected="true"]');
+    const ink = inkRef.current;
+    if (!on || !ink) return;
+    ink.style.width = `${on.offsetWidth}px`;
+    ink.style.transform = `translateX(${on.offsetLeft}px)`;
+  }, []);
+  useLayoutEffect(() => { placeInk(); }, [placeInk, filter, countKey]);
+  useEffect(() => {
+    const ink = inkRef.current;
+    const ready = requestAnimationFrame(() => ink?.classList.add("ready"));
+    window.addEventListener("resize", placeInk);
+    document.fonts?.ready.then(placeInk);
+    return () => { cancelAnimationFrame(ready); window.removeEventListener("resize", placeInk); };
+  }, [placeInk]);
+
+  // The shelf edge catches the light under the pointer.
+  const lamp = usePointerVars(
+    (el, x, y) => { el.style.setProperty("--lamp-x", `${x}px`); el.style.setProperty("--lamp-y", `${y}px`); },
+    (el) => { el.style.removeProperty("--lamp-x"); el.style.removeProperty("--lamp-y"); },
+  );
 
   // Log a chapter by hand. On a Tenax course you can't go below what Tenax counts.
   const bump = (e, d) => {
@@ -79,8 +220,17 @@ export default function Shelf({ recall: startRecall = false }) {
     : e.kind === "reading" ? setOpenId(e.item.id)
     : setEditing({ entry: e }));
 
+  const withAdd = filter === "all" || Boolean(tab.kind);
+  const filler = (n, at) => Array.from({ length: n }, (_, i) => (
+    <div key={`gap${i}`} className="book-card filler" aria-hidden="true" style={{ "--i": at + i }}>
+      <div className="book-slot"/><Ledge/>
+    </div>
+  ));
+  const fill = (cells) => (cells === 0 ? cols : (cols - (cells % cols)) % cols);
+  const geometry = { "--book-min": `${BOOK_MIN}px`, "--gap": `${BOOK_GAP}px` };
+
   return (
-    <div className="page">
+    <div className="page shelf-page">
       <div className="page-head">
         <div><h1>Shelf</h1></div>
         <div className="row">
@@ -93,65 +243,59 @@ export default function Shelf({ recall: startRecall = false }) {
         </div>
       </div>
 
-      {entries.length === 0 ? (
-        <div className="panel empty">
-          <h3>Your shelf is empty</h3>
-          <div className="row" style={{ justifyContent: "center" }}>
-            <button className="btn btn-primary" onClick={add}><Icon name="plus" size={16}/>Add to shelf</button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="stats" style={{ marginBottom: 22 }}>
-            <div className="stat"><div className="stat-value">{stats.count}</div><div className="stat-label">On the shelf</div></div>
-            <div className="stat"><div className="stat-value">{stats.active}</div><div className="stat-label">In progress</div></div>
-            <div className="stat"><div className="stat-value">{stats.finished}</div><div className="stat-label">Finished</div></div>
-            <div className="stat"><div className="stat-value">{stats.due}</div><div className="stat-label">To recall</div></div>
-          </div>
+      <div className="shelf-tabs" role="tablist" aria-label="Show" ref={tabsRef}>
+        {SHELF_FILTERS.map(f => (
+          <button key={f.id} role="tab" aria-selected={filter === f.id} className={filter === f.id ? "on" : ""} onClick={() => setFilter(f.id)}>
+            {f.label}<span className="tab-count">{counts[f.id]}</span>
+          </button>
+        ))}
+        <span className="tab-ink" ref={inkRef} aria-hidden="true"/>
+      </div>
 
-          <div className="shelf-filters">
-            <div className="seg" role="tablist" aria-label="Show">
-              {SHELF_FILTERS.map(f => (
-                <button key={f.id} role="tab" aria-selected={filter === f.id} className={filter === f.id ? "on" : ""} onClick={() => setFilter(f.id)}>{f.label}</button>
-              ))}
-            </div>
-          </div>
-
-          <div className="shelf-grid">
-            {shown.map(e => (
-              <ShelfCard key={e.key} entry={e}
-                onOpen={() => openEntry(e)}
-                onEdit={() => setEditing({ entry: e })}
-                onBump={(d) => bump(e, d)}
-                onHide={() => setHidden(e, true)}
-                onRemove={() => act("shelf/remove", { id: e.item.id })}/>
-            ))}
-            {(filter === "all" || tab.kind) && (
-              <button className="shelf-add" onClick={add}>
-                <Icon name="plus" size={22}/>
-                <span>{tab.kind ? `Add a ${SHELF_KINDS[tab.kind].label.toLowerCase()}` : "Add to shelf"}</span>
-              </button>
-            )}
-          </div>
-          {shown.length === 0 && !tab.kind && filter !== "all" && <p className="muted small" style={{ textAlign: "center", marginTop: 28 }}>Nothing here yet.</p>}
-
-          {hidden.length > 0 && (
-            <div style={{ marginTop: 28, textAlign: "center" }}>
-              <button className="btn btn-quiet btn-sm" onClick={() => setShowHidden(v => !v)}>
-                {showHidden ? "Done" : `Hidden from the shelf (${hidden.length})`}
-              </button>
-              {showHidden && (
-                <div className="shelf-grid" style={{ marginTop: 16, textAlign: "left" }}>
-                  {hidden.map(e => (
-                    <ShelfCard key={e.key} entry={e} dim
-                      onOpen={() => setHidden(e, false)} onEdit={() => setEditing({ entry: e })}
-                      onBump={() => {}} onHide={() => setHidden(e, false)}/>
-                  ))}
+      <div className="shelf" ref={shelfRef} style={geometry} {...lamp}>
+        <div className="shelf-grid" key={filter}>
+          {shown.map((e, i) => (
+            <BookCard key={e.key} entry={e} index={i}
+              onOpen={() => openEntry(e)}
+              onEdit={() => setEditing({ entry: e })}
+              onBump={(d) => bump(e, d)}
+              onHide={() => setHidden(e, true)}
+              onRemove={() => act("shelf/remove", { id: e.item.id })}/>
+          ))}
+          {withAdd && (
+            <button className="book-card add" onClick={add} style={{ "--i": shown.length }}>
+              <div className="book-slot">
+                <div className="book-hold">
+                  <div className="book-ghost"><Icon name="plus" size={20}/></div>
                 </div>
-              )}
+              </div>
+              <Ledge/>
+              <div className="book-info"><span className="book-add-label">{addLabel}</span></div>
+            </button>
+          )}
+          {filler(fill(shown.length + (withAdd ? 1 : 0)), shown.length + 1)}
+        </div>
+        {shown.length === 0 && !withAdd && <p className="shelf-none">Nothing here yet.</p>}
+      </div>
+
+      {hidden.length > 0 && (
+        <div className="shelf-hidden">
+          <button className="btn btn-quiet btn-sm" onClick={() => setShowHidden(v => !v)}>
+            {showHidden ? "Done" : `Hidden from the shelf (${hidden.length})`}
+          </button>
+          {showHidden && (
+            <div className="shelf" style={geometry} {...lamp}>
+              <div className="shelf-grid">
+                {hidden.map((e, i) => (
+                  <BookCard key={e.key} entry={e} index={i} dim
+                    onOpen={() => setHidden(e, false)} onEdit={() => setEditing({ entry: e })}
+                    onBump={() => {}} onHide={() => setHidden(e, false)}/>
+                ))}
+                {filler(fill(hidden.length), hidden.length)}
+              </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {open && <ItemPanel key={open.id} item={open} now={nav.now} onClose={() => setOpenId(null)}
@@ -168,9 +312,31 @@ export default function Shelf({ recall: startRecall = false }) {
   );
 }
 
-function ShelfCard({ entry: e, dim, onOpen, onEdit, onBump, onHide, onRemove }) {
+/** The ⋯ on a book: edit, and hide or remove. Closes on a click elsewhere or Escape. */
+function BookMenu({ open, onToggle, onClose, title, children }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (ev) => { if (!ref.current?.contains(ev.target)) onClose(); };
+    const esc = (ev) => { if (ev.key === "Escape") onClose(); };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
+  }, [open, onClose]);
+  return (
+    <div className={`book-menu${open ? " open" : ""}`} ref={ref}>
+      <button className="book-more" aria-label={`More for ${title}`} aria-haspopup="menu" aria-expanded={open} onClick={onToggle}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>
+      </button>
+      {open && <div className="book-menu-list" role="menu">{children}</div>}
+    </div>
+  );
+}
+
+function BookCard({ entry: e, index, dim, onOpen, onEdit, onBump, onHide, onRemove }) {
   const [confirming, setConfirming] = useState(false);
-  const stop = (fn) => (ev) => { ev.stopPropagation(); fn(); };
+  const [opening, setOpening] = useState(0); // bumped to swing the cover open once
+  const [menu, setMenu] = useState(false);
   const reading = e.category === "reading";
   const status = STATUS[e.category];
   const progress = e.total
@@ -178,59 +344,66 @@ function ShelfCard({ entry: e, dim, onOpen, onEdit, onBump, onHide, onRemove }) 
     : e.finished ? (e.finishedAt ? monthYear(e.finishedAt) : "Done")
     : e.want ? status.want
     : e.done ? `${e.done} ${e.unit} ${reading ? "read" : "done"}` : "Not started";
+  const one = e.unit.replace(/s$/, "");
+  const more = () => { onBump(1); setOpening(n => n + 1); };
+
+  const close = useCallback(() => setMenu(false), []);
+  const actions = (
+    <BookMenu open={menu} onToggle={() => setMenu(v => !v)} onClose={close} title={e.title}>
+      <button role="menuitem" onClick={() => { close(); onEdit(); }}><Icon name="edit" size={14}/>Edit</button>
+      {dim ? (
+        <button role="menuitem" onClick={() => { close(); onHide(); }}><Icon name="undo" size={14}/>Put back on the shelf</button>
+      ) : e.linked ? (
+        <button role="menuitem" onClick={() => { close(); onHide(); }}><Icon name="x" size={14}/>Hide from the shelf</button>
+      ) : (
+        <button role="menuitem" className="danger" onClick={() => { close(); setConfirming(true); }}><Icon name="trash" size={14}/>Remove</button>
+      )}
+    </BookMenu>
+  );
+
   return (
-    <article className={`shelf-card${dim ? " dim" : ""}`}>
-      <div className="shelf-cover" onClick={onOpen} role="button" tabIndex={0}
-        aria-label={`Open ${e.title}`}
-        onKeyDown={(ev) => { if (ev.key === "Enter") onOpen(); }}>
-        <Cover src={e.cover} title={e.title}/>
-        {e.finished && <span className="shelf-done"><Icon name="check" size={13}/>Finished</span>}
-        {e.want && <span className="shelf-done quiet">{status.want}</span>}
-        {e.recallDue && !dim && <span className="shelf-due">Recall</span>}
-        <div className="shelf-acts">
-          <button className="shelf-act" title="Edit" aria-label="Edit" onClick={stop(onEdit)}><Icon name="edit" size={15}/></button>
-          {dim ? (
-            <button className="shelf-act" title="Put back on the shelf" aria-label="Put back on the shelf" onClick={stop(onHide)}><Icon name="undo" size={15}/></button>
-          ) : e.linked ? (
-            <button className="shelf-act" title="Hide from the shelf" aria-label="Hide from the shelf" onClick={stop(onHide)}><Icon name="x" size={15}/></button>
-          ) : (
-            <button className="shelf-act" title="Remove" aria-label="Remove" onClick={stop(() => setConfirming(true))}><Icon name="trash" size={15}/></button>
-          )}
-        </div>
+    <article className={`book-card${dim ? " dim" : ""}${menu ? " menu-open" : ""}`} style={{ "--i": index }}>
+      <div className="book-slot">
+        <Book entry={e} opening={opening} onOpen={onOpen} actions={actions}/>
       </div>
-      <div className="shelf-body">
-        <div className="shelf-title">{e.title}</div>
-        {reading && (e.author || e.rating > 0) && (
-          <div className="shelf-byline">
-            {e.author && <span className="ell">{e.author}</span>}
-            {e.rating > 0 && <Stars value={e.rating} size={11}/>}
-          </div>
-        )}
-        <div className="shelf-foot">
-          <div className="shelf-prog">
-            <span>{progress}</span>
-            {e.total > 0
-              ? <span>{pct(e.pct)}</span>
-              : !dim && !e.finished && !e.want && <button className="shelf-link" onClick={onEdit}>Set total</button>}
-          </div>
-          <Bar value={e.pct} tone={e.finished ? "good" : undefined} thin/>
-          {!reading && (
-            <div className="shelf-step">
-              <button className="btn btn-sm btn-icon" disabled={dim || e.done <= e.read} onClick={() => onBump(-1)} aria-label={`One ${e.unit.replace(/s$/, "")} less`}>−</button>
-              {e.linked ? (
-                <span className="shelf-meta" title="Chapters read and mastery in Tenax">
-                  <Icon name="link" size={12}/>{e.read} read{e.mastery != null && e.read > 0 ? ` · ${pct(e.mastery)} mastered` : ""}
-                </span>
-              ) : (
-                <span>{e.finished ? "Finished" : `Log ${e.unit}`}</span>
-              )}
-              <button className="btn btn-sm btn-icon" disabled={dim || (e.total > 0 && e.done >= e.total)} onClick={() => onBump(1)} aria-label={`One more ${e.unit.replace(/s$/, "")}`}>+</button>
-            </div>
+      <Ledge/>
+      <div className="book-info">
+        <button className="book-title" onClick={onOpen} tabIndex={-1}>{e.title}</button>
+        <div className="book-sub">
+          {reading ? (
+            <>
+              {e.author && <span className="ell">{e.author}</span>}
+              {e.rating > 0 && <Stars value={e.rating} size={10}/>}
+            </>
+          ) : e.linked ? (
+            <span className="book-linked" title="Chapters read and mastery in Tenax">
+              <Icon name="link" size={11}/>{e.read > 0 && e.mastery != null ? `${pct(e.mastery)} mastered` : "In Tenax"}
+            </span>
+          ) : (
+            <span>{SHELF_KINDS[e.kind]?.label}</span>
           )}
+          {e.recallDue && !dim && <span className="book-due">Recall</span>}
         </div>
+        <div className="book-prog">
+          <span className="ell">{progress}</span>
+          <span className="book-end">
+            <span className="book-pct">
+              {e.finished ? <Icon name="check" size={13}/>
+                : e.total > 0 ? pct(e.pct)
+                : !dim && !e.want && <button className="shelf-link" onClick={onEdit}>Set total</button>}
+            </span>
+            {!reading && !dim && (
+              <span className="book-step">
+                <button disabled={e.done <= e.read} onClick={() => onBump(-1)} aria-label={`One ${one} less`}>−</button>
+                <button disabled={e.total > 0 && e.done >= e.total} onClick={more} aria-label={`One more ${one}`}>+</button>
+              </span>
+            )}
+          </span>
+        </div>
+        <div className={`book-bar${e.finished ? " good" : ""}`}><span style={{ "--p": Math.max(0, Math.min(1, e.pct || 0)) }}/></div>
       </div>
       {confirming && (
-        <div className="shelf-confirm">
+        <div className="book-confirm">
           <div>Remove “{e.title}” from your shelf?</div>
           <div className="row" style={{ justifyContent: "center" }}>
             <button className="btn btn-sm btn-quiet" onClick={() => setConfirming(false)}>Cancel</button>
@@ -276,7 +449,7 @@ function ItemPanel({ item, now, onClose, onEdit, onRecall }) {
     <Drawer onClose={onClose} title={item.title} subtitle={item.author || undefined}
       actions={<button className="btn btn-sm btn-quiet" onClick={onEdit}><Icon name="edit" size={14}/>Edit</button>}>
       <div className="book-panel-top">
-        <Cover src={item.cover} title={item.title} className="panel-cover"/>
+        <CoverArt src={item.cover} title={item.title} author={item.author} className="panel-cover"/>
         <div className="stack" style={{ gap: 12, minWidth: 0 }}>
           <div className="seg" role="group" aria-label="Status">
             {Object.entries(STATUS.reading).map(([k, label]) => (
@@ -435,7 +608,7 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
         <span className="label">Cover</span>
         {cover ? (
           <div className="shelf-cover-edit">
-            <Cover src={cover} title={title} className={`edit-cover${reading ? " portrait" : ""}`}/>
+            <CoverArt src={cover} title={title} author={reading ? author : ""} className="edit-cover"/>
             <button type="button" className="btn btn-sm" onClick={() => setCover(null)}><Icon name="x" size={14}/>Remove</button>
           </div>
         ) : (
@@ -510,7 +683,7 @@ function RecallSession({ queue, onClose }) {
   return (
     <Modal title="Recall" onClose={onClose} width={620}>
       <div className="recall-head">
-        <Cover src={item.cover} title={item.title} className="recall-cover"/>
+        <CoverArt src={item.cover} title={item.title} className="recall-cover"/>
         <div style={{ minWidth: 0 }}>
           <div className="muted small">{at + 1} of {queue.length}</div>
           <div className="recall-title">{item.title}</div>

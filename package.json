@@ -4,7 +4,7 @@
   "description": "Tenax: a study app for long-term memory, with a shelf for your books and courses",
   "author": "UnoVex11223",
   "private": true,
-  "version": "2.7.0",
+  "version": "2.8.0",
   "type": "module",
   "main": "electron.cjs",
   "scripts": {

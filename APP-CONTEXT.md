@@ -143,14 +143,20 @@ Notes are reviewed and introduced like everything else, but they're their own sp
 
 ### Shelf
 
-The Shelf page shows every book, textbook and course you're working through as a card with a cover and how far along you are. The tabs across the top are All, **Reading** (books you read for their own sake), **Textbooks**, **Courses**, In progress and Finished; the stats row counts what's on the shelf, in progress, finished and due for a recall.
+The Shelf page stands every book, textbook and course you're working through on shelves, as books: the cover, with page edges, a spine and a thickness that follows its length (pages, or about 30 pages per chapter or module). Books you read are drawn a little smaller than textbooks and courses. Under each book are its title, its author (or, for a Tenax course, how much is mastered) and how far along you are. The tabs across the top are All, **Reading** (books you read for their own sake), **Textbooks**, **Courses**, In progress and Finished, each with how many it holds; **Recall** in the header shows how many recalls are due.
+
+Books are set down on the shelf one after another when the page opens or you switch tabs. Pointing at one lifts it toward you and tilts it with the pointer, the rest of the shelf dims a little, and the shelf's edge catches the light under the pointer; the **⋯** on the book has Edit and Hide (a Tenax course) or Remove. Logging a chapter with **+** swings the cover open for a moment. A book due for a recall has a bookmark sticking out of the top, and a book you want to read but haven't started has a faded cover. With reduced motion turned on in the system, none of it moves.
 
 - **Reading**: a book's author, pages read out of the total, a status (reading, finished, want to read), dates and, once finished, a star rating.
-- **Textbooks and courses**: your Tenax courses are on the shelf automatically (an imported book as a textbook, a course you built as a course; either can be changed in Edit). Anything else, like a video course or a textbook you aren't studying in Tenax, you add yourself and count with + and −; it's in progress or finished. These cards show the cover and progress only, with no description.
+- **Textbooks and courses**: your Tenax courses are on the shelf automatically (an imported book as a textbook, a course you built as a course; either can be changed in Edit). Anything else, like a video course or a textbook you aren't studying in Tenax, you add yourself and count with + and − (they appear when you point at the book); it's in progress or finished. These cards show the cover and progress only, with no description.
 
 **Add to shelf** asks which kind it is (Book, Textbook or Course), starting with the tab you're on. Something you added yourself can be changed to another kind in Edit.
 
-Covers fill their box (cropped from the top down if the shapes differ) and are scaled down to 560px JPEGs (tens of KB) before they're saved, so they don't bloat your library or the sync folder.
+Covers are scaled down to 560px JPEGs (tens of KB) before they're saved, so they don't bloat your library or the sync folder. On the shelf (and in the book panel, recall and edit form) they're shaped as book covers:
+
+- A plain margin around the picture, like the paper around a scanned cover or a page background around a screenshot, is cropped off when it runs along two or more sides in the same colour and ends at a clear edge. A single band on one side is left alone, since it's usually part of the design.
+- A picture that's roughly book-shaped fills the cover. Anything else, like a course banner or a square thumbnail, sits on the cover as a plate over a blurred copy of itself instead of being cropped to a sliver.
+- A book without a picture gets a plain cloth cover with its title and author, in one of a few muted colours (always the same one for a title).
 
 For a Tenax course, progress is the number of chapters read in Tenax (chapters of an imported book count once you mark them read) or the number you log yourself, whichever is higher, so chapters you read before you started using Tenax count too. An imported book knows how many chapters it has. A course you build a chapter at a time doesn't, so it shows "3 chapters done" with a Set total link rather than calling itself finished just because you've caught up. Hiding a course only takes it off the shelf (Hidden from the shelf at the bottom brings it back); deleting a course keeps its shelf card with the progress it had.
 
@@ -204,7 +210,7 @@ This version starts from an empty library. The first time it runs, anything save
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates
 sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, recall, sync (merging)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, cover (shaping covers), recall, sync (merging)
 src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
 src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, KnowledgeMap, Progress, TeachBack, Settings
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
