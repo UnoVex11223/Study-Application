@@ -529,6 +529,19 @@ a.btn { text-decoration: none; }
 }
 .space .map-legend { background: rgba(10, 12, 20, .72); border-color: rgba(255, 255, 255, .09); color: #C3C8D6; z-index: 3; backdrop-filter: blur(6px); }
 .space .map-legend .dot.glow { box-shadow: 0 0 6px 1px currentColor; }
+/* Legend planets: little lit spheres, like the ones on the map. */
+.map-legend .dot.planet { width: 10px; height: 10px;
+  background: radial-gradient(circle at 32% 38%, color-mix(in srgb, var(--c) 45%, #fff) 0, var(--c) 42%, color-mix(in srgb, var(--c) 22%, #04050A) 100%); }
+.map-legend .dot.planet.bright { box-shadow: 0 0 7px 1px color-mix(in srgb, var(--c) 65%, transparent); }
+.map-legend .dot.planet.dark { background: radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--c) 28%, #161923), #090B12 75%);
+  box-shadow: inset 1.5px 0 0 color-mix(in srgb, var(--c) 55%, #fff), 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
+.map-legend .dot.planet.dust { width: 6px; height: 6px; margin: 0 2px; background: #77767B; opacity: .7; }
+.legend-stream { width: 24px; height: 6px; border-radius: 3px; flex-shrink: 0;
+  background: radial-gradient(circle at 30% 50%, #fff 0 1px, transparent 1.5px), radial-gradient(circle at 68% 40%, #fff 0 .8px, transparent 1.3px),
+    linear-gradient(90deg, transparent, rgba(214, 222, 255, .45) 30%, rgba(214, 222, 255, .45) 70%, transparent); }
+/* A soft vignette over the sky (under the planets), like a long exposure. */
+.map-wrap.space::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, .42) 100%); }
 .space .map-zoom { z-index: 3; }
 .space .map-zoom .btn { background: rgba(14, 16, 26, .8); border-color: rgba(255, 255, 255, .12); color: #DDE1EC; }
 .space .map-zoom .btn:hover { background: rgba(30, 34, 50, .9); }

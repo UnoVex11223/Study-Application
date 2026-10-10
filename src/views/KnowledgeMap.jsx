@@ -1,7 +1,9 @@
-// The knowledge map: every book is a star with its name at the centre, its
+// The knowledge map: every book is a star with its name beneath it, its
 // chapters are orbits and its concepts are planets going round (see
-// lib/orbits.js). Links between concepts are drawn between the planets, across
-// systems too. A single course can also be shown as its prerequisite chart.
+// lib/orbits.js). Planets are lit by their own sun, so they wax and wane as
+// they go round. Links between books are drawn as one soft stream between
+// their suns; a planet's own links appear when you point at it. Names come in
+// as you zoom in. A single course can also be shown as its prerequisite chart.
 //
 // Drawn on a canvas: hundreds of moving planets and links redraw in a couple
 // of milliseconds, where SVG would repaint the whole map on every frame.
@@ -15,12 +17,11 @@ import ConceptPanel from "./ConceptPanel.jsx";
 import { index } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
 import { layeredLayout } from "../lib/graph.js";
-import { orbitalLayout, planetAt, systemBounds, TILT } from "../lib/orbits.js";
-import { sunSprites, starTile, paintGalaxy } from "../ui/sky.js";
+import { orbitalLayout, planetAt, systemBounds, TILT, seeded, bridgesBetween, bow, onCurve, fadeIn } from "../lib/orbits.js";
+import { sunSprites, starTile, paintGalaxy, planetBody, planetShade, varyColor, PLANET_SPRITE, PLANET_R } from "../ui/sky.js";
 
-const RADIUS = { core: 6, supporting: 4.6, detail: 3.6 };
+const RADIUS = { core: 6.4, supporting: 4.8, detail: 3.7 };
 const SLIPPING = "#F2A65A";
-const LOCKED = "rgba(150, 156, 175, .34)";
 const MAX_LABEL = 30;
 const short = (n) => (n.length > MAX_LABEL ? `${n.slice(0, MAX_LABEL - 1)}…` : n);
 const stillPreferred = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
@@ -40,6 +41,11 @@ const NEBULA = [
   "radial-gradient(ellipse 50% 40% at 82% 72%, rgba(162, 134, 204, .1), transparent 70%)",
   "radial-gradient(ellipse 45% 35% at 62% 12%, rgba(94, 162, 191, .07), transparent 70%)",
 ];
+
+function hexToRgb(hex) {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || "");
+  return m ? `${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}` : "160, 170, 200";
+}
 
 function withAlpha(hex, a) {
   const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || "");
@@ -64,13 +70,13 @@ function glow(color) {
   return c;
 }
 
-/** How a planet looks for its mastery status. */
-function planetLook(status, color, locked) {
-  if (locked) return { fill: LOCKED };
-  if (status === "mastered") return { fill: color, halo: color };
-  if (status === "learning" || status === "practiced") return { fill: withAlpha(color, 0.75) };
-  if (status === "slipping") return { fill: SLIPPING, halo: SLIPPING, pulse: true };
-  return { fill: "#0B0E18", stroke: color };
+/** How a planet looks for its mastery status (see planetBody in ui/sky.js). */
+function planetKind(status, locked) {
+  if (locked) return "dust";
+  if (status === "mastered") return "bright";
+  if (status === "slipping") return "slipping";
+  if (status === "learning" || status === "practiced") return "lit";
+  return "dark";
 }
 
 export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
@@ -128,11 +134,14 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
     for (const c of concepts) {
       const o = orbit?.planets[c.id], f = staticPos?.[c.id];
       if (!o && !f) continue;
-      const color = ix.course[c.courseId]?.color || "#8A93A6";
+      const color = varyColor(ix.course[c.courseId]?.color || "#8A93A6", seeded(c.id, 3));
+      const kind = planetKind(conceptMastery(state, c.id).status, ix.lockedConcepts.has(c.id));
       planets.push({
         id: c.id, courseId: c.courseId, name: short(c.name), core: c.importance === "core",
         r: RADIUS[c.importance] ?? 5, orbit: o || null, fixed: f || null, x: f?.x ?? 0, y: f?.y ?? 0, depth: 0,
-        look: planetLook(conceptMastery(state, c.id).status, color, ix.lockedConcepts.has(c.id)),
+        sx: o?.sx ?? 0, sy: o?.sy ?? 0, color, kind,
+        halo: kind === "bright" ? color : kind === "slipping" ? SLIPPING : null, pulse: kind === "slipping",
+        ring: c.importance === "core" && kind !== "dust" ? `rgba(${hexToRgb(color)}, .5)` : null,
       });
     }
     const byId = new Map(planets.map(p => [p.id, p]));
@@ -151,7 +160,20 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
     const perSystem = new Map();
     for (const p of planets) perSystem.set(p.courseId, (perSystem.get(p.courseId) || 0) + 1);
     const systems = (orbit?.systems || []).map(sys => ({ ...sys, sunR: 15 + Math.min(13, Math.sqrt(perSystem.get(sys.id) || 1) * 1.6) }));
-    return { planets, byId, links, adj, systems, prereqMode, sky: scope === "all", showAllLabels: planets.length <= 60 };
+    // One stream of light between each pair of books with links, with motes drifting along it.
+    const sysById = new Map(systems.map(x => [x.id, x]));
+    const bridges = bridgesBetween(links.filter(l => l.cross).map(l => ({ a: l.a.courseId, b: l.b.courseId })))
+      .filter(br => sysById.has(br.a) && sysById.has(br.b))
+      .map(br => {
+        const key = `${br.a}|${br.b}`;
+        const motes = Array.from({ length: Math.min(40, 12 + br.n) }, (_, i) => ({
+          u0: seeded(key, i * 7 + 1), speed: 0.006 + seeded(key, i * 7 + 2) * 0.01,
+          off: seeded(key, i * 7 + 3) - 0.5, a: 0.3 + seeded(key, i * 7 + 4) * 0.6, size: 0.8 + seeded(key, i * 7 + 5) * 1.6,
+        }));
+        return { ...br, from: sysById.get(br.a), to: sysById.get(br.b), motes, bend: seeded(key) < 0.5 ? 0.1 : -0.1,
+          strength: Math.min(1, 0.45 + br.n / 40) };
+      });
+    return { planets, byId, links, adj, systems, bridges, prereqMode, sky: scope === "all", few: planets.length <= 40 };
   }, [concepts, orbit, staticPos, state, ix, scope, prereqMode]);
 
   const bounds = useMemo(() => {
@@ -285,107 +307,200 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       const px = 1 / k;                 // one screen pixel, in map units
       const holdsFocus = (sys) => !focusId || s.planets.some(p => p.courseId === sys.id && isNear(p.id));
 
-      // Suns: a breathing corona and slowly turning rays, then the chapter orbits.
+      // Suns' coronas first: the glow everything else sits in.
       const secs = now / 1000;
       const breathe = still ? 1 : 1 + 0.035 * Math.sin(secs * (2 * Math.PI / 7));
+      const sysAlpha = (sys) => (holdsFocus(sys) ? 1 : 1 - 0.6 * fade.mix);
+      ctx.globalCompositeOperation = "lighter";
       for (const sys of s.systems) {
-        const a = holdsFocus(sys) ? 1 : 1 - 0.6 * fade.mix;
-        const sp = sunSprites(sys.color);
-        const R = sys.sunR * 5.2 * breathe;
-        ctx.globalAlpha = a * 0.95;
-        ctx.drawImage(sp.corona, sys.x - R, sys.y - R, R * 2, R * 2);
-        const rayR = sys.sunR * 4.4;
-        ctx.save();
-        ctx.translate(sys.x, sys.y);
-        ctx.rotate(still ? 0 : secs * 0.035);
-        ctx.globalAlpha = a * 0.85;
-        ctx.drawImage(sp.rays, -rayR, -rayR, rayR * 2, rayR * 2);
-        ctx.restore();
+        const R = sys.sunR * 5.4 * breathe;
+        ctx.globalAlpha = sysAlpha(sys) * 0.8;
+        ctx.drawImage(sunSprites(sys.color).corona, sys.x - R, sys.y - R, R * 2, R * 2);
       }
+      ctx.globalCompositeOperation = "source-over";
+
+      // Orbits: hairlines, the near half a little brighter than the far half;
+      // a chapter you haven't read is fainter; the focused planet's orbit is lit.
+      const focusP = focusId ? s.byId.get(focusId) : null;
+      ctx.lineWidth = px;
+      ctx.strokeStyle = "rgb(205, 214, 240)";
       for (const sys of s.systems) {
-        ctx.globalAlpha = holdsFocus(sys) ? 1 : 1 - 0.6 * fade.mix;
-        ctx.lineWidth = px;
-        ctx.strokeStyle = "rgba(210, 218, 240, .09)";
-        for (const ring of sys.rings) {
-          ctx.setLineDash(ring.locked ? [3 * px, 6 * px] : []);
-          ctx.beginPath();
-          ctx.ellipse(sys.x, sys.y, ring.r, ring.r * TILT, 0, 0, Math.PI * 2);
-          ctx.stroke();
+        const sa = sysAlpha(sys);
+        sys.rings.forEach((ring, i) => {
+          const lit = focusP && focusP.orbit && focusP.courseId === sys.id && focusP.orbit.ring === i;
+          const base = (ring.locked ? 0.04 : 0.085) + (lit ? 0.16 * fade.mix : 0);
+          ctx.globalAlpha = sa * base * 0.45;
+          ctx.beginPath(); ctx.ellipse(sys.x, sys.y, ring.r, ring.r * TILT, 0, Math.PI, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = sa * base;
+          ctx.beginPath(); ctx.ellipse(sys.x, sys.y, ring.r, ring.r * TILT, 0, 0, Math.PI); ctx.stroke();
+        });
+      }
+
+      // Streams between books: a soft band from sun to sun, with motes of light drifting along it.
+      if (s.sky && s.bridges.length) {
+        ctx.globalCompositeOperation = "lighter";
+        const ba = 1 - 0.7 * fade.mix;
+        for (const br of s.bridges) {
+          const A = br.from, B = br.to;
+          const d = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / d, uy = (B.y - A.y) / d;
+          const ax = A.x + ux * A.sunR * 2.4, ay = A.y + uy * A.sunR * 2.4, bx = B.x - ux * B.sunR * 2.4, by = B.y - uy * B.sunR * 2.4;
+          const c = bow(ax, ay, bx, by, br.bend);
+          const grad = ctx.createLinearGradient(ax, ay, bx, by);
+          grad.addColorStop(0, withAlpha(A.color, 0));
+          grad.addColorStop(0.18, withAlpha(A.color, 1));
+          grad.addColorStop(0.5, "rgba(214, 222, 255, 1)");
+          grad.addColorStop(0.82, withAlpha(B.color, 1));
+          grad.addColorStop(1, withAlpha(B.color, 0));
+          ctx.strokeStyle = grad;
+          ctx.lineCap = "round";
+          for (const [wd, al] of [[70, 0.014], [32, 0.026], [12, 0.045], [2.4, 0.08]]) {
+            ctx.globalAlpha = ba * br.strength * al;
+            ctx.lineWidth = wd;
+            ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(c.x, c.y, bx, by); ctx.stroke();
+          }
+          const nx = -uy, ny = ux;
+          for (const m of br.motes) {
+            const u = still ? m.u0 : (m.u0 + secs * m.speed) % 1;
+            const q = onCurve(ax, ay, c, bx, by, u);
+            const spread = Math.sin(Math.PI * u) * 22 * m.off;
+            const sz = m.size * 3.2 * Math.max(px, 0.6);
+            ctx.globalAlpha = ba * m.a * Math.pow(Math.sin(Math.PI * u), 1.4);
+            ctx.drawImage(glow("#DCE3FF"), q.x + nx * spread - sz, q.y + ny * spread - sz, sz * 2, sz * 2);
+          }
+        }
+        ctx.lineCap = "butt";
+        ctx.globalCompositeOperation = "source-over";
+      }
+
+      // Links between planets, as gentle arcs: inside a system they swing out
+      // around its sun. Only the focused planet's links in the all-books view;
+      // in one course, faintly, all of them.
+      const arc = (l) => {
+        if (s.prereqMode) {
+          const ax = l.a.x + l.a.r + 2, bx = l.b.x - l.b.r - 3, mx = (l.a.x + l.b.x) / 2;
+          ctx.moveTo(ax, l.a.y);
+          ctx.bezierCurveTo(mx, l.a.y, mx, l.b.y, bx, l.b.y);
+          return;
+        }
+        const mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2;
+        let c;
+        if (l.cross) c = bow(l.a.x, l.a.y, l.b.x, l.b.y, 0.1);
+        else {
+          // Like a transfer orbit: swing out around the sun, not across it.
+          const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, ch = Math.hypot(dx, dy) || 1;
+          let ox = mx - l.a.sx, oy = my - l.a.sy;
+          const ol = Math.hypot(ox, oy);
+          if (ol < ch * 0.3) { ox = -dy / ch; oy = dx / ch; if (ox * (mx - l.a.sx) + oy * (my - l.a.sy) < 0) { ox = -ox; oy = -oy; } }
+          else { ox /= ol; oy /= ol; }
+          c = { x: mx + ox * ch * 0.32, y: my + oy * ch * 0.32 * TILT };
+        }
+        ctx.moveTo(l.a.x, l.a.y);
+        ctx.quadraticCurveTo(c.x, c.y, l.b.x, l.b.y);
+      };
+      const focusLinks = [];
+      if (s.prereqMode) {
+        const groups = new Map();
+        for (const l of s.links) {
+          const on = Boolean(focusId) && (l.a.id === focusId || l.b.id === focusId);
+          const kind = on ? "on" : l.prereq ? "prereq" : "related";
+          const key = `${kind}|${l.provisional ? 1 : 0}`;
+          if (!groups.has(key)) groups.set(key, { kind, provisional: l.provisional, list: [] });
+          groups.get(key).list.push(l);
+        }
+        const LINK = { on: ["rgba(235, 240, 255, .85)", 1.6], prereq: ["rgba(200, 210, 240, .3)", 1], related: ["rgba(200, 210, 240, .16)", 1] };
+        for (const g of groups.values()) {
+          const [color, width] = LINK[g.kind];
+          ctx.globalAlpha = focusId && g.kind !== "on" ? dimA * 0.8 : 1;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width * px;
+          ctx.setLineDash(g.provisional ? [4 * px, 5 * px] : []);
+          for (const l of g.list) { ctx.beginPath(); arc(l); ctx.stroke(); }
+          if (g.kind !== "related") {
+            ctx.setLineDash([]);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            for (const l of g.list) {
+              if (!l.prereq) continue;
+              const bx = l.b.x - l.b.r - 3;
+              ctx.moveTo(bx, l.b.y); ctx.lineTo(bx - 7, l.b.y - 3.5); ctx.lineTo(bx - 7, l.b.y + 3.5); ctx.closePath();
+            }
+            ctx.fill();
+          }
         }
         ctx.setLineDash([]);
-      }
-
-      // Links: between systems always; inside a system when you're looking at one course, or around the focus.
-      // Grouped by look, so each group is stroked in one go.
-      const groups = new Map();
-      for (const l of s.links) {
-        const on = Boolean(focusId) && (l.a.id === focusId || l.b.id === focusId);
-        if (s.sky && !l.cross && !on) continue;
-        const kind = on ? "on" : l.cross ? "cross" : l.prereq ? "prereq" : "related";
-        const key = `${kind}|${l.provisional ? 1 : 0}`;
-        if (!groups.has(key)) groups.set(key, { kind, provisional: l.provisional, list: [] });
-        groups.get(key).list.push(l);
-      }
-      const LINK = {
-        on: ["rgba(235, 240, 255, .85)", 1.6], cross: ["rgba(190, 205, 255, .26)", 1.2],
-        prereq: ["rgba(200, 210, 240, .3)", 1], related: ["rgba(200, 210, 240, .16)", 1],
-      };
-      const crossCount = s.links.reduce((n, l) => n + (l.cross ? 1 : 0), 0);
-      const crowd = Math.min(1, Math.sqrt(40 / Math.max(1, crossCount))); // lots of links between books: draw them fainter
-      for (const g of groups.values()) {
-        const [color, width] = LINK[g.kind];
-        ctx.globalAlpha = (focusId && g.kind !== "on" ? dimA * 0.8 : 1) * (g.kind === "cross" ? crowd : 1);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width * px;
-        ctx.setLineDash(g.provisional ? [4 * px, 5 * px] : []);
-        // One stroke per link: long overlapping lines are slower to fill as a single path.
-        for (const l of g.list) {
-          ctx.beginPath();
-          if (s.prereqMode) {
-            const ax = l.a.x + l.a.r + 2, bx = l.b.x - l.b.r - 3, mx = (l.a.x + l.b.x) / 2;
-            ctx.moveTo(ax, l.a.y);
-            ctx.bezierCurveTo(mx, l.a.y, mx, l.b.y, bx, l.b.y);
-          } else {
-            ctx.moveTo(l.a.x, l.a.y);
-            ctx.lineTo(l.b.x, l.b.y);
+      } else {
+        if (!s.sky) {
+          ctx.strokeStyle = "rgb(200, 210, 240)";
+          ctx.lineWidth = px;
+          for (const l of s.links) {
+            if (focusId && (l.a.id === focusId || l.b.id === focusId)) continue;
+            ctx.globalAlpha = (l.provisional ? 0.035 : 0.07) * (focusId ? dimA : 1);
+            ctx.beginPath(); arc(l); ctx.stroke();
           }
-          ctx.stroke();
         }
-        if (s.prereqMode && g.kind !== "related") {
-          ctx.setLineDash([]);
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          for (const l of g.list) {
-            if (!l.prereq) continue;
-            const bx = l.b.x - l.b.r - 3;
-            ctx.moveTo(bx, l.b.y); ctx.lineTo(bx - 7, l.b.y - 3.5); ctx.lineTo(bx - 7, l.b.y + 3.5); ctx.closePath();
+        if (focusId && fade.mix > 0) for (const l of s.links) if (l.a.id === focusId || l.b.id === focusId) focusLinks.push(l);
+        if (focusLinks.length) {
+          ctx.globalCompositeOperation = "lighter";
+          for (const [wd, al] of [[5, 0.1], [1.3, 0.75]]) {
+            ctx.lineWidth = wd * px;
+            ctx.strokeStyle = "rgb(225, 232, 255)";
+            for (const l of focusLinks) {
+              ctx.globalAlpha = fade.mix * al * (l.provisional ? 0.55 : 1);
+              ctx.beginPath(); arc(l); ctx.stroke();
+            }
           }
-          ctx.fill();
+          ctx.globalCompositeOperation = "source-over";
         }
       }
-      ctx.setLineDash([]);
 
-      // Planets, far side first, so nearer ones pass in front; each sun sits between
-      // the planets behind it and the ones in front.
+      // Planets, far side first, so nearer ones pass in front; each sun sits
+      // between the planets behind it and the ones in front. A planet is lit
+      // from its sun: the far side of its orbit shows more of its day side.
       const order = s.prereqMode ? s.planets : [...s.planets].sort((a, b) => a.depth - b.depth);
       const pulse = still ? 0.6 : 0.5 + 0.5 * Math.sin((now / 1000) * 2.6);
+      const shade = planetShade();
+      const toSprite = PLANET_SPRITE / PLANET_R;
+      const ringA = s.prereqMode ? 0 : fadeIn(k * (s.sky ? 1 : 1.25), 0.95, 1.45);
+      const base = [dpr * k, 0, 0, dpr * k, dpr * cx, dpr * cy];
+      // Core concepts carry a faint ring, seen nearly edge-on.
+      const drawRing = (p, r, alpha, back) => {
+        const rx = r * 1.95, ry = rx * 0.22, from = back ? Math.PI : 0;
+        ctx.globalAlpha = alpha * 0.32;
+        ctx.strokeStyle = p.ring;
+        ctx.lineWidth = r * 0.34;
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, rx * 0.9, ry * 0.9, -0.18, from, from + Math.PI); ctx.stroke();
+        ctx.globalAlpha = alpha * 0.4;
+        ctx.strokeStyle = "rgba(236, 232, 220, .6)";
+        ctx.lineWidth = Math.max(r * 0.07, px * 0.6);
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, rx, ry, -0.18, from, from + Math.PI); ctx.stroke();
+      };
       const drawPlanet = (p) => {
-        const r = p.r * (1 + 0.16 * p.depth);
-        const a = focusId && !isNear(p.id) ? dimA : 1;
-        if (p.look.halo) {
-          ctx.globalAlpha = a * (p.look.pulse ? 0.25 + 0.55 * pulse : 0.7);
-          ctx.drawImage(glow(p.look.halo), p.x - r * 3, p.y - r * 3, r * 6, r * 6);
+        const r = p.r * (1 + 0.16 * p.depth) * (p.kind === "dust" ? 0.78 : 1);
+        const a = (focusId && !isNear(p.id) ? dimA : 1) * (s.prereqMode ? 1 : 0.84 + 0.08 * (p.depth + 1));
+        const D = r * toSprite;
+        if (p.ring && ringA > 0) drawRing(p, r, a * ringA, true);
+        if (p.halo) {
+          ctx.globalCompositeOperation = "lighter";
+          ctx.globalAlpha = a * (p.pulse ? 0.2 + 0.5 * pulse : 0.5);
+          ctx.drawImage(glow(p.halo), p.x - r * 3.4, p.y - r * 3.4, r * 6.8, r * 6.8);
+          ctx.globalCompositeOperation = "source-over";
         }
-        ctx.globalAlpha = a;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = p.look.fill;
-        ctx.fill();
-        if (p.look.stroke) { ctx.lineWidth = 1.5; ctx.strokeStyle = p.look.stroke; ctx.stroke(); }
+        const dust = p.kind === "dust" ? 0.6 : 1;
+        ctx.globalAlpha = a * dust;
+        ctx.drawImage(planetBody(p.color, p.kind), p.x - D / 2, p.y - D / 2, D, D);
+        // Turn the shading to face the sun (or the upper left, in the chart).
+        const toward = s.prereqMode ? -2.4 : Math.atan2(p.sy - p.y, p.sx - p.x);
+        ctx.globalAlpha = a * dust * (s.prereqMode ? 0.8 : Math.max(0.35, Math.min(1, 0.68 + 0.32 * p.depth)));
+        ctx.translate(p.x, p.y);
+        ctx.rotate(toward - Math.PI);
+        ctx.drawImage(shade, -D / 2, -D / 2, D, D);
+        ctx.setTransform(...base);
+        if (p.ring && ringA > 0) drawRing(p, r, a * ringA, false);
         if (p.id === selectedRef.current) {
+          ctx.globalAlpha = 0.9;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, r + 4.5, 0, Math.PI * 2);
-          ctx.lineWidth = 1.4;
+          ctx.arc(p.x, p.y, r + 5 * Math.max(px, 0.5), 0, Math.PI * 2);
+          ctx.lineWidth = 1.3 * px;
           ctx.strokeStyle = "#fff";
           ctx.stroke();
         }
@@ -405,9 +520,26 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       }
       if (!sunsDrawn) drawSuns();
 
-      // Names: book names first (they're kept readable when zoomed out), then
-      // planet names by priority (the focus and its links, then core concepts,
-      // then the nearest), skipping any that would overlap one already placed.
+      // The suns' glare on top: a bright bloom and diffraction spikes, which
+      // wash out planets passing close in front.
+      ctx.globalCompositeOperation = "lighter";
+      for (const sys of s.systems) {
+        const sp = sunSprites(sys.color), sa = sysAlpha(sys);
+        const B = sys.sunR * 3.1 * breathe;
+        ctx.globalAlpha = sa * 0.9;
+        ctx.drawImage(sp.bloom, sys.x - B, sys.y - B, B * 2, B * 2);
+        const L = sys.sunR * 6.2 * (still ? 1 : 1 + 0.03 * Math.sin(secs * 0.9));
+        ctx.globalAlpha = sa * 0.38;
+        ctx.translate(sys.x, sys.y);
+        ctx.rotate(0.21);
+        ctx.drawImage(sp.spikes, -L, -L, L * 2, L * 2);
+        ctx.setTransform(...base);
+      }
+      ctx.globalCompositeOperation = "source-over";
+
+      // Names: book names always; planet names come in as you zoom in (core
+      // concepts first), and a planet you point at shows its own name and its
+      // links' names. Highest priority first, skipping any that would overlap.
       const placed = [];
       const claim = (x0, y0, x1, y1) => {
         for (const q of placed) if (x0 < q[2] && x1 > q[0] && y0 < q[3] && y1 > q[1]) return false;
@@ -415,44 +547,52 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
         return true;
       };
       // Text stays between comfortable on-screen sizes whatever the zoom.
-      const fs = Math.max(11.5 / k, Math.min(13, 20 / k)), lh = fs * 1.25;
+      const fs = Math.max(11.5 / k, Math.min(13, 20 / k)), lh = fs * 1.28;
       const pfs = Math.max(10 / k, Math.min(10.5, 15 / k));
       const suns = s.systems.map(sys => {
-        const y0 = sys.y + sys.sunR + 6 + fs;
+        const y0 = sys.y + sys.sunR + 8 + fs;
         const half = Math.max(...sys.lines.map(l => l.length)) * fs * 0.3;
         placed.push([sys.x - half, y0 - fs, sys.x + half, y0 + (sys.lines.length - 1) * lh + fs * 0.4]);
         return { sys, y0 };
       });
 
+      const zoomed = k * (s.sky ? 1 : 1.3) * (s.few ? 1.5 : 1);
+      const coreA = s.prereqMode ? 1 : fadeIn(zoomed, 1.05, 1.45);
+      const restA = s.prereqMode ? (k > 0.8 ? 1 : 0) : fadeIn(zoomed, 1.65, 2.2);
+      const labelA = (p) => {
+        const own = p.core ? coreA : restA;
+        if (!focusId) return own;
+        return isNear(p.id) ? Math.max(own, fade.mix) : own * dimA;
+      };
+      const rank = (p) => (focusId && isNear(p.id) ? 0 : p.core ? 1 : 2);
+      const candidates = order.map(p => [p, labelA(p)]).filter(([, al]) => al > 0.03)
+        .sort(([a], [b]) => rank(a) - rank(b) || b.depth - a.depth);
       ctx.textAlign = "center";
       ctx.lineJoin = "round";
-      ctx.font = `600 ${pfs}px ${font}`;
-      ctx.lineWidth = pfs / 3;
-      ctx.strokeStyle = "#05060B";
-      ctx.fillStyle = "#D9DDE8";
-      const rank = (p) => (focusId && isNear(p.id) ? 0 : p.core ? 1 : 2);
-      const candidates = order.filter(p => s.showAllLabels || k > 1.2 || (p.core && k > 0.8) || (focusId && isNear(p.id)))
-        .sort((a, b) => rank(a) - rank(b) || b.depth - a.depth);
-      for (const p of candidates) {
+      ctx.font = `500 ${pfs}px ${font}`;
+      ctx.lineWidth = pfs * 0.3;
+      ctx.strokeStyle = "rgba(4, 5, 10, .6)";
+      ctx.fillStyle = "#DADFEA";
+      for (const [p, al] of candidates) {
         if (p.labelW == null) { // measured once at the base size, then scaled
-          ctx.font = `600 10.5px ${font}`;
+          ctx.font = `500 10.5px ${font}`;
           p.labelW = ctx.measureText(p.name).width;
-          ctx.font = `600 ${pfs}px ${font}`;
+          ctx.font = `500 ${pfs}px ${font}`;
         }
-        const y = s.prereqMode ? p.y - p.r - pfs * 0.75 : p.y + p.r * (1 + 0.16 * p.depth) + pfs * 1.15;
+        const y = s.prereqMode ? p.y - p.r - pfs * 0.75 : p.y + p.r * (1 + 0.16 * p.depth) + pfs * 1.2;
         const half = (p.labelW * pfs) / 10.5 / 2 + 2 / k;
         if (!claim(p.x - half, y - pfs, p.x + half, y + pfs * 0.3)) continue;
-        ctx.globalAlpha = focusId && !isNear(p.id) ? dimA : 1;
+        ctx.globalAlpha = al * 0.92;
         ctx.strokeText(p.name, p.x, y);
         ctx.fillText(p.name, p.x, y);
       }
 
-      ctx.font = `650 ${fs}px ${font}`;
-      ctx.lineWidth = fs * 0.32;
-      ctx.strokeStyle = "rgba(5, 6, 11, .6)";
-      ctx.fillStyle = "#F4F5FA";
+      ctx.font = `600 ${fs}px ${font}`;
+      ctx.lineWidth = fs * 0.3;
+      ctx.strokeStyle = "rgba(4, 5, 10, .5)";
+      ctx.fillStyle = "#F1F2F7";
       for (const { sys, y0 } of suns) {
-        ctx.globalAlpha = holdsFocus(sys) ? 1 : 1 - 0.55 * fade.mix;
+        ctx.globalAlpha = (holdsFocus(sys) ? 1 : 1 - 0.55 * fade.mix) * 0.94;
         sys.lines.forEach((line, i) => {
           ctx.strokeText(line, sys.x, y0 + i * lh);
           ctx.fillText(line, sys.x, y0 + i * lh);
@@ -637,12 +777,12 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
             <button className="btn btn-icon btn-sm" onClick={fit} aria-label="Fit to screen"><Icon name="fit" size={16}/></button>
           </div>
           <div className="map-legend">
-            <span><span className="dot glow" style={{ background: "#9fb0ff", color: "#9fb0ff" }}/>Mastered</span>
-            <span><span className="dot" style={{ background: "#9fb0ff", opacity: 0.75 }}/>Learning</span>
-            <span><span className="dot glow" style={{ background: SLIPPING, color: SLIPPING }}/>Slipping</span>
-            <span><span className="dot" style={{ border: "1.5px solid #9fb0ff" }}/>Not started</span>
-            {ix.lockedConcepts.size > 0 && <span><span className="dot" style={{ background: LOCKED }}/>Unread chapter</span>}
-            <span><svg width="22" height="6"><path d="M0 3h22" stroke="rgba(214, 222, 255, .6)" strokeWidth="1.4"/></svg>Link</span>
+            <span><span className="dot planet bright" style={{ "--c": "#9FB0FF" }}/>Mastered</span>
+            <span><span className="dot planet" style={{ "--c": "#8F9AD0" }}/>Learning</span>
+            <span><span className="dot planet bright" style={{ "--c": SLIPPING }}/>Slipping</span>
+            <span><span className="dot planet dark" style={{ "--c": "#9FB0FF" }}/>Not started</span>
+            {ix.lockedConcepts.size > 0 && <span><span className="dot planet dust"/>Unread chapter</span>}
+            {scope === "all" && scene.bridges.length > 0 && <span><span className="legend-stream"/>Links between books</span>}
           </div>
         </div>
       )}

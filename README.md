@@ -32,7 +32,7 @@
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
 - **Notes.** Jot down things you learn outside a course. Each note becomes new concepts, extra questions on something you already study, or nothing if it isn't worth remembering, without inflating a course's totals.
 - **Shelf.** Your reading, textbooks and courses standing on shelves as 3D books, each kind with its own tab. Tenax courses show up on their own; anything else you add by hand, with a cover and progress. Books you read for fun also get star ratings and a few notes in your own words (what it's about, what you thought, ideas worth keeping), and every so often Tenax asks what you remember before showing your notes again: a few days later, then further apart each time it sticks.
-- **Knowledge map.** A sky of solar systems: each book is a sun with its name beneath it, its chapters are orbits, and its concepts are planets going round, lit up as you master them. Links between ideas stretch between the planets, across books too. Point at a planet and the sky stops; click it to glide over and open it.
+- **Knowledge map.** A sky of solar systems: each book is a sun with its name beneath it, its chapters are orbits, and its concepts are planets going round, lit by their sun and glowing once you master them. Books that share ideas are joined by a stream of light; point at a planet to see its own links. Names come in as you zoom. Point at a planet and the sky stops; click it to glide over and open it.
 - **Every computer, one library.** Sync through a folder your cloud drive already syncs (OneDrive, Dropbox, Google Drive). No server, no account.
 
 | | |

@@ -126,3 +126,36 @@ export function systemBounds(systems) {
     y1: Math.max(...systems.map(s => s.y + s.radius * TILT + 30)),
   };
 }
+
+/**
+ * Links between books, gathered into one stream per pair of books (the map
+ * draws a soft band between their suns instead of every line).
+ * pairs: [{ a, b }] system ids of each link's ends. Returns [{ a, b, n }].
+ */
+export function bridgesBetween(pairs) {
+  const byPair = new Map();
+  for (const { a, b } of pairs) {
+    if (a === b) continue;
+    const [x, y] = String(a) < String(b) ? [a, b] : [b, a];
+    const key = `${x}|${y}`;
+    byPair.set(key, { a: x, b: y, n: (byPair.get(key)?.n || 0) + 1 });
+  }
+  return [...byPair.values()];
+}
+
+/** The control point that bows a curve from a to b to its left by `bend` times its length. */
+export function bow(ax, ay, bx, by, bend) {
+  return { x: (ax + bx) / 2 + (by - ay) * bend, y: (ay + by) / 2 - (bx - ax) * bend };
+}
+
+/** A point on the quadratic curve from a through control c to b, at t in [0, 1]. */
+export function onCurve(ax, ay, c, bx, by, t) {
+  const u = 1 - t;
+  return { x: u * u * ax + 2 * u * t * c.x + t * t * bx, y: u * u * ay + 2 * u * t * c.y + t * t * by };
+}
+
+/** 0 at or below `from`, 1 at or above `to`, easing in between (things that appear as you zoom in). */
+export function fadeIn(v, from, to) {
+  const t = Math.max(0, Math.min(1, (v - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+}

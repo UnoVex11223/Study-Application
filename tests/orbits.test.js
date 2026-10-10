@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { orbitalLayout, planetAt, wrapName, systemBounds, TILT } from "../src/lib/orbits.js";
+import { orbitalLayout, planetAt, wrapName, systemBounds, TILT, bridgesBetween, bow, onCurve, fadeIn } from "../src/lib/orbits.js";
 
 function sky(nCourses = 5) {
   const courses = [], sections = [], concepts = [];
@@ -72,4 +72,24 @@ test("names wrap onto at most three lines", () => {
   const long = wrapName("Structure and Interpretation of Computer Programs, Second Edition, with extra words at the end");
   assert.equal(long.length, 3);
   assert.ok(long[2].endsWith("…"));
+});
+
+test("links between books gather into one stream per pair of books", () => {
+  const out = bridgesBetween([{ a: "c", b: "k" }, { a: "k", b: "c" }, { a: "c", b: "c" }, { a: "c", b: "n" }]);
+  assert.deepEqual(out, [{ a: "c", b: "k", n: 2 }, { a: "c", b: "n", n: 1 }]);
+});
+
+test("curves bow to one side and pass through their ends", () => {
+  const c = bow(0, 0, 100, 0, 0.2);
+  assert.deepEqual([c.x, c.y], [50, -20]);
+  assert.deepEqual(onCurve(0, 0, c, 100, 0, 0), { x: 0, y: 0 });
+  assert.deepEqual(onCurve(0, 0, c, 100, 0, 1), { x: 100, y: 0 });
+  assert.equal(onCurve(0, 0, c, 100, 0, 0.5).y, -10);
+});
+
+test("things fade in smoothly over a range of zoom", () => {
+  assert.equal(fadeIn(0.5, 1, 2), 0);
+  assert.equal(fadeIn(3, 1, 2), 1);
+  assert.equal(fadeIn(1.5, 1, 2), 0.5);
+  assert.ok(fadeIn(1.2, 1, 2) < fadeIn(1.4, 1, 2));
 });
