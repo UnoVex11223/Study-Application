@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useStore } from "../state/store.jsx";
-import { Bar, StatusDot } from "../ui/ui.jsx";
+import { Bar, StatusDot, Figures, Figure, Spark } from "../ui/ui.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import { index, ABILITIES } from "../lib/model.js";
 import { conceptMastery, courseMastery, abilityBreakdown, isEvidence } from "../lib/mastery.js";
@@ -9,6 +9,7 @@ import { FLAG_REASONS } from "../lib/quality.js";
 import Markdown from "../ui/Markdown.jsx";
 import FixQuestion from "./FixQuestion.jsx";
 import { dayKey, addDays, keyToDate, formatMinutes } from "../lib/time.js";
+import { lastDays, perDay, milestones, runningTotal } from "../lib/history.js";
 
 const DAY = 864e5;
 
@@ -95,7 +96,12 @@ export default function Progress() {
     }
     const misconceptions = Object.values(misc).sort((a, b) => b.n - a.n).slice(0, 6);
 
-    return { counts, streak, week, weekSec, delayedN, delayedOk, mastered, started, weak, misconceptions };
+    // Sparklines: the last two weeks of answers, and a month of concepts mastered.
+    const fortnight = lastDays(today, 14);
+    const perDayAnswers = perDay(state.attempts, fortnight);
+    const masteredByDay = runningTotal(milestones(state, state.concepts.filter(c => !c.suspended), now).mastered, lastDays(today, 30));
+
+    return { counts, streak, week, weekSec, delayedN, delayedOk, mastered, started, weak, misconceptions, perDayAnswers, masteredByDay };
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abilities = abilityBreakdown(state, { now });
@@ -109,15 +115,15 @@ export default function Progress() {
         </div>
       </div>
 
-      <div className="stats" style={{ marginBottom: 28 }}>
-        <div className="stat"><div className="stat-value">{data.streak}</div><div className="stat-label">day streak</div></div>
-        <div className="stat"><div className="stat-value">{data.week.length}</div><div className="stat-label">answers this week, {formatMinutes(data.weekSec)}</div></div>
-        <div className="stat">
-          <div className="stat-value">{data.delayedN ? pct(data.delayedOk / data.delayedN) : "–"}</div>
-          <div className="stat-label">recalled after a week or more</div>
-        </div>
-        <div className="stat"><div className="stat-value">{data.mastered}<span className="muted" style={{ fontSize: 15 }}> / {data.started}</span></div><div className="stat-label">started concepts mastered</div></div>
-      </div>
+      <Figures>
+        <Figure value={data.streak} label="day streak"
+          spark={<Spark kind="dots" values={data.perDayAnswers} width={96} height={12} label="Days studied in the last two weeks"/>}/>
+        <Figure value={data.week.length} label={`answers this week, ${formatMinutes(data.weekSec)}`}
+          spark={<Spark kind="bars" values={data.perDayAnswers} width={70} label="Answers per day, last two weeks"/>}/>
+        <Figure value={data.delayedN ? pct(data.delayedOk / data.delayedN) : "–"} label="recalled after a week or more"/>
+        <Figure value={data.mastered} of={data.started} label="started concepts mastered"
+          spark={<Spark values={data.masteredByDay} label="Concepts mastered over the last 30 days"/>}/>
+      </Figures>
 
       <div className="grid-2">
         <div className="stack" style={{ gap: 28 }}>

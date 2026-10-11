@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Bar, StatusDot, ImportanceTag, Notice, Spinner, Modal } from "../ui/ui.jsx";
+import { Bar, StatusDot, ImportanceTag, Notice, Spinner, Modal, Figures, Figure, Spark } from "../ui/ui.jsx";
+import { CoverArt } from "../ui/Cover.jsx";
 import { useBackground } from "../state/background.jsx";
 import { useSync } from "../state/sync.jsx";
 import { useBookImport, jobProgress, bookBridge } from "../state/bookImport.jsx";
@@ -13,6 +14,8 @@ import { index, COURSE_STATUS, ABILITIES } from "../lib/model.js";
 import { courseMastery, sectionMastery, abilityBreakdown } from "../lib/mastery.js";
 import { practiceTasks } from "../lib/planner.js";
 import { aiBridge, roomForQuestions } from "../lib/ai.js";
+import { lastDays, milestones, runningTotal } from "../lib/history.js";
+import { dayKey } from "../lib/time.js";
 
 /** Progress and controls for a book being imported into this course. */
 function JobBanner({ job, device }) {
@@ -123,7 +126,7 @@ export default function Course({ courseId }) {
   const nav = useNav();
   const ix = index(state);
   const course = ix.course[courseId];
-  const [open, setOpen] = useState(() => new Set());
+  const [open, setOpen] = useState(() => new Set(nav.route.sectionId ? [nav.route.sectionId] : []));
   const [conceptId, setConceptId] = useState(nav.route.conceptId ?? null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(null);
@@ -134,12 +137,29 @@ export default function Course({ courseId }) {
   const device = useSync()?.device ?? null;
   const [topUpScope, setTopUpScope] = useState(null);
   const now = nav.now;
+  // Opened at a chapter (from the palette): bring it into view.
+  useEffect(() => {
+    if (nav.route.sectionId) document.getElementById(`sec-${nav.route.sectionId}`)?.scrollIntoView({ block: "center" });
+  }, [nav.route.sectionId]);
+  // The last 30 days of concepts started and mastered, for the sparklines.
+  const hasCourse = Boolean(course);
+  const history = useMemo(() => {
+    if (!hasCourse) return null;
+    const ix2 = index(state);
+    const all = (ix2.conceptsByCourse[courseId] || []).filter(c => !c.suspended && !ix2.lockedConcepts.has(c.id));
+    const core = all.filter(c => c.importance === "core");
+    const days = lastDays(dayKey(now, state.settings.rolloverHour), 30);
+    const started = milestones(state, all, now).started;
+    const mastered = milestones(state, core.length ? core : all, now).mastered;
+    return { started: runningTotal(started, days), mastered: runningTotal(mastered, days) };
+  }, [state, hasCourse, courseId, now]);
 
   if (!course) {
     return <div className="page"><button className="crumb" onClick={() => nav.go("courses")}><Icon name="back" size={14}/>Courses</button><p>This course no longer exists.</p></div>;
   }
 
   const m = courseMastery(state, courseId, now);
+  const shelfItem = state.shelf.find(it => it.courseId === courseId) || null;
   const abilities = abilityBreakdown(state, { courseId, now });
   const sections = ix.sectionsByCourse[courseId] || [];
   const toggle = (id) => setOpen(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -158,19 +178,17 @@ export default function Course({ courseId }) {
   return (
     <div className="page">
       <button className="crumb" onClick={() => nav.go("courses")}><Icon name="back" size={14}/>Courses</button>
-      <div className="page-head" style={{ alignItems: "flex-start" }}>
+      <div className="page-head course-head">
+        <CoverArt src={shelfItem?.cover || null} title={shelfItem?.title || course.name} className="course-cover"/>
         <div className="grow">
-          <div className="row" style={{ gap: 12 }}>
-            <span className="dot" style={{ background: course.color, width: 12, height: 12 }}/>
-            <h1>{course.name}</h1>
-            <button className="btn btn-quiet btn-sm btn-icon" title="Edit course" onClick={() => setEditing(true)}><Icon name="edit" size={15}/></button>
-          </div>
-          <div className="row" style={{ marginTop: 12, gap: 12, flexWrap: "wrap" }}>
+          <h1>{course.name}</h1>
+          <div className="row" style={{ marginTop: 14, gap: 8, flexWrap: "wrap" }}>
             <div className="seg" role="group" aria-label="Course status">
               {Object.entries(COURSE_STATUS).map(([k, v]) => (
                 <button key={k} className={course.status === k ? "on" : ""} onClick={() => act("course/update", { id: course.id, patch: { status: k } })}>{v.label}</button>
               ))}
             </div>
+            <button className="btn btn-quiet btn-sm btn-icon" title="Edit course" aria-label="Edit course" onClick={() => setEditing(true)}><Icon name="edit" size={15}/></button>
           </div>
         </div>
         <div className="row">
@@ -195,15 +213,14 @@ export default function Course({ courseId }) {
         </div>
       ) : (
         <>
-          <div className="stats" style={{ marginBottom: 28 }}>
-            <div className="stat">
-              <div className="stat-value">{m.mastered}<span className="muted" style={{ fontSize: 15 }}> / {m.basisCount}</span></div>
-              <div className="stat-label">{m.basisIsCore ? "core concepts" : "concepts"} mastered</div>
-            </div>
-            <div className="stat"><div className="stat-value">{pct(m.coveragePct)}</div><div className="stat-label">of {m.total} concepts started</div></div>
-            <div className="stat"><div className="stat-value">{m.memory == null ? "–" : pct(m.memory)}</div><div className="stat-label">average recall today</div></div>
-            <div className="stat"><div className="stat-value">{m.slipping}</div><div className="stat-label">slipping</div></div>
-          </div>
+          <Figures>
+            <Figure value={m.mastered} of={m.basisCount} label={`${m.basisIsCore ? "core concepts" : "concepts"} mastered`}
+              spark={history && <Spark values={history.mastered} label="Mastered over the last 30 days"/>}/>
+            <Figure value={pct(m.coveragePct)} label={`of ${m.total} concepts started`}
+              spark={history && <Spark values={history.started} label="Started over the last 30 days"/>}/>
+            <Figure value={m.memory == null ? "–" : pct(m.memory)} label="average recall today"/>
+            <Figure value={m.slipping} label="slipping"/>
+          </Figures>
 
           <div className="grid-2">
             <div>
@@ -219,7 +236,7 @@ export default function Course({ courseId }) {
                   const isOpen = open.has(s.id);
                   const concepts = ix.conceptsBySection[s.id] || [];
                   return (
-                    <div key={s.id} className={`section-block${s.locked ? " locked" : ""}`}>
+                    <div key={s.id} id={`sec-${s.id}`} className={`section-block${s.locked ? " locked" : ""}`}>
                       <div className="section-head">
                         <button className={`section-row${isOpen ? " open" : ""}`} onClick={() => toggle(s.id)} aria-expanded={isOpen}>
                           <Icon name="chevron" size={14} className="chev"/>

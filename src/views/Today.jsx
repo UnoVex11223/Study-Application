@@ -163,10 +163,10 @@ export default function Today({ plan }) {
         </div>
 
         <div className="stack" style={{ gap: 28 }}>
-          <div className="panel panel-pad">
+          <section className="quiet-block">
             <h2 className="h">This week</h2>
             <Week state={state} now={now}/>
-          </div>
+          </section>
           {inbox > 0 && (
             <button className="panel panel-pad notes-callout" onClick={() => nav.go("notes")}>
               <Icon name="note" size={18}/>

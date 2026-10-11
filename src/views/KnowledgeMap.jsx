@@ -14,6 +14,7 @@ import { useStore } from "../state/store.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import ConceptPanel from "./ConceptPanel.jsx";
+import { transition } from "../ui/motion.js";
 import { index } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
 import { layeredLayout } from "../lib/graph.js";
@@ -236,8 +237,25 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       return { k, x: visible / 2 - q.x * k, y: r.height / 2 - q.y * k };
     }, 820);
   }, [glideTo]);
+  // Opening a planet grows it into its panel: a small lit disc is put where the
+  // planet is, and a "sheet" view transition (ui/motion.js) morphs it into the
+  // panel. With the panel already open, the panel just changes.
   const choose = useCallback((id) => {
-    setSelected(id);
+    const p = sceneRef.current?.byId.get(id);
+    const canvas = canvasRef.current;
+    if (!selectedRef.current && p && canvas) {
+      const r = canvas.getBoundingClientRect(), { x, y, k } = cam.current;
+      const rad = Math.max(7, p.r * k * 1.5);
+      const ghost = document.createElement("div");
+      ghost.className = "planet-ghost";
+      Object.assign(ghost.style, {
+        left: `${r.left + p.x * k + x - rad}px`, top: `${r.top + p.y * k + y - rad}px`, width: `${rad * 2}px`, height: `${rad * 2}px`,
+        background: `radial-gradient(circle at 36% 36%, #fff 0, ${p.color} 38%, ${withAlpha(p.color, 0.35)} 62%, transparent 72%)`,
+        viewTransitionName: "sheet",
+      });
+      document.body.appendChild(ghost);
+      transition(() => { ghost.remove(); setSelected(id); }, "sheet");
+    } else setSelected(id);
     clock.current.hold = true;
     centerOn(id);
   }, [centerOn]);
@@ -281,6 +299,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
     if (!canvas) return undefined;
     const ctx = canvas.getContext("2d");
     const font = getComputedStyle(document.body).fontFamily || "sans-serif";
+    const serif = getComputedStyle(document.documentElement).getPropertyValue("--serif").trim() || "serif";
     const still = stillPreferred();
     let raf = 0, last = performance.now(), drawnAt = 0;
 
@@ -587,7 +606,8 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
         ctx.fillText(p.name, p.x, y);
       }
 
-      ctx.font = `600 ${fs}px ${font}`;
+      // Book names in the display serif, a little larger, like the titles elsewhere.
+      ctx.font = `500 ${fs * 1.12}px ${serif}`;
       ctx.lineWidth = fs * 0.3;
       ctx.strokeStyle = "rgba(4, 5, 10, .5)";
       ctx.fillStyle = "#F1F2F7";
@@ -788,7 +808,7 @@ export default function KnowledgeMap({ focusCourseId, focusConceptId }) {
       )}
 
       {selected && ix.concept[selected] && (
-        <ConceptPanel modeless conceptId={selected}
+        <ConceptPanel modeless enter={false} conceptId={selected}
           onOpen={(id) => (scene.byId.has(id) ? choose(id) : setSelected(id))}
           onClose={() => setSelected(null)}/>
       )}

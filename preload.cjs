@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld("tenax", {
     flush: () => ipcRenderer.invoke("sync:flush"),
   },
   version: () => ipcRenderer.invoke("app:version"),
+  window: {
+    platform: process.platform,
+    chrome: (colors) => ipcRenderer.invoke("window:chrome", colors),
+  },
   update: {
     status: () => ipcRenderer.invoke("app:update"),
     install: () => ipcRenderer.invoke("app:update-install"),

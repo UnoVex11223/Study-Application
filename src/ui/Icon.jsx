@@ -34,6 +34,12 @@ const PATHS = {
   note: <><path d="M5 4h10l4 4v12H5z"/><path d="M14 4v5h5M9 13h6M9 17h4"/></>,
   shelf: <><path d="M3 20.5h18"/><rect x="4.5" y="4.5" width="3.6" height="16" rx=".8"/><rect x="9.8" y="7.5" width="3.6" height="13" rx=".8"/><path d="M15.2 9.3l3.4-.9 2.9 11.2-3.4.9z"/><path d="M6.3 8v2M11.6 11v2"/></>,
   book: <><path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 1h13v-3"/><path d="M9 7h6"/></>,
+  search: <><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/></>,
+  volume: <><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/></>,
+  mute: <><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></>,
+  sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></>,
+  moon: <path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>,
+  arrow: <path d="M5 12h14M13 6l6 6-6 6"/>,
 };
 
 export default function Icon({ name, size = 18, stroke = 1.7, className, style }) {

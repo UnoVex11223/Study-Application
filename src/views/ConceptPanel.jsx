@@ -21,7 +21,7 @@ function askedLine(st) {
   return `Asked ${st.seen}×${misses ? `, missed on ${misses} day${misses === 1 ? "" : "s"}` : ""}`;
 }
 
-export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = false }) {
+export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = false, enter = true }) {
   const { state, act } = useStore();
   const nav = useNav();
   const [editing, setEditing] = useState(null); // item | "new" | null
@@ -60,7 +60,7 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
   };
 
   return (
-    <Drawer onClose={onClose} modeless={modeless} title={c.name} subtitle={`${course?.name ?? ""}${section ? ` / ${section.title}` : ""}`}>
+    <Drawer onClose={onClose} modeless={modeless} enter={enter} title={c.name} subtitle={`${course?.name ?? ""}${section ? ` / ${section.title}` : ""}`}>
       <section className="stack" style={{ gap: 10 }}>
         <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
           <span className="row" style={{ gap: 7 }}><StatusDot status={m.status}/><strong>{STATUS[m.status].label}</strong></span>

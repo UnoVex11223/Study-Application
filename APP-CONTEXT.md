@@ -145,7 +145,7 @@ Notes are reviewed and introduced like everything else, but they're their own sp
 
 The Shelf page stands every book, textbook and course you're working through on shelves, as books: the cover, with page edges, a spine and a thickness that follows its length (pages, or about 30 pages per chapter or module). Books you read are drawn a little smaller than textbooks and courses. Under each book are its title, its author (or, for a Tenax course, how much is mastered) and how far along you are. The tabs across the top are All, **Reading** (books you read for their own sake), **Textbooks**, **Courses**, In progress and Finished, each with how many it holds; **Recall** in the header shows how many recalls are due.
 
-Books are set down on the shelf one after another when the page opens or you switch tabs. Pointing at one lifts it toward you and tilts it with the pointer, the rest of the shelf dims a little, and the shelf's edge catches the light under the pointer; the **⋯** on the book has Edit and Hide (a Tenax course) or Remove. Logging a chapter with **+** swings the cover open for a moment. A book due for a recall has a bookmark sticking out of the top, and a book you want to read but haven't started has a faded cover. With reduced motion turned on in the system, none of it moves.
+Clicking a Tenax course's book flies it off the shelf into the course page's header, where it lands as the cover beside the course's name. Books are set down on the shelf one after another when the page opens or you switch tabs. Pointing at one lifts it toward you and tilts it with the pointer, the rest of the shelf dims a little, and the shelf's edge catches the light under the pointer; the **⋯** on the book has Edit and Hide (a Tenax course) or Remove. Logging a chapter with **+** swings the cover open for a moment. A book due for a recall has a bookmark sticking out of the top, and a book you want to read but haven't started has a faded cover. With reduced motion turned on in the system, none of it moves.
 
 - **Reading**: a book's author, pages read out of the total, a status (reading, finished, want to read), dates and, once finished, a star rating.
 - **Textbooks and courses**: your Tenax courses are on the shelf automatically (an imported book as a textbook, a course you built as a course; either can be changed in Edit). Anything else, like a video course or a textbook you aren't studying in Tenax, you add yourself and count with + and − (they appear when you point at the book); it's in progress or finished. These cards show the cover and progress only, with no description.
@@ -186,6 +186,16 @@ Pointing at a planet brings the sky to a stop so it's easy to click; clicking gl
 
 Drawn on a canvas, so large libraries stay smooth: it opens instantly and redraws hundreds of moving planets in a few milliseconds (planets, suns and glows are painted once and reused). The layout itself is in `src/lib/orbits.js` (pure, unit-tested); the sky's pictures are in `src/ui/sky.js`.
 
+## Look and feel
+
+- **Title bar.** The window has no frame of its own: the bar at the top holds the Tenax mark and a search box, and is where you drag the window. The system's minimise, maximise and close buttons sit at its right end (traffic lights at the left on a Mac), coloured to match the theme.
+- **Search and commands (Ctrl+K, or click the search box).** Type to find any course, chapter, concept, book on the shelf or note in your inbox, or run an action: start today's session, recall books, capture a note, create a course, import a book, add to the shelf, switch theme, turn sounds on or off, sync now. Every word you type has to match, as a whole word part or as the first letters of words ("ptf" finds "Pointers to functions"); the group with the best match comes first. Arrow keys move, Enter opens, Escape closes. A concept opens its panel on its course page, a chapter opens on its course page, a book opens its notes on the shelf.
+- **Motion.** One set of timings and curves throughout. Pages crossfade and the new one rises into place; the highlight in the sidebar slides to the page you picked; a book flies from the shelf into its course; a planet on the map grows into its concept panel; a study session slides up over everything and back down when it ends; panels and dialogs slide or fade out when you close them. With reduced motion turned on in the system, everything changes at once.
+- **Type.** Page titles, book and concept names and the big numbers are set in Newsreader, a serif made for reading; everything else is Geist, with Geist Mono for labels and small numbers.
+- **Numbers.** On a course, Progress and Teach back, the key numbers sit in a row between thin lines rather than in boxes, some with a small sparkline: concepts mastered and started over the last 30 days, answers per day and days studied over the last two weeks. A sparkline only appears once there's something to show.
+- **Themes.** Settings → Appearance: Black, Paper (a warm off-white with a faint grain, like a printed page) or Match system. The knowledge map is always night.
+- **Sounds.** Off unless you turn them on (Settings → Sounds, or from search). A soft tick when an answer comes back right, a paper rustle when you log a chapter on the shelf, and a low chime when a session ends. They're made as they play, so there are no sound files.
+
 ## Data & privacy
 
 Everything lives locally in one file on your machine, and a copy is saved automatically once a day in a `backups` folder next to it (the last 14 are kept; Settings → Your data → Open folder). The API key is encrypted with your user account (Windows DPAPI / macOS Keychain) and isn't included in backups. The data file is `config.json` in `%APPDATA%\aeroflash` on a computer that ran earlier versions (kept so nothing moves when the app is renamed) and in `%APPDATA%\Tenax` on a fresh install. Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
@@ -214,9 +224,10 @@ This version starts from an empty library. The first time it runs, anything save
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates
 sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, cover (shaping covers), recall, sync (merging)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, cover (shaping covers), recall, sync (merging), search and commands (the palette), history (sparklines)
 src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
 src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, KnowledgeMap, Progress, TeachBack, Settings
+src/ui/           motion (timings, view transitions), sound, Palette (Ctrl+K), Cover, sky (map pictures), ui (shared pieces)
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```
 

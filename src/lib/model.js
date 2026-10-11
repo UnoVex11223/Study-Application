@@ -54,6 +54,7 @@ export const DEFAULT_SETTINGS = {
   retention: 0.9,
   theme: "dark",
   themeVersion: 2,
+  sounds: false, // soft sounds for a right answer, the shelf and the end of a session
 };
 
 let counter = 0;

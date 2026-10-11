@@ -14,6 +14,7 @@ import { buildPlan, pickItem } from "../lib/planner.js";
 import { aiAvailable } from "../lib/ai.js";
 import { dayKey, formatMinutes } from "../lib/time.js";
 import { RATING } from "../lib/fsrs.js";
+import { play } from "../ui/sound.js";
 
 const MAX_FOUNDATION = 3;
 const MAX_REQUEUE = 2;
@@ -56,6 +57,9 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
   const doneEst = queue.slice(0, idx).reduce((s, t) => s + (t.estSec || 60), 0);
 
   const exit = () => nav.endSession();
+  // A low chime when the last question is done (if sounds are on).
+  const answered = results.length > 0;
+  useEffect(() => { if (done && answered) play("chime"); }, [done, answered]);
   useKey((e) => { if (e.key === "Escape" && !document.querySelector(".modal")) exit(); }, []);
 
   const onDone = (r) => {

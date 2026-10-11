@@ -782,12 +782,32 @@ ipcMain.handle("book:delete", (_e, bookId) => {
 });
 
 // ── Window ────────────────────────────────────────────────────────────────────
+// No frame: the app draws its own title bar (the Tenax mark and the search
+// box) and the system's window buttons are drawn over its right end
+// (titleBarOverlay), so snapping and the rest still behave natively. On a
+// Mac the traffic lights sit inside the bar at the left. The buttons' colours
+// follow the app's theme (window:chrome).
+const TITLEBAR_H = 40;
+const IS_MAC = process.platform === "darwin";
+const THEMES = { dark: { color: "#090A0B", symbolColor: "#A1A2A8" }, light: { color: "#F3EEE4", symbolColor: "#5B5448" } };
+
 // Match the app's theme so the window doesn't flash the wrong color on launch.
-function windowBackground() {
+function themeColors() {
   const theme = store.get("af3_state")?.settings?.theme ?? "dark";
   const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
-  return dark ? "#090A0B" : "#FFFFFF";
+  return THEMES[dark ? "dark" : "light"];
 }
+const windowBackground = () => themeColors().color;
+
+const HEX = /^#[0-9a-f]{6}$/i;
+ipcMain.handle("window:chrome", (e, colors) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const color = String(colors?.color || ""), symbolColor = String(colors?.symbolColor || "");
+  if (!win || !HEX.test(color) || !HEX.test(symbolColor)) return false;
+  win.setBackgroundColor(color);
+  if (!IS_MAC && typeof win.setTitleBarOverlay === "function") win.setTitleBarOverlay({ color, symbolColor, height: TITLEBAR_H });
+  return true;
+});
 
 function createWindow() {
   const iconPath = path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png");
@@ -799,6 +819,10 @@ function createWindow() {
     title: "Tenax",
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
+    titleBarStyle: "hidden",
+    ...(IS_MAC
+      ? { trafficLightPosition: { x: 14, y: 13 } }
+      : { titleBarOverlay: { ...themeColors(), height: TITLEBAR_H } }),
     ...(fs.existsSync(iconPath) && { icon: iconPath }),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

@@ -9,6 +9,7 @@ import { matchesAccepted, verdictFromChecks, suggestedRating, VERDICT } from "..
 import { gradeWithAI, rubricFor } from "../lib/ai.js";
 import { previewIntervals, RATING_LABEL } from "../lib/fsrs.js";
 import { FLAG_REASONS } from "../lib/quality.js";
+import { play } from "../ui/sound.js";
 
 const KIND_LABEL = {
   new: "New concept",
@@ -40,7 +41,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
   const points = rubricFor(item);
   const aided = hint || gaveUp;
 
-  const finishWith = (g) => { setGrade(g); setPhase("feedback"); };
+  const finishWith = (g) => { setGrade(g); setPhase("feedback"); if (g.verdict === "correct") play("correct"); };
 
   const selfCheck = (reason = "") => {
     setChecks({ points: points.map(() => false), misc: (item.misconceptions || []).map(() => false) });

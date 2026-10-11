@@ -12,7 +12,7 @@
 // catches the light under the pointer. With reduced motion, all of it stands
 // still. Covers are shaped by lib/cover.js.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import { Drawer, Modal, Spinner } from "../ui/ui.jsx";
@@ -20,7 +20,9 @@ import Icon from "../ui/Icon.jsx";
 import { shelfEntries, SHELF_FILTERS, SHELF_KINDS, categoryOf, makeShelfItem, itemFinished } from "../lib/shelf.js";
 import { dueForRecall, recallWhen, hasNotes, RECALL_RATINGS } from "../lib/recall.js";
 import { shrinkImage } from "../lib/image.js";
-import { analyzeCover, peekCover, subscribeCovers, clothFor, bookThickness } from "../lib/cover.js";
+import { clothFor, bookThickness } from "../lib/cover.js";
+import { CoverArt, useCoverInfo } from "../ui/Cover.jsx";
+import { play } from "../ui/sound.js";
 
 const longDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const monthYear = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", year: "numeric" });
@@ -52,35 +54,6 @@ function Stars({ value, onChange, size = 15 }) {
         </svg>
       ))}
     </span>
-  );
-}
-
-/** What lib/cover.js has worked out about a picture (null until it's looked at it). */
-function useCoverInfo(src) {
-  const info = useSyncExternalStore(subscribeCovers, () => (src ? peekCover(src) : null));
-  useEffect(() => { if (src) analyzeCover(src); }, [src]);
-  return info;
-}
-
-/** A book cover, 2:3: the picture (margins cropped, odd shapes set on a plate), or plain cloth with the title. */
-function CoverArt({ src, title, author, className = "" }) {
-  const info = useCoverInfo(src);
-  if (!src) {
-    const cloth = clothFor(title);
-    return (
-      <div className={`cover-art cloth ${className}`} style={{ "--cloth": cloth.bg, "--cloth-ink": cloth.ink }}>
-        <div className="cloth-title">{title || "Untitled"}</div>
-        {author && <div className="cloth-author">{author}</div>}
-      </div>
-    );
-  }
-  if (!info) return <div className={`cover-art loading ${className}`}/>;
-  if (info.fit === "fill") return <div className={`cover-art ${className}`}><img className="cover-fill" src={info.src} alt="" draggable={false}/></div>;
-  return (
-    <div className={`cover-art framed ${className}`}>
-      <img className="cover-haze" src={info.src} alt="" draggable={false}/>
-      <img className="cover-plate" src={info.src} alt="" draggable={false}/>
-    </div>
   );
 }
 
@@ -125,8 +98,8 @@ function Book({ entry: e, opening, onOpen, actions }) {
   return (
     <div className={`book-hold${e.category === "reading" ? " slim" : ""}${e.want ? " want" : ""}${opening ? ` open-${opening % 2}` : ""}`}
       style={{ "--t": `${bookThickness(e)}px`, "--spine": spine }} {...tilt}>
-      <div className="book" role="button" tabIndex={0} aria-label={`Open ${e.title}`} onClick={onOpen}
-        onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onOpen(); } }}>
+      <div className="book" role="button" tabIndex={0} aria-label={`Open ${e.title}`} onClick={(ev) => onOpen(ev.currentTarget)}
+        onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onOpen(ev.currentTarget); } }}>
         <div className="book-face book-back"/>
         <div className="book-face book-pages"/>
         <div className="book-face book-top"/>
@@ -147,13 +120,16 @@ function Book({ entry: e, opening, onOpen, actions }) {
 /** The plank a row of books stands on; each card brings its own length of it. */
 const Ledge = () => <div className="ledge" aria-hidden="true"/>;
 
-export default function Shelf({ recall: startRecall = false }) {
+export default function Shelf({ recall: startRecall = false, openItem = null, adding = false }) {
   const { state, act } = useStore();
   const nav = useNav();
   const [filter, setFilter] = useState("all");
   const [showHidden, setShowHidden] = useState(false);
-  const [editing, setEditing] = useState(null); // null | { entry } (entry null = new)
-  const [openId, setOpenId] = useState(null);
+  // Opened from the palette: a book's panel, a textbook or course's edit form, or a new item.
+  const startItem = openItem ? state.shelf.find(it => it.id === openItem) : null;
+  const [editing, setEditing] = useState(() => (adding ? { entry: null }
+    : startItem && startItem.kind !== "reading" ? { entry: shelfEntries(state, Date.now()).find(e => e.item?.id === startItem.id) || null } : null)); // null | { entry } (entry null = new)
+  const [openId, setOpenId] = useState(() => (startItem?.kind === "reading" ? startItem.id : null));
   const [recallQueue, setRecallQueue] = useState(() => (startRecall ? dueForRecall(state.shelf, Date.now()).map(it => it.id) : null));
   const [cols, setCols] = useState(5);
   const shelfRef = useRef(null);
@@ -216,9 +192,15 @@ export default function Shelf({ recall: startRecall = false }) {
   const setHidden = (e, hide) => (e.item
     ? act("shelf/update", { id: e.item.id, patch: { hidden: hide } })
     : act("shelf/add", { item: makeShelfItem({ courseId: e.course.id, kind: e.kind, unitLabel: e.unit, hidden: hide }) }));
-  const openEntry = (e) => (e.course ? nav.go("course", { courseId: e.course.id })
-    : e.kind === "reading" ? setOpenId(e.item.id)
-    : setEditing({ entry: e }));
+  // A Tenax course's book flies off the shelf into the course page's header (a "book" view transition).
+  const openEntry = (e, from) => {
+    if (e.course) {
+      const hold = from?.closest?.(".book-card")?.querySelector(".book-hold");
+      if (hold) { hold.style.viewTransitionName = "book"; hold.classList.add("flying"); }
+      nav.go("course", { courseId: e.course.id }, { type: "book" });
+    } else if (e.kind === "reading") setOpenId(e.item.id);
+    else setEditing({ entry: e });
+  };
 
   const withAdd = filter === "all" || Boolean(tab.kind);
   const filler = (n, at) => Array.from({ length: n }, (_, i) => (
@@ -256,7 +238,7 @@ export default function Shelf({ recall: startRecall = false }) {
         <div className="shelf-grid" key={filter}>
           {shown.map((e, i) => (
             <BookCard key={e.key} entry={e} index={i}
-              onOpen={() => openEntry(e)}
+              onOpen={(from) => openEntry(e, from)}
               onEdit={() => setEditing({ entry: e })}
               onBump={(d) => bump(e, d)}
               onHide={() => setHidden(e, true)}
@@ -345,7 +327,7 @@ function BookCard({ entry: e, index, dim, onOpen, onEdit, onBump, onHide, onRemo
     : e.want ? status.want
     : e.done ? `${e.done} ${e.unit} ${reading ? "read" : "done"}` : "Not started";
   const one = e.unit.replace(/s$/, "");
-  const more = () => { onBump(1); setOpening(n => n + 1); };
+  const more = () => { onBump(1); setOpening(n => n + 1); play("page"); };
 
   const close = useCallback(() => setMenu(false), []);
   const actions = (
@@ -368,7 +350,7 @@ function BookCard({ entry: e, index, dim, onOpen, onEdit, onBump, onHide, onRemo
       </div>
       <Ledge/>
       <div className="book-info">
-        <button className="book-title" onClick={onOpen} tabIndex={-1}>{e.title}</button>
+        <button className="book-title" onClick={(ev) => onOpen(ev.currentTarget)} tabIndex={-1}>{e.title}</button>
         <div className="book-sub">
           {reading ? (
             <>

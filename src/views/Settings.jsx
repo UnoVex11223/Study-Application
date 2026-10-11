@@ -5,6 +5,7 @@ import { useSync } from "../state/sync.jsx";
 import Icon from "../ui/Icon.jsx";
 import { getApiKeySet, setApiKey, flush } from "../lib/persist.js";
 import { aiBridge } from "../lib/ai.js";
+import { play } from "../ui/sound.js";
 
 function Section({ title, children }) {
   return (
@@ -162,8 +163,16 @@ export default function Settings() {
 
       <Section title="Appearance">
         <div className="seg">
-          {[["dark", "Black"], ["light", "White"], ["system", "Match system"]].map(([v, l]) => (
+          {[["dark", "Black"], ["light", "Paper"], ["system", "Match system"]].map(([v, l]) => (
             <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Sounds">
+        <div className="seg">
+          {[[false, "Off"], [true, "On"]].map(([v, l]) => (
+            <button key={l} className={Boolean(s.sounds) === v ? "on" : ""} onClick={() => { set({ sounds: v }); if (v) play("chime", { force: true }); }}>{l}</button>
           ))}
         </div>
       </Section>

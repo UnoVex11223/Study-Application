@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Notice, Spinner } from "../ui/ui.jsx";
+import { Notice, Spinner, Figures, Figure } from "../ui/ui.jsx";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import Markdown from "../ui/Markdown.jsx";
@@ -172,11 +172,11 @@ export default function TeachBack({ courseId, sectionId: initialSection }) {
 
       {phase === "result" && result && (
         <div className="stack" style={{ gap: 20 }}>
-          <div className="stats" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+          <Figures>
             {["covered", "partial", "missing", "wrong"].map(s => (
-              <div key={s} className="stat"><div className="stat-value">{counts[s] || 0}</div><div className="stat-label">{STATUS_META[s].label.toLowerCase()}</div></div>
+              <Figure key={s} value={counts[s] || 0} label={STATUS_META[s].label.toLowerCase()}/>
             ))}
-          </div>
+          </Figures>
           {result.summary && <p style={{ fontSize: 16, lineHeight: 1.6 }}>{result.summary}</p>}
           {result.errors?.length > 0 && result.errors.map((e, i) => <div key={i} className="misconception"><strong>Error:</strong> {e}</div>)}
           <div className="panel list">

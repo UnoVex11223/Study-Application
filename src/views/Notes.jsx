@@ -40,7 +40,7 @@ export default function Notes() {
   const [review, setReview] = useState(null); // { entries, partial }
   const [hasKey, setHasKey] = useState(null);
   const [open, setOpen] = useState(() => new Set());
-  const [conceptId, setConceptId] = useState(null);
+  const [conceptId, setConceptId] = useState(nav.route.conceptId ?? null);
   const [showAll, setShowAll] = useState(false);
   const [drag, setDrag] = useState(false);
   const taRef = useRef(null);
