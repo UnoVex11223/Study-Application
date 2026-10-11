@@ -194,3 +194,26 @@ export const peekCover = (src) => {
 };
 
 export const subscribeCovers = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+
+/** "rgb(r, g, b)" or "#rrggbb" → [r, g, b], or null. */
+export function parseColor(c) {
+  const s = String(c || "").trim();
+  let m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(s);
+  if (m) return [1, 2, 3].map(i => parseInt(m[i], 16));
+  m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(s);
+  return m ? [1, 2, 3].map(i => Math.min(255, Number(m[i]))) : null;
+}
+
+/** Text colour that reads on this background: a warm near-white on dark spines, a near-black on light ones. */
+export function inkFor(bg) {
+  const rgb = parseColor(bg);
+  if (!rgb) return "#EDEAE3";
+  const [r, g, b] = rgb.map(v => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.32 ? "#1F1C17" : "#EDEAE3";
+}
+
+/** How tall a spine stands (px): books a little shorter than textbooks, each a touch different. */
+export function spineHeight({ category, title }) {
+  const h = hash(String(title || "").toLowerCase());
+  return category === "reading" ? 150 + (h % 34) : 186 + (h % 22);
+}

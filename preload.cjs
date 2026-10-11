@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld("tenax", {
     pull: (opts) => ipcRenderer.invoke("sync:pull", opts),
     flush: () => ipcRenderer.invoke("sync:flush"),
   },
+  covers: {
+    search: (q) => ipcRenderer.invoke("covers:search", q),
+    fetch: (id) => ipcRenderer.invoke("covers:fetch", id),
+  },
   version: () => ipcRenderer.invoke("app:version"),
   window: {
     platform: process.platform,

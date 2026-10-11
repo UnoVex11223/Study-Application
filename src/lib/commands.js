@@ -40,9 +40,13 @@ export function commandEntries(state, { plan = null, now = Date.now(), syncing =
   }
   const recall = dueForRecall(state.shelf, now).length;
   if (recall) add({ kind: "action", id: "a:recall", title: "Recall books from your shelf", sub: `${recall} due`, icon: "play", to: { view: "shelf", params: { recall: true, at } }, suggest: true });
+  const flagged = state.items.filter(i => i.flag).length;
+  if (flagged) add({ kind: "action", id: "a:fix", title: "Fix reported questions", sub: `${flagged} waiting`, icon: "flag", to: { view: "today", params: { fix: at } }, suggest: true });
   add({ kind: "action", id: "a:note", title: "Capture a note", icon: "note", keys: "Ctrl Shift N", to: { view: "notes", params: { capture: at } }, suggest: true });
   add({ kind: "action", id: "a:course", title: "Create a course", icon: "plus", to: { view: "courses", params: { create: true, at } }, suggest: true });
   add({ kind: "action", id: "a:book", title: "Import a book", icon: "book", to: { view: "book", params: { at } }, suggest: true });
+  const year = new Date(now).getFullYear();
+  add({ kind: "action", id: "a:year", title: `${year} on your shelf`, icon: "shelf", to: { view: "shelf", params: { year, at } } });
   add({ kind: "action", id: "a:shelf", title: "Add to shelf", icon: "shelf", to: { view: "shelf", params: { add: at } }, suggest: true });
   const paper = state.settings.theme === "light";
   add({ kind: "action", id: "a:theme", title: paper ? "Switch to the black theme" : "Switch to the paper theme", icon: paper ? "moon" : "sun", action: "theme" });

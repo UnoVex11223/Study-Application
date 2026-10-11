@@ -23,6 +23,8 @@ import { shrinkImage } from "../lib/image.js";
 import { clothFor, bookThickness } from "../lib/cover.js";
 import { CoverArt, useCoverInfo } from "../ui/Cover.jsx";
 import { play } from "../ui/sound.js";
+import { transition } from "../ui/motion.js";
+import { SpineShelf, YearView } from "./ShelfViews.jsx";
 
 const longDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 const monthYear = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", year: "numeric" });
@@ -120,7 +122,7 @@ function Book({ entry: e, opening, onOpen, actions }) {
 /** The plank a row of books stands on; each card brings its own length of it. */
 const Ledge = () => <div className="ledge" aria-hidden="true"/>;
 
-export default function Shelf({ recall: startRecall = false, openItem = null, adding = false }) {
+export default function Shelf({ recall: startRecall = false, openItem = null, adding = false, year: startYear = null }) {
   const { state, act } = useStore();
   const nav = useNav();
   const [filter, setFilter] = useState("all");
@@ -132,6 +134,10 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   const [openId, setOpenId] = useState(() => (startItem?.kind === "reading" ? startItem.id : null));
   const [recallQueue, setRecallQueue] = useState(() => (startRecall ? dueForRecall(state.shelf, Date.now()).map(it => it.id) : null));
   const [cols, setCols] = useState(5);
+  const [year, setYear] = useState(startYear); // the year view, or null for the shelf
+  const [removing, setRemoving] = useState(null); // confirm removing from the spine view
+  const view = state.settings.shelfView === "spines" ? "spines" : "covers";
+  const thisYear = new Date(nav.now).getFullYear();
   const shelfRef = useRef(null);
   const tabsRef = useRef(null);
   const inkRef = useRef(null);
@@ -192,10 +198,10 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   const setHidden = (e, hide) => (e.item
     ? act("shelf/update", { id: e.item.id, patch: { hidden: hide } })
     : act("shelf/add", { item: makeShelfItem({ courseId: e.course.id, kind: e.kind, unitLabel: e.unit, hidden: hide }) }));
-  // A Tenax course's book flies off the shelf into the course page's header (a "book" view transition).
+  // A Tenax course's book (or spine) flies off the shelf into the course page's header (a "book" view transition).
   const openEntry = (e, from) => {
     if (e.course) {
-      const hold = from?.closest?.(".book-card")?.querySelector(".book-hold");
+      const hold = from?.closest?.(".book-card")?.querySelector(".book-hold") ?? from?.closest?.(".spine");
       if (hold) { hold.style.viewTransitionName = "book"; hold.classList.add("flying"); }
       nav.go("course", { courseId: e.course.id }, { type: "book" });
     } else if (e.kind === "reading") setOpenId(e.item.id);
@@ -211,11 +217,29 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   const fill = (cells) => (cells === 0 ? cols : (cols - (cells % cols)) % cols);
   const geometry = { "--book-min": `${BOOK_MIN}px`, "--gap": `${BOOK_GAP}px` };
 
+  const showYear = (y) => transition(() => { setYear(y); document.querySelector(".main")?.scrollTo(0, 0); });
+  const setView = (v) => transition(() => act("settings", { patch: { shelfView: v } }));
+
+  if (year != null) {
+    return (
+      <div className="page shelf-page">
+        <YearView entries={entries} year={year} onYear={showYear} onBack={() => showYear(null)}
+          onOpen={(e) => (e.course ? nav.go("course", { courseId: e.course.id }) : e.kind === "reading" ? setOpenId(e.item.id) : setEditing({ entry: e }))}/>
+        {open && <ItemPanel key={open.id} item={open} now={nav.now} onClose={() => setOpenId(null)}
+          onEdit={() => setEditing({ entry: entries.find(e => e.item?.id === open.id) })}
+          onRecall={() => setRecallQueue([open.id])}/>}
+        {editing && <ShelfForm entry={editing.entry} startKind="reading" onClose={() => setEditing(null)} onSaved={() => setEditing(null)}/>}
+        {recallQueue && <RecallSession queue={recallQueue} onClose={() => setRecallQueue(null)}/>}
+      </div>
+    );
+  }
+
   return (
     <div className="page shelf-page">
       <div className="page-head">
         <div><h1>Shelf</h1></div>
         <div className="row">
+          <button className="btn" onClick={() => showYear(thisYear)} title={`${thisYear} on your shelf`}><Icon name="today" size={14}/>{thisYear}</button>
           {due.length > 0 && (
             <button className="btn" onClick={() => setRecallQueue(due.map(it => it.id))}>
               <Icon name="play" size={12}/>Recall {due.length}
@@ -225,15 +249,28 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
         </div>
       </div>
 
-      <div className="shelf-tabs" role="tablist" aria-label="Show" ref={tabsRef}>
-        {SHELF_FILTERS.map(f => (
-          <button key={f.id} role="tab" aria-selected={filter === f.id} className={filter === f.id ? "on" : ""} onClick={() => setFilter(f.id)}>
-            {f.label}<span className="tab-count">{counts[f.id]}</span>
-          </button>
-        ))}
-        <span className="tab-ink" ref={inkRef} aria-hidden="true"/>
+      <div className="shelf-bar">
+        <div className="shelf-tabs" role="tablist" aria-label="Show" ref={tabsRef}>
+          {SHELF_FILTERS.map(f => (
+            <button key={f.id} role="tab" aria-selected={filter === f.id} className={filter === f.id ? "on" : ""} onClick={() => setFilter(f.id)}>
+              {f.label}<span className="tab-count">{counts[f.id]}</span>
+            </button>
+          ))}
+          <span className="tab-ink" ref={inkRef} aria-hidden="true"/>
+        </div>
+        <div className="shelf-view" role="group" aria-label="Show as">
+          <button className={view === "covers" ? "on" : ""} aria-pressed={view === "covers"} onClick={() => setView("covers")} title="Covers"><Icon name="covers" size={16}/></button>
+          <button className={view === "spines" ? "on" : ""} aria-pressed={view === "spines"} onClick={() => setView("spines")} title="Spines"><Icon name="spines" size={16}/></button>
+        </div>
       </div>
 
+      {view === "spines" ? (
+        <>
+          <SpineShelf key={filter} entries={shown} onOpen={openEntry} onEdit={(e) => setEditing({ entry: e })}
+            onHide={(e) => setHidden(e, true)} onRemove={(e) => setRemoving(e)} onAdd={withAdd ? add : null} addLabel={addLabel}/>
+          {shown.length === 0 && !withAdd && <p className="shelf-none">Nothing here yet.</p>}
+        </>
+      ) : (
       <div className="shelf" ref={shelfRef} style={geometry} {...lamp}>
         <div className="shelf-grid" key={filter}>
           {shown.map((e, i) => (
@@ -259,6 +296,7 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
         </div>
         {shown.length === 0 && !withAdd && <p className="shelf-none">Nothing here yet.</p>}
       </div>
+      )}
 
       {hidden.length > 0 && (
         <div className="shelf-hidden">
@@ -280,6 +318,14 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
         </div>
       )}
 
+      {removing && (
+        <Modal title="Remove from your shelf?" onClose={() => setRemoving(null)} footer={<>
+          <button className="btn btn-quiet" onClick={() => setRemoving(null)}>Cancel</button>
+          <button className="btn btn-danger" onClick={() => { act("shelf/remove", { id: removing.item.id }); setRemoving(null); }}>Remove</button>
+        </>}>
+          <p style={{ margin: 0 }}>“{removing.title}”{removing.category === "reading" ? " and its notes" : ""} will be taken off the shelf.</p>
+        </Modal>
+      )}
       {open && <ItemPanel key={open.id} item={open} now={nav.now} onClose={() => setOpenId(null)}
         onEdit={() => setEditing({ entry: entries.find(e => e.item?.id === open.id) })}
         onRecall={() => setRecallQueue([open.id])}/>}
@@ -536,6 +582,28 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
     setBusy(false);
   };
 
+  // Covers from Open Library (in the desktop app): search by the title (or an ISBN typed as the title) and author.
+  const coverApi = typeof window !== "undefined" ? window.tenax?.covers : null;
+  const [found, setFound] = useState(null); // null | { query, covers, error }
+  const [finding, setFinding] = useState(false);
+  const [picking, setPicking] = useState(null);
+  const findCovers = async () => {
+    const q = { title: title.trim() || course?.name || "", author: reading ? author.trim() : "" };
+    if (!q.title) return setError("Give it a title first.");
+    setFinding(true); setError("");
+    const res = await coverApi.search(q).catch(() => ({ ok: false, error: "Couldn't reach Open Library" }));
+    setFinding(false);
+    setFound({ query: q.title, covers: res.ok ? res.covers : [], error: res.ok ? "" : res.error });
+  };
+  const pickCover = async (c) => {
+    setPicking(c.id);
+    const res = await coverApi.fetch(c.id).catch(() => ({ ok: false, error: "Couldn't download the cover" }));
+    if (res.ok) {
+      try { setCover(await shrinkImage(res.dataUrl)); setFound(null); setError(""); } catch (err) { setError(err.message); }
+    } else setError(res.error);
+    setPicking(null);
+  };
+
   const save = () => {
     const t = title.trim() || course?.name || "";
     if (!t) return setError("Give it a title.");
@@ -588,19 +656,36 @@ function ShelfForm({ entry, startKind, onClose, onSaved }) {
       )}
       <div className="field">
         <span className="label">Cover</span>
-        {cover ? (
-          <div className="shelf-cover-edit">
-            <CoverArt src={cover} title={title} author={reading ? author : ""} className="edit-cover"/>
-            <button type="button" className="btn btn-sm" onClick={() => setCover(null)}><Icon name="x" size={14}/>Remove</button>
+        <div className={`cover-field${over ? " over" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+          onDrop={(e) => { e.preventDefault(); setOver(false); takeFile(e.dataTransfer.files?.[0]); }}>
+          <CoverArt src={cover} title={title || course?.name || ""} author={reading ? author : ""} className="edit-cover"/>
+          <div className="cover-field-actions">
+            {coverApi && (
+              <button type="button" className="btn btn-sm" onClick={findCovers} disabled={finding}>
+                {finding ? <Spinner/> : <Icon name="search" size={14}/>}Find a cover
+              </button>
+            )}
+            <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>
+              {busy ? <Spinner/> : <Icon name="upload" size={14}/>}Choose an image
+            </button>
+            {cover && <button type="button" className="btn btn-sm btn-quiet" onClick={() => setCover(null)}><Icon name="x" size={14}/>Remove</button>}
+          </div>
+        </div>
+        {found && (found.covers.length > 0 ? (
+          <div className="cover-picks" role="listbox" aria-label="Covers from Open Library">
+            {found.covers.map((c, i) => (
+              <button key={c.id} type="button" role="option" aria-selected={picking === c.id} className={`cover-pick${picking === c.id ? " busy" : ""}`}
+                style={{ "--i": i }} onClick={() => pickCover(c)} disabled={Boolean(picking)} title={[c.title, c.author, c.year].filter(Boolean).join(" · ")}>
+                <img src={c.thumb} alt="" loading="lazy" onError={(e) => { e.currentTarget.closest(".cover-pick").hidden = true; }}/>
+                {picking === c.id && <span className="cover-pick-busy"><Spinner/></span>}
+                {c.year && <span className="cover-pick-year">{c.year}</span>}
+              </button>
+            ))}
           </div>
         ) : (
-          <button type="button" className={`dropzone${over ? " over" : ""}`} onClick={() => fileRef.current?.click()}
-            onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-            onDrop={(e) => { e.preventDefault(); setOver(false); takeFile(e.dataTransfer.files?.[0]); }}>
-            {busy ? <Spinner/> : <Icon name="upload" size={18}/>}
-            <span>Drop an image or click to choose one</span>
-          </button>
-        )}
+          <p className="small muted" style={{ margin: "10px 0 0" }}>{found.error || `No covers found for “${found.query}”.`}</p>
+        ))}
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { takeFile(e.target.files?.[0]); e.target.value = ""; }}/>
       </div>
       {!course && (

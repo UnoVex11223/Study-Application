@@ -76,3 +76,16 @@ test("thicker books for more pages, within limits", () => {
   assert.equal(bookThickness({ category: "study", unit: "chapters", total: 0 }), 14);
   assert.equal(bookThickness({ category: "study", unit: "chapters", total: 10 }), bookThickness({ category: "reading", unit: "pages", total: 300 }));
 });
+
+test("spine text is light on dark spines and dark on light ones", async () => {
+  const { inkFor, parseColor, spineHeight } = await import("../src/lib/cover.js");
+  assert.deepEqual(parseColor("rgb(10, 20, 30)"), [10, 20, 30]);
+  assert.deepEqual(parseColor("#FF8000"), [255, 128, 0]);
+  assert.equal(parseColor("nonsense"), null);
+  assert.equal(inkFor("#1C1E23"), "#EDEAE3");
+  assert.equal(inkFor("rgb(240, 236, 226)"), "#1F1C17");
+  assert.equal(inkFor(null), "#EDEAE3");
+  const book = spineHeight({ category: "reading", title: "Dune" }), text = spineHeight({ category: "study", title: "Dune" });
+  assert.ok(book < text, "books stand shorter than textbooks");
+  assert.equal(spineHeight({ category: "reading", title: "Dune" }), book, "always the same for a title");
+});

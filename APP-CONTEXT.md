@@ -8,7 +8,7 @@ This file doubles as context you can paste into another AI when preparing materi
 
 ## The daily loop
 
-1. **Today** shows one session: a number of questions and an estimated time. It never asks for more than your daily budget (20 minutes by default, set in Settings).
+1. **Today** shows one session: a number of questions, an estimated time and which courses they come from, with a button to start it. It never asks for more than your daily budget (20 minutes by default, set in Settings). Under it are only the things waiting on you, one line each: questions to fix, notes to process, books to recall.
 2. You answer each question by **typing from memory**. There is no multiple choice.
 3. Your answer is graded against the question's **key points** (see Grading), you see what you missed, and you rate how well you knew it (Again / Hard / Good / Easy, with a suggested rating preselected — press Enter to accept).
 4. The scheduler (FSRS) decides when each **concept** comes back. Memory is scheduled per concept, not per question: a concept's questions (recall, explain, apply…) take turns at its reviews, so extra questions add variety without adding review time.
@@ -62,7 +62,7 @@ Before anything is saved you see a **Review questions** step: what passed (with 
 After import, quality keeps being enforced:
 - **Report question** (the flag on every question in a session) takes it out of your sessions immediately.
 - A question you miss on **5 different days**, or whose grading you overrule **twice**, is pulled automatically — that pattern usually means the question, not you, is the problem.
-- Pulled questions wait on the Progress page (and in the concept panel), where you can **rewrite with Claude** (the new version passes the same rule checks), restore, or delete.
+- Pulled questions wait in **Questions to fix** (a line on Today opens it, as does "Fix reported questions" in search; each concept's panel lists its own), where you can **rewrite with Claude** (the new version passes the same rule checks), restore, or delete.
 - Questions you write yourself get the same rule checks as advice while you type.
 - **More questions** (on a course's Sections header, or inside a chapter) tops up concepts that have fewer than their target: Claude sees the questions a concept already has and writes ones that come at the idea from another side, through the same review and caps. What passes is added automatically.
 
@@ -94,7 +94,7 @@ If you miss a question whose prerequisite is shaky, the session adds a quick **f
 - **Mastered**: a concept is mastered when your last two study days with it both ended in a correct unaided answer, and — if it has an application-type question — you've answered one correctly. Course and section percentages count **core** concepts only.
 - **Recall chance now**: FSRS's estimate of remembering the concept today.
 
-Progress also shows success by question type (so you can see "strong recall, weak application"), answers recalled after a week or more, weak spots, and recurring misconceptions.
+**Progress** keeps to three things: four figures (day streak, answers this week and the time they took, the share of answers recalled after a week or more, and how many started concepts are mastered), **Next two weeks** (the review time each day is expected to take, against your daily budget, today highlighted) and **Activity** (a year of study days, one square per day, darker for more answers). How each course is going is on its own page.
 
 ## Teach back
 
@@ -152,6 +152,12 @@ Clicking a Tenax course's book flies it off the shelf into the course page's hea
 
 **Add to shelf** asks which kind it is (Book, Textbook or Course), starting with the tab you're on. Something you added yourself can be changed to another kind in Edit.
 
+**Covers.** In Add or Edit, **Find a cover** looks the title (and author, if there is one) up on Open Library and shows up to eight covers from the editions it finds, most-printed first; pick one and it's downloaded and saved like any picture. Typing an ISBN as the title finds that exact edition. You can also choose an image, or drop one onto the cover. The search runs only when you click the button, and sends Open Library just the title and author.
+
+**Spines.** The two buttons at the right end of the tabs switch between covers and **spines**: the books standing spine-out, packed close like a real bookcase, each spine coloured from its cover's left edge (or its cloth), as thick as the book is long, with the title running down it in the serif and, for a book you read, the author's last name at the foot. Books you read stand a little shorter than textbooks. A bookmark at the top means a recall is due. Click a spine to open it, right-click for Edit, Hide or Remove. Tenax remembers which view you used.
+
+**Year on the shelf.** The year button in the header (or "2026 on your shelf" in search) shows what you finished that year: how many books, pages read, textbooks and courses finished and your average rating, the finished books stacked into a pile that lands one book at a time, and the months they fall in. Earlier years are a click away once you've finished something in them. It counts anything on the shelf marked finished, by the date you finished it.
+
 Covers are scaled down to 560px JPEGs (tens of KB) before they're saved, so they don't bloat your library or the sync folder. On the shelf (and in the book panel, recall and edit form) they're shaped as book covers:
 
 - A plain margin around the picture, like the paper around a scanned cover or a page background around a screenshot, is cropped off when it runs along two or more sides in the same colour and ends at a clear edge. A single band on one side is left alone, since it's usually part of the design.
@@ -164,7 +170,7 @@ When books were split into reading and textbooks, anything linked to a Tenax cou
 
 **Notes, ratings and recall (Reading only).** Clicking a book opens three short notes in your own words: **What it's about**, **What I thought** and **Ideas worth keeping**; they save as you type. They aren't shown on the card, so they don't give the answer away before a recall. Textbooks and courses have none of this: the ones in Tenax have real questions instead.
 
-Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the notes, dated, so your thoughts build up over time. Due recalls show as a count on Shelf in the sidebar, a **Recall** button on the Shelf page and a card on Today; they're extra practice, separate from the daily session and its time budget, and use no AI.
+Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the notes, dated, so your thoughts build up over time. Due recalls show as a count on Shelf in the sidebar, a **Recall** button on the Shelf page and a line on Today; they're extra practice, separate from the daily session and its time budget, and use no AI.
 
 ### Preparing material with another AI
 
@@ -174,17 +180,21 @@ The extractor handles raw chapters well; the most useful prep is simply splittin
 
 ## Knowledge map
 
-A sky of solar systems. Each book or course is a sun (tinted with the course's colour, a little bigger the more it holds, with a soft corona, a bright bloom and diffraction spikes like a star in a telescope photo) with its name beneath it; its chapters are orbits (the first chapter innermost) and its concepts are planets on them, sized by importance. Orbits are faint hairlines, a little brighter on the near side, and fainter for chapters you haven't read. Orbits are tilted, and inner ones turn faster (roughly Kepler's law); the whole sky turns slowly, starting from where the real clock puts it.
+A sky of solar systems, in 3D. Each book or course is a sun (tinted with the course's colour, a little bigger the more it holds) with its name beneath it; its chapters are orbits on a slightly tilted plane (the first chapter innermost, fainter for chapters you haven't read) and its concepts are planets going round them, sized by importance. Inner orbits turn faster, and the whole sky keeps turning slowly.
 
-Planets are lit by their own sun: the side facing it is bright with a thin rim of light, the far side is in shadow, and a planet on the far side of its orbit shows more of its day side than one passing in front, so they wax and wane as they go round. Their colour is the course's, varied a little from planet to planet. A mastered planet glows; one you're learning is lit; a slipping one is amber and pulses; one you haven't started is a dark world with only its rim catching the light; one in a chapter you haven't read is a small grey moon. Core concepts carry a faint ring, which appears as you zoom in. Planets on the far side of their orbit pass behind the sun, and the sun's glare washes over planets passing close in front.
+Planets are real spheres lit by their own sun: a day side, a night side, faint bands of cloud and a bright rim of atmosphere where the light grazes the edge, so they wax and wane as they go round and as you turn the camera. Their colour is the course's, varied a little from planet to planet. A mastered planet glows; one you're learning is lit; a slipping one is amber and pulses; one you haven't started is a dark world with only its rim catching the light; one in a chapter you haven't read is a small grey moon. Core concepts carry a ring of fine bands, which appears as you get closer. Suns, mastered planets and the streams between books bloom like a long exposure. Close to a sun its glare draws in and its surface shows, boiling, instead of washing out the view.
 
-Links between books are one soft stream of light between their suns, brighter the more links there are, with motes of light drifting along it. A planet's own links appear when you point at or open it, as arcs (inside a book they swing out around its sun, like a transfer orbit), with its linked planets' names. In a single course, all of its links are shown faintly. Names come in as you zoom in: book names always, core concepts' names first, then the rest.
+- **Memory fog.** A planet you're starting to forget (its recall chance below about 90%) loses its colour, dims and sits in a pale haze, more the lower the chance, so what needs a review stands out at a glance. A review clears it.
+- **Learning path.** With a concept open, **Learning path** draws everything it builds on as a constellation: a fine gold line from each step to the next, a circle round each step and its number in reading order (foundations first), with the rest of the sky dimmed. The camera frames the path beside the panel.
+- **Time-lapse.** Replays your sky from your first day to today in about 16 seconds: planets appear the day you started them and change colour as you learn, master and let them slip, with the date beneath. Pause it, or drag the slider to any day.
 
-The background is a painted starfield in three layers that drift at different speeds as you move, with the Milky Way, two faint nebulae and a soft vignette behind them.
+Links between books are one soft stream of light between their suns, brighter the more links there are, with motes of light drifting along it. A planet's own links appear as arcs when you point at or open it, with its linked planets' names. In a single course, all of its links are shown faintly while you're looking at the whole system. Names come in as you get closer: book names always, the planet you're pointing at always, core concepts' names next, then the rest, without overlapping.
 
-Pointing at a planet brings the sky to a stop so it's easy to click; clicking glides the camera to it and opens its panel beside the map (you can keep clicking other planets); clicking a book's name zooms to its system. Pick a single course to see just its system, or switch it to **Prerequisites** for the left-to-right chart of what builds on what. With reduced motion turned on in the system, the sky stands still.
+Behind it all is a painted Milky Way with thousands of twinkling stars.
 
-Drawn on a canvas, so large libraries stay smooth: it opens instantly and redraws hundreds of moving planets in a few milliseconds (planets, suns and glows are painted once and reused). The layout itself is in `src/lib/orbits.js` (pure, unit-tested); the sky's pictures are in `src/ui/sky.js`.
+**Moving around:** drag to move across the sky, scroll to zoom (towards the pointer), and right-drag (or Shift-drag) to turn it; the buttons zoom and fit everything back in view. Pointing at a planet brings the sky to a stop so it's easy to click; clicking grows the planet into its panel beside the map and glides the camera so the planet sits in the part the panel leaves free (you can keep clicking other planets); clicking a sun or a book's name flies to its system. Pick a single course to see just its system, or switch it to **Prerequisites** for the left-to-right chart of what builds on what. With reduced motion turned on in the system, the sky stands still and the camera jumps instead of gliding.
+
+Drawn with three.js (WebGL 2), which loads the first time you open the map. Planets are one instanced mesh with their own shader, so hundreds of them cost one draw call. On a computer that can't do WebGL 2 the map falls back to the flat sky from earlier versions (no fog, time-lapse or paths there). The layout is in `src/lib/orbits.js`, what a day of the time-lapse looks like in `src/lib/timelapse.js`, and learning paths in `src/lib/graph.js` (all pure and unit-tested); the 3D engine is `src/ui/sky3d.js`.
 
 ## Look and feel
 
@@ -198,7 +208,7 @@ Drawn on a canvas, so large libraries stay smooth: it opens instantly and redraw
 
 ## Data & privacy
 
-Everything lives locally in one file on your machine, and a copy is saved automatically once a day in a `backups` folder next to it (the last 14 are kept; Settings → Your data → Open folder). The API key is encrypted with your user account (Windows DPAPI / macOS Keychain) and isn't included in backups. The data file is `config.json` in `%APPDATA%\aeroflash` on a computer that ran earlier versions (kept so nothing moves when the app is renamed) and in `%APPDATA%\Tenax` on a fresh install. Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI.
+Everything lives locally in one file on your machine, and a copy is saved automatically once a day in a `backups` folder next to it (the last 14 are kept; Settings → Your data → Open folder). The API key is encrypted with your user account (Windows DPAPI / macOS Keychain) and isn't included in backups. The data file is `config.json` in `%APPDATA%\aeroflash` on a computer that ran earlier versions (kept so nothing moves when the app is renamed) and in `%APPDATA%\Tenax` on a fresh install. Settings → Export backup / Restore from backup. AI calls go directly from the app's background process to the Anthropic API with your key; the key is never readable by the UI. **Find a cover** on the shelf sends the title and author you typed to Open Library, only when you click it.
 
 Data saved before per-concept scheduling is converted on first load: each concept takes the schedule of whichever of its questions you reviewed most recently.
 
@@ -221,13 +231,14 @@ This version starts from an empty library. The first time it runs, anything save
 ## For developers
 
 ```
-electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates
+electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates, title bar
+covers.cjs        cover search and download from Open Library (main process, tested with a stubbed fetch)
 sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph, orbits (map layout), grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf, cover (shaping covers), recall, sync (merging), search and commands (the palette), history (sparklines)
+src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph (incl. learning paths), orbits (map layout), timelapse, grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf (incl. the year), cover (shaping covers, spine colours), recall, sync (merging), search and commands (the palette), history (sparklines)
 src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
-src/views/        Today, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, KnowledgeMap, Progress, TeachBack, Settings
-src/ui/           motion (timings, view transitions), sound, Palette (Ctrl+K), Cover, sky (map pictures), ui (shared pieces)
+src/views/        Today, FixPanel, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, ShelfViews (spines, year), KnowledgeMap (picks SkyMap, the 3D map, or FlatMap), Progress, TeachBack, Settings
+src/ui/           motion (timings, view transitions), sound, Palette (Ctrl+K), Cover, sky3d (the 3D map engine), webgl, sky (the flat map's pictures), ui (shared pieces)
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```
 

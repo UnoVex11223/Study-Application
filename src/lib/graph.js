@@ -103,3 +103,37 @@ export function topoOrder(ids, edges) {
   for (const id of ids) if (!res.includes(id)) res.push(id);
   return res;
 }
+
+/**
+ * Everything a concept builds on, all the way back: the prerequisite chain
+ * that leads to it, as a constellation for the map. Unconfirmed links (below
+ * 0.6 confidence) are left out. { nodes: ids, first steps first (the concept
+ * last), links: [{ from, to }] among them, depth: { id: steps from the start } }
+ */
+export function prereqPath(edges, conceptId) {
+  const prereqs = edges.filter(e => e.type === "prereq" && (e.confidence ?? 1) >= 0.6);
+  const into = new Map();
+  for (const e of prereqs) {
+    if (!into.has(e.to)) into.set(e.to, []);
+    into.get(e.to).push(e.from);
+  }
+  const set = new Set([conceptId]);
+  const queue = [conceptId];
+  while (queue.length) {
+    for (const from of into.get(queue.shift()) || []) if (!set.has(from)) { set.add(from); queue.push(from); }
+  }
+  // Depth: the longest chain of prerequisites under each one.
+  const depth = {};
+  const visit = (id, seen = new Set()) => {
+    if (depth[id] != null) return depth[id];
+    if (seen.has(id)) return 0; // a cycle that slipped through: don't loop
+    seen.add(id);
+    const ins = (into.get(id) || []).filter(f => set.has(f));
+    depth[id] = ins.length ? 1 + Math.max(...ins.map(f => visit(f, seen))) : 0;
+    return depth[id];
+  };
+  for (const id of set) visit(id);
+  const nodes = [...set].sort((a, b) => depth[a] - depth[b] || (a === conceptId) - (b === conceptId) || String(a).localeCompare(String(b)));
+  const links = prereqs.filter(e => set.has(e.from) && set.has(e.to)).map(e => ({ from: e.from, to: e.to }));
+  return { nodes, links, depth };
+}

@@ -153,3 +153,25 @@ export const SHELF_FILTERS = [
   { id: "active", label: "In progress", test: (e) => !e.finished && !e.want },
   { id: "done", label: "Finished", test: (e) => e.finished },
 ];
+
+/**
+ * A year on the shelf: what you finished (things with a finish date), in the
+ * order you finished them, with totals and the months they fall in.
+ * { years (with something finished, newest first, always including this one),
+ *   finished, books, pages, study, rating (average of the rated, or null), byMonth: [12 × entries] }
+ */
+export function yearOnShelf(entries, year, now = Date.now()) {
+  const dated = entries.filter(e => e.finished && e.finishedAt && !e.hidden);
+  const yearOf = (ts) => new Date(ts).getFullYear();
+  const years = [...new Set([yearOf(now), ...dated.map(e => yearOf(e.finishedAt))])].sort((a, b) => b - a);
+  const finished = dated.filter(e => yearOf(e.finishedAt) === year).sort((a, b) => a.finishedAt - b.finishedAt);
+  const books = finished.filter(e => e.category === "reading");
+  const pages = books.reduce((n, e) => n + (/^pages?$/i.test(e.unit || "") ? e.total || 0 : 0), 0);
+  const rated = books.filter(e => e.rating > 0);
+  const byMonth = Array.from({ length: 12 }, () => []);
+  for (const e of finished) byMonth[new Date(e.finishedAt).getMonth()].push(e);
+  return {
+    years, finished, books: books.length, pages, study: finished.length - books.length,
+    rating: rated.length ? rated.reduce((n, e) => n + e.rating, 0) / rated.length : null, byMonth,
+  };
+}

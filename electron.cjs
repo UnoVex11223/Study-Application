@@ -115,6 +115,13 @@ ipcMain.handle("sync:pull", (_e, opts) => sync.pull(opts || {}));
 ipcMain.handle("sync:flush", () => { flushPush(); return { ok: true }; });
 ipcMain.handle("app:version", () => app.getVersion?.() ?? "0");
 
+// ── Covers ──────────────────────────────────────────────────────────────────
+// Find a book's cover on Open Library and download the one you pick (covers.cjs).
+const covers = require("./covers.cjs");
+const netFetch = (...args) => (require("electron").net?.fetch ?? fetch)(...args);
+ipcMain.handle("covers:search", (_e, q) => covers.search(netFetch, { title: String(q?.title || ""), author: String(q?.author || "") }));
+ipcMain.handle("covers:fetch", (_e, id) => covers.download(netFetch, String(id || "")));
+
 // ── Updates ─────────────────────────────────────────────────────────────────
 // The installed app checks GitHub Releases for a newer version, downloads it
 // in the background and installs it the next time Tenax closes, so every

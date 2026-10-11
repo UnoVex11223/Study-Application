@@ -135,3 +135,29 @@ test("a course built a chapter at a time isn't 'finished' just because you're ca
   assert.equal(e.read, 2);
   assert.equal(e.pct, 0.5);
 });
+
+test("a year on the shelf: what was finished that year, in order, with totals", async () => {
+  const { yearOnShelf } = await import("../src/lib/shelf.js");
+  const at = (y, m, d) => new Date(y, m, d, 12).getTime();
+  const e = (title, fields) => ({ title, finished: true, hidden: false, category: "reading", unit: "pages", total: 300, rating: 0, ...fields });
+  const entries = [
+    e("Dune", { finishedAt: at(2026, 2, 3), total: 412, rating: 5 }),
+    e("Sapiens", { finishedAt: at(2026, 0, 20), total: 443, rating: 4 }),
+    e("Old one", { finishedAt: at(2025, 5, 1) }),
+    e("No date", { finishedAt: null }),
+    e("Hidden", { finishedAt: at(2026, 4, 1), hidden: true }),
+    e("Video course", { finishedAt: at(2026, 2, 9), category: "study", unit: "modules", total: 12 }),
+    e("Reading now", { finished: false, finishedAt: null }),
+  ];
+  const y = yearOnShelf(entries, 2026, at(2026, 9, 10));
+  assert.deepEqual(y.years, [2026, 2025]);
+  assert.deepEqual(y.finished.map(x => x.title), ["Sapiens", "Dune", "Video course"]);
+  assert.equal(y.books, 2);
+  assert.equal(y.study, 1);
+  assert.equal(y.pages, 855, "pages only count books counted in pages");
+  assert.equal(y.rating, 4.5);
+  assert.deepEqual(y.byMonth[2].map(x => x.title), ["Dune", "Video course"]);
+  const empty = yearOnShelf(entries, 2024, at(2026, 9, 10));
+  assert.equal(empty.finished.length, 0);
+  assert.equal(empty.rating, null);
+});

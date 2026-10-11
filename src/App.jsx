@@ -44,6 +44,9 @@ const NAV_BOTTOM = [
   { id: "settings", label: "Settings", icon: "settings" },
 ];
 
+// Counts page changes, so going to the page you're on starts it afresh (the Shelf's year view closes, say).
+let navCount = 0;
+
 /** Re-render every `ms` so time-based views (due counts, plans) stay current. */
 function useNow(ms = 60000) {
   const [now, setNow] = useState(() => Date.now());
@@ -113,7 +116,7 @@ function Shell() {
     route,
     // Every page change is a view transition (ui/motion.js); `type` picks how it moves.
     go: (view, params = {}, { type = "page" } = {}) => transition(() => {
-      setRoute({ view, ...params });
+      setRoute({ view, ...params, n: (navCount += 1) });
       document.querySelector(".main")?.scrollTo(0, 0);
     }, type),
     startSession: (opts) => transition(() => setSession({ key: Date.now(), ...opts }), "session"),
@@ -132,14 +135,14 @@ function Shell() {
     case "course": page = state.courses.find(c => c.id === route.courseId)?.kind === "notes"
       ? <Notes key={route.at ?? "notes"}/> : <Course courseId={route.courseId} key={`${route.courseId}-${route.at ?? ""}`}/>; break;
     case "notes": page = <Notes/>; break;
-    case "shelf": page = <Shelf key={`${route.recall ? "recall" : "shelf"}-${route.at ?? route.open ?? route.add ?? ""}`} recall={Boolean(route.recall)} openItem={route.open} adding={Boolean(route.add)}/>; break;
+    case "shelf": page = <Shelf key={`${route.recall ? "recall" : "shelf"}-${route.at ?? route.open ?? route.add ?? route.n ?? ""}`} recall={Boolean(route.recall)} openItem={route.open} adding={Boolean(route.add)} year={route.year ?? null}/>; break;
     case "import": page = <AddMaterial courseId={route.courseId}/>; break;
     case "book": page = <ImportBook courseId={route.courseId} key={route.at ?? "book"}/>; break;
     case "teach": page = <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>; break;
     case "map": page = <KnowledgeMap focusCourseId={route.courseId} focusConceptId={route.conceptId}/>; break;
     case "progress": page = <Progress/>; break;
     case "settings": page = <Settings/>; break;
-    default: page = <Today plan={plan}/>;
+    default: page = <Today plan={plan} key={route.fix ?? "today"}/>;
   }
 
   // The highlight behind the current page's nav item slides to the next one as pages change.

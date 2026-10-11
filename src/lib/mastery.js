@@ -15,7 +15,7 @@ import { index, IMPORTANCE, ABILITY_KEYS } from "./model.js";
 import { retrievability } from "./fsrs.js";
 
 const EVIDENCE_MODES = new Set(["review", "session", "practice", "teachback"]);
-const TRANSFER = new Set(["apply", "distinguish", "connect"]);
+export const TRANSFER = new Set(["apply", "distinguish", "connect"]);
 
 export const isEvidence = (a) => a.verdict === "correct" && !a.aided && EVIDENCE_MODES.has(a.mode);
 
@@ -27,11 +27,12 @@ export const STATUS = {
   mastered:  { label: "Mastered",    rank: 3 },
 };
 
-/** Detailed evidence for one concept. */
-export function conceptMastery(state, conceptId, now = Date.now()) {
-  const ix = index(state);
-  const items = (ix.itemsByConcept[conceptId] || []).filter(i => !i.flag);
-  const attempts = ix.attemptsByConcept[conceptId] || [];
+/**
+ * What the rules above make of a concept's answers: its status, and the
+ * evidence behind it. Shared by conceptMastery and the map's time-lapse (which
+ * replays the answers up to each day).
+ */
+export function statusFrom(attempts, { started = attempts.length > 0, hasTransferItem = false } = {}) {
   const graded = attempts.filter(a => a.verdict !== "ungraded");
   const evidence = graded.filter(isEvidence);
   const days = new Set(evidence.map(a => a.day));
@@ -43,14 +44,7 @@ export function conceptMastery(state, conceptId, now = Date.now()) {
   for (const a of graded) if (!dayEnd[a.day] || a.ts > dayEnd[a.day].ts) dayEnd[a.day] = a;
   const recentDays = Object.keys(dayEnd).sort().slice(-2);
   const recentOk = recentDays.length === 2 && recentDays.every(d => dayEnd[d].verdict === "correct" && !dayEnd[d].aided);
-  const hasTransferItem = items.some(i => TRANSFER.has(i.ability));
   const transferOk = evidence.some(a => TRANSFER.has(a.ability));
-
-  const srs = ix.concept[conceptId]?.srs;
-  const memory = retrievability(srs, now);
-  const lapses = srs?.lapses || 0;
-  const scheduled = Boolean(srs && srs.state !== "new");
-  const started = scheduled || attempts.length > 0;
 
   let status;
   if (!started) status = "new";
@@ -58,6 +52,22 @@ export function conceptMastery(state, conceptId, now = Date.now()) {
   else if (days.size >= 2 && lastOk && recentOk && (!hasTransferItem || transferOk)) status = "mastered";
   else if (days.size >= 1) status = "practiced";
   else status = "learning";
+  return { status, days, last, lastOk, recentOk, transferOk };
+}
+
+/** Detailed evidence for one concept. */
+export function conceptMastery(state, conceptId, now = Date.now()) {
+  const ix = index(state);
+  const items = (ix.itemsByConcept[conceptId] || []).filter(i => !i.flag);
+  const attempts = ix.attemptsByConcept[conceptId] || [];
+  const hasTransferItem = items.some(i => TRANSFER.has(i.ability));
+
+  const srs = ix.concept[conceptId]?.srs;
+  const memory = retrievability(srs, now);
+  const lapses = srs?.lapses || 0;
+  const scheduled = Boolean(srs && srs.state !== "new");
+  const started = scheduled || attempts.length > 0;
+  const { status, days, last, lastOk, recentOk, transferOk } = statusFrom(attempts, { started, hasTransferItem });
 
   const due = scheduled && srs.due != null && srs.due <= now;
   return {

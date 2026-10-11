@@ -31,8 +31,8 @@
 - **Written answers, graded.** You answer in your own words. Claude checks each key point, quotes what you wrote, and shows the model answer and the passage from your source.
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
 - **Notes.** Jot down things you learn outside a course. Each note becomes new concepts, extra questions on something you already study, or nothing if it isn't worth remembering, without inflating a course's totals.
-- **Shelf.** Your reading, textbooks and courses standing on shelves as 3D books, each kind with its own tab. Tenax courses show up on their own; anything else you add by hand, with a cover and progress. Books you read for fun also get star ratings and a few notes in your own words (what it's about, what you thought, ideas worth keeping), and every so often Tenax asks what you remember before showing your notes again: a few days later, then further apart each time it sticks.
-- **Knowledge map.** A sky of solar systems: each book is a sun with its name beneath it, its chapters are orbits, and its concepts are planets going round, lit by their sun and glowing once you master them. Books that share ideas are joined by a stream of light; point at a planet to see its own links. Names come in as you zoom. Point at a planet and the sky stops; click it to glide over and open it.
+- **Shelf.** Your reading, textbooks and courses standing on shelves as 3D books, each kind with its own tab, or spine-out like a real bookcase. Tenax courses show up on their own; anything else you add by hand, and **Find a cover** fetches its cover from Open Library. A year view stacks up what you finished that year. Books you read for fun also get star ratings and a few notes in your own words (what it's about, what you thought, ideas worth keeping), and every so often Tenax asks what you remember before showing your notes again: a few days later, then further apart each time it sticks.
+- **Knowledge map.** A 3D sky of solar systems (three.js): each book is a sun, its chapters are orbits, and its concepts are planets lit by their sun, glowing once you master them and fading into haze as you start to forget them. Books that share ideas are joined by a stream of light. Open a concept to see its learning path as a constellation, or play a time-lapse of your sky from your first day to today.
 - **A calm, quick interface.** A frameless window with search in the title bar: Ctrl+K finds any course, chapter, concept, book or note, or runs an action. Pages glide into each other, a book flies off the shelf into its course, a planet grows into its panel, and sessions slide up over everything. Titles are set in a serif, numbers sit in a row with small sparklines, and there's a Black theme and a warm Paper one. Soft sounds are there if you want them.
 - **Every computer, one library.** Sync through a folder your cloud drive already syncs (OneDrive, Dropbox, Google Drive). No server, no account.
 
@@ -59,7 +59,7 @@ Tenax is free; the AI calls are billed to your API key. Book imports go through 
 
 ## Your data
 
-Everything is stored locally in one file, with an automatic daily backup (the last 14 are kept; **Settings → Your data**). You can export or restore a backup at any time. Tenax only talks to the Anthropic API (the text you study and your answers, to write and grade questions) and to GitHub (to check for updates).
+Everything is stored locally in one file, with an automatic daily backup (the last 14 are kept; **Settings → Your data**). You can export or restore a backup at any time. Tenax only talks to the Anthropic API (the text you study and your answers, to write and grade questions), to GitHub (to check for updates) and, when you click **Find a cover**, to Open Library (the title and author).
 
 ## Building from source
 

@@ -1,51 +1,89 @@
+// Progress: the numbers that say how it's going, the review time coming up
+// over the next two weeks, and a year of activity. Questions to fix are in a
+// panel on Today; how each course is going is on its own page.
+
 import { useMemo } from "react";
 import { useStore } from "../state/store.jsx";
-import { Bar, StatusDot, Figures, Figure, Spark } from "../ui/ui.jsx";
+import { Figures, Figure, Spark } from "../ui/ui.jsx";
 import { useNav, pct } from "../ui/nav.js";
-import { index, ABILITIES } from "../lib/model.js";
-import { conceptMastery, courseMastery, abilityBreakdown, isEvidence } from "../lib/mastery.js";
+import { isEvidence, conceptMastery } from "../lib/mastery.js";
 import { forecastLoad } from "../lib/planner.js";
-import { FLAG_REASONS } from "../lib/quality.js";
-import Markdown from "../ui/Markdown.jsx";
-import FixQuestion from "./FixQuestion.jsx";
 import { dayKey, addDays, keyToDate, formatMinutes } from "../lib/time.js";
 import { lastDays, perDay, milestones, runningTotal } from "../lib/history.js";
 
 const DAY = 864e5;
+const WEEKS = 53;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function Heatmap({ counts, today }) {
-  const weeks = 22;
+/** A year of study days, a column per week (Sunday at the top), with the months along the top. */
+function Activity({ counts, today }) {
   const end = keyToDate(today);
   const start = new Date(end);
-  start.setDate(start.getDate() - (weeks * 7 - 1));
-  start.setDate(start.getDate() - start.getDay()); // align columns to weeks
-  const cells = [];
+  start.setDate(start.getDate() - (WEEKS * 7 - 1));
+  start.setDate(start.getDate() - start.getDay());
+  const weeks = [];
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    if (d.getDay() === 0 || !weeks.length) weeks.push([]);
     const k = dayKey(d.getTime() + 5 * 3600e3, 0);
-    const n = counts[k] || 0;
-    const lvl = n === 0 ? 0 : n < 8 ? 1 : n < 20 ? 2 : n < 40 ? 3 : 4;
-    cells.push(<div key={k} className={`heat${lvl ? ` l${lvl}` : ""}`} title={`${d.toLocaleDateString()}: ${n} answer${n === 1 ? "" : "s"}`}/>);
+    weeks[weeks.length - 1].push({ k, n: counts[k] || 0, date: new Date(d) });
   }
-  return <div className="heatmap">{cells}</div>;
+  const level = (n) => (n === 0 ? 0 : n < 8 ? 1 : n < 20 ? 2 : n < 40 ? 3 : 4);
+  let lastMonth = -1;
+  const months = weeks.map((w, i) => {
+    const m = w[0].date.getMonth();
+    const show = m !== lastMonth && i < weeks.length - 2;
+    if (show) lastMonth = m;
+    return show && (i > 0 || w[0].date.getDate() <= 7) ? MONTHS[m] : "";
+  });
+  return (
+    <div className="activity" style={{ "--weeks": weeks.length }}>
+      <span/>
+      <div className="activity-months">{months.map((m, i) => <span key={i}>{m}</span>)}</div>
+      <div className="activity-days"><span/><span>Mon</span><span/><span>Wed</span><span/><span>Fri</span><span/></div>
+      <div className="activity-grid">
+        {weeks.map((w, i) => (
+          <div key={i} className="activity-week" style={{ "--i": i }}>
+            {w.map(c => (
+              <span key={c.k} className={`heat${level(c.n) ? ` l${level(c.n)}` : ""}`}
+                title={`${c.date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}: ${c.n} answer${c.n === 1 ? "" : "s"}`}/>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
+/** Review time scheduled for each of the next 14 days, against the daily budget. */
 function Forecast({ state, now }) {
   const { sec } = forecastLoad(state, { now, days: 14 });
   const budget = state.settings.dailyMinutes * 60;
-  const max = Math.max(budget * 1.25, ...sec, 1);
-  const H = 90;
+  const max = Math.max(budget * 1.3, ...sec, 1);
   return (
-    <div className="forecast">
-      <div className="week-budget" style={{ bottom: 23 + (budget / max) * H }}><span>{state.settings.dailyMinutes} min budget</span></div>
-      {sec.map((s, i) => {
-        const d = new Date(now + i * DAY);
-        return (
-          <div key={i} className="week-col" title={`${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}: about ${formatMinutes(s)}`}>
-            <div className={`week-bar${s > budget ? " over" : ""}`} style={{ height: Math.max(2, (s / max) * H) }}/>
-            <span className="week-day">{i === 0 ? "Today" : d.getDate()}</span>
-          </div>
-        );
-      })}
+    <div className="forecast2">
+      <div className="forecast2-plot">
+        <div className="forecast2-budget" style={{ bottom: `${(budget / max) * 100}%` }}><span>{state.settings.dailyMinutes} min</span></div>
+        {sec.map((s, i) => {
+          const d = new Date(now + i * DAY);
+          return (
+            <div key={i} className={`forecast2-col${i === 0 ? " today" : ""}`}
+              title={`${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}: about ${formatMinutes(s)} of reviews`}>
+              <div className={`forecast2-bar${s > budget ? " over" : ""}`} style={{ height: `${Math.max(1.5, (s / max) * 100)}%`, "--i": i }}/>
+            </div>
+          );
+        })}
+      </div>
+      <div className="forecast2-labels">
+        {sec.map((_, i) => {
+          const d = new Date(now + i * DAY);
+          return (
+            <div key={i} className={`forecast2-label${i === 0 ? " today" : ""}`}>
+              <span>{i === 0 ? "Today" : d.toLocaleDateString(undefined, { weekday: "short" })}</span>
+              <span>{d.getDate()}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -53,7 +91,6 @@ function Forecast({ state, now }) {
 export default function Progress() {
   const { state } = useStore();
   const nav = useNav();
-  const ix = index(state);
   const now = nav.now;
   const today = dayKey(now, state.settings.rolloverHour);
 
@@ -80,40 +117,22 @@ export default function Progress() {
       lastSeen[a.itemId] = a.ts;
     }
 
-    const perConcept = state.concepts.filter(c => !c.suspended).map(c => ({ c, m: conceptMastery(state, c.id, now) }));
-    const mastered = perConcept.filter(x => x.m.status === "mastered").length;
-    const started = perConcept.filter(x => x.m.started).length;
-    const weak = perConcept.filter(x => x.m.status === "slipping" || x.m.lapses >= 3)
-      .sort((a, b) => b.m.lapses - a.m.lapses).slice(0, 8);
+    const active = state.concepts.filter(c => !c.suspended);
+    const per = active.map(c => conceptMastery(state, c.id, now));
+    const mastered = per.filter(m => m.status === "mastered").length;
+    const started = per.filter(m => m.started).length;
 
-    const misc = {};
-    for (const a of state.attempts) {
-      if (a.ts < now - 60 * DAY) continue;
-      for (const m of a.misconceptions || []) {
-        const key = `${a.conceptId}::${m}`;
-        (misc[key] ||= { conceptId: a.conceptId, text: m, n: 0 }).n++;
-      }
-    }
-    const misconceptions = Object.values(misc).sort((a, b) => b.n - a.n).slice(0, 6);
-
-    // Sparklines: the last two weeks of answers, and a month of concepts mastered.
     const fortnight = lastDays(today, 14);
     const perDayAnswers = perDay(state.attempts, fortnight);
-    const masteredByDay = runningTotal(milestones(state, state.concepts.filter(c => !c.suspended), now).mastered, lastDays(today, 30));
+    const masteredByDay = runningTotal(milestones(state, active, now).mastered, lastDays(today, 30));
+    const yearAnswers = state.attempts.filter(a => a.ts >= now - 365 * DAY).length;
 
-    return { counts, streak, week, weekSec, delayedN, delayedOk, mastered, started, weak, misconceptions, perDayAnswers, masteredByDay };
-  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const abilities = abilityBreakdown(state, { now });
-  const flagged = state.items.filter(i => i.flag).sort((a, b) => (b.flag.at || 0) - (a.flag.at || 0));
+    return { counts, streak, week, weekSec, delayedN, delayedOk, mastered, started, perDayAnswers, masteredByDay, yearAnswers };
+  }, [state, today, now]);
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Progress</h1>
-        </div>
-      </div>
+    <div className="page progress">
+      <div className="page-head"><div><h1>Progress</h1></div></div>
 
       <Figures>
         <Figure value={data.streak} label="day streak"
@@ -125,103 +144,18 @@ export default function Progress() {
           spark={<Spark values={data.masteredByDay} label="Concepts mastered over the last 30 days"/>}/>
       </Figures>
 
-      <div className="grid-2">
-        <div className="stack" style={{ gap: 28 }}>
-          <div className="panel panel-pad">
-            <h2 className="h">Next two weeks</h2>
-            <Forecast state={state} now={now}/>
-          </div>
+      <section className="progress-block">
+        <div className="progress-head"><h2 className="h">Next two weeks</h2></div>
+        <Forecast state={state} now={now}/>
+      </section>
 
-          <div className="panel panel-pad">
-            <h2 className="h">Activity</h2>
-            <Heatmap counts={data.counts} today={today}/>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head"><h2>Courses</h2></div>
-            <div className="list">
-              {state.courses.filter(c => c.kind !== "notes").map(c => {
-                const m = courseMastery(state, c.id, now);
-                return (
-                  <button key={c.id} className="list-row" onClick={() => nav.go("course", { courseId: c.id })}>
-                    <span className="dot" style={{ background: c.color }}/>
-                    <div className="grow">
-                      <div className="list-title">{c.name}</div>
-                      <div className="list-meta">{m.mastered} of {m.basisCount} mastered, {m.introduced} of {m.total} started</div>
-                    </div>
-                    <div style={{ width: 140 }}><Bar value={m.masteryPct} tone="good"/></div>
-                    <span className="num small muted" style={{ width: 40, textAlign: "right" }}>{pct(m.masteryPct)}</span>
-                  </button>
-                );
-              })}
-              {!state.courses.length && <div className="list-row static muted">No courses yet.</div>}
-            </div>
-          </div>
+      <section className="progress-block">
+        <div className="progress-head">
+          <h2 className="h">Activity</h2>
+          <span className="muted small num">{data.yearAnswers} answer{data.yearAnswers === 1 ? "" : "s"} in the last year</span>
         </div>
-
-        <div className="stack" style={{ gap: 28 }}>
-          <div className="panel panel-pad">
-            <h2 className="h">By type of question</h2>
-            {Object.entries(abilities).map(([k, v]) => (
-              <div key={k} className="ability-row">
-                <span>{ABILITIES[k].label}</span>
-                <Bar value={v.attempts ? v.correct / v.attempts : 0} tone="good"/>
-                <span className="num small muted" style={{ textAlign: "right" }}>{v.attempts ? `${pct(v.correct / v.attempts)} of ${v.attempts}` : "–"}</span>
-              </div>
-            ))}
-          </div>
-
-          {flagged.length > 0 && (
-            <div className="panel">
-              <div className="panel-head"><h2>Questions to fix</h2></div>
-              <div className="list">
-                {flagged.map(it => {
-                  const c = ix.concept[it.conceptId];
-                  return (
-                    <div key={it.id} className="list-row static" style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
-                      <div className="section-stats"><span>{c?.name}</span><span>{(FLAG_REASONS[it.flag.reason] ?? "flagged").toLowerCase()}</span></div>
-                      <Markdown>{it.prompt}</Markdown>
-                      {c && <FixQuestion item={it} concept={c}/>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="panel">
-            <div className="panel-head"><h2>Weak spots</h2></div>
-            <div className="list">
-              {data.weak.map(({ c, m }) => (
-                <button key={c.id} className="list-row" onClick={() => nav.go("course", { courseId: c.courseId, conceptId: c.id })}>
-                  <StatusDot status={m.status}/>
-                  <div className="grow">
-                    <div className="list-title">{c.name}</div>
-                    <div className="list-meta">{ix.course[c.courseId]?.name}{m.lapses ? `, missed ${m.lapses}×` : ""}</div>
-                  </div>
-                </button>
-              ))}
-              {!data.weak.length && <div className="list-row static muted small">Nothing is slipping right now.</div>}
-            </div>
-          </div>
-
-          {data.misconceptions.length > 0 && (
-            <div className="panel">
-              <div className="panel-head"><h2>Recurring misconceptions</h2></div>
-              <div className="list">
-                {data.misconceptions.map((m, i) => (
-                  <button key={i} className="list-row" onClick={() => ix.concept[m.conceptId] && nav.go("course", { courseId: ix.concept[m.conceptId].courseId, conceptId: m.conceptId })}>
-                    <div className="grow">
-                      <div>{m.text}</div>
-                      <div className="list-meta">{ix.concept[m.conceptId]?.name ?? "Deleted concept"}{m.n > 1 ? `, ${m.n} times` : ""}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        <Activity counts={data.counts} today={today}/>
+      </section>
     </div>
   );
 }
