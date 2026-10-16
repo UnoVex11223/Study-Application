@@ -1,6 +1,6 @@
-// Pictures for the knowledge map's sky, painted once on small canvases and
-// reused: suns for books, lit planets for concepts, and the starfield and
-// Milky Way behind everything.
+// Pictures for the flat knowledge map (the Prerequisites chart, and the map
+// on computers without WebGL 2), painted once on small canvases and reused:
+// suns for books, lit planets for concepts, and the starfield behind them.
 // Browser-only (uses canvas); everything is seeded, so the sky looks the same
 // every visit.
 
@@ -295,82 +295,4 @@ export function starTile(size, count, seed, { bright = 1, spikes = true } = {}) 
   const url = `url("${c.toDataURL("image/png")}")`;
   tileCache.set(key, url);
   return url;
-}
-
-/**
- * The Milky Way: a soft diagonal band of dust and faint stars with a few
- * coloured clouds, painted to fit the map (it drifts only slightly, so it
- * doesn't need to repeat).
- */
-export function paintGalaxy(cv, w, h, dpr = 1) {
-  cv.width = Math.round(w * dpr);
-  cv.height = Math.round(h * dpr);
-  const g = cv.getContext("2d");
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, w, h);
-  const rand = rng(90210);
-  // The band runs from lower left to upper right.
-  const ang = -0.42, cos = Math.cos(ang), sin = Math.sin(ang);
-  const cx = w * 0.5, cy = h * 0.52, len = Math.hypot(w, h) * 0.75, width = Math.min(w, h) * 0.2;
-  const along = (t, off) => [cx + cos * t - sin * off, cy + sin * t + cos * off];
-  const gauss = () => (rand() + rand() + rand() - 1.5) / 1.5;
-
-  // Glow of the band.
-  g.save();
-  g.translate(cx, cy);
-  g.rotate(ang);
-  const band = g.createLinearGradient(0, -width * 1.6, 0, width * 1.6);
-  band.addColorStop(0, "rgba(120, 130, 190, 0)");
-  band.addColorStop(0.5, "rgba(140, 150, 205, 0.075)");
-  band.addColorStop(1, "rgba(120, 130, 190, 0)");
-  g.fillStyle = band;
-  g.fillRect(-len, -width * 1.6, len * 2, width * 3.2);
-  g.restore();
-
-  // Clouds: blue, violet, teal and a little rose along the band.
-  const tones = [[98, 120, 220], [150, 110, 210], [80, 170, 190], [210, 120, 160], [120, 140, 230]];
-  for (let i = 0; i < 26; i++) {
-    const [x, y] = along((rand() - 0.5) * len * 1.6, gauss() * width * 0.9);
-    const r = width * (0.35 + rand() * 0.9);
-    const c = tones[Math.floor(rand() * tones.length)];
-    const cg = g.createRadialGradient(x, y, 0, x, y, r);
-    cg.addColorStop(0, rgba(c, 0.05 + rand() * 0.06));
-    cg.addColorStop(1, rgba(c, 0));
-    g.fillStyle = cg;
-    g.fillRect(x - r, y - r, r * 2, r * 2);
-  }
-  // Two wispy nebulae away from the band: soft clouds strung along a
-  // wandering path, so they read as filaments rather than round blobs.
-  for (const [fx, fy, tone, steps] of [[0.16, 0.22, [120, 150, 230], 70], [0.84, 0.8, [200, 110, 150], 60]]) {
-    let x = w * fx, y = h * fy, dir = rand() * Math.PI * 2;
-    for (let i = 0; i < steps; i++) {
-      dir += (rand() - 0.5) * 0.9;
-      x += Math.cos(dir) * width * 0.06;
-      y += Math.sin(dir) * width * 0.06;
-      const r = width * (0.12 + rand() * 0.3);
-      const ng = g.createRadialGradient(x, y, 0, x, y, r);
-      ng.addColorStop(0, rgba(mix(tone, [255, 255, 255], rand() * 0.3), 0.01 + rand() * 0.02));
-      ng.addColorStop(1, rgba(tone, 0));
-      g.fillStyle = ng;
-      g.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-  }
-  // Dark dust lanes through the middle.
-  for (let i = 0; i < 14; i++) {
-    const [x, y] = along((rand() - 0.5) * len * 1.4, gauss() * width * 0.25);
-    const r = width * (0.2 + rand() * 0.4);
-    const dg = g.createRadialGradient(x, y, 0, x, y, r);
-    dg.addColorStop(0, "rgba(5, 6, 11, .28)");
-    dg.addColorStop(1, "rgba(5, 6, 11, 0)");
-    g.fillStyle = dg;
-    g.fillRect(x - r, y - r, r * 2, r * 2);
-  }
-  // Thousands of faint stars crowding the band.
-  const n = Math.round((w * h) / 260);
-  for (let i = 0; i < n; i++) {
-    const [x, y] = along((rand() - 0.5) * len * 1.7, gauss() * width * (rand() < 0.8 ? 0.8 : 1.8));
-    const a = 0.12 + rand() * 0.45;
-    g.fillStyle = rgba(starColor(rand()), a);
-    g.fillRect(x, y, rand() < 0.9 ? 0.8 : 1.3, rand() < 0.9 ? 0.8 : 1.3);
-  }
 }

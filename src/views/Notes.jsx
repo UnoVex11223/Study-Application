@@ -127,34 +127,24 @@ export default function Notes() {
       {!aiBridge() && <div style={{ marginBottom: 14 }}><Notice icon="info">Turning notes into questions runs in the desktop app. You can still collect notes here.</Notice></div>}
       {aiBridge() && hasKey === false && <div style={{ marginBottom: 14 }}><Notice tone="warn" icon="alert">Add your Anthropic API key in <button className="link" onClick={() => nav.go("settings")}>Settings</button> to turn notes into questions.</Notice></div>}
 
-      <div className="grid-2 notes-top">
-        <div className="panel panel-pad">
-          <label className="label" htmlFor="note-text">Capture a note</label>
-          <textarea
-            id="note-text" ref={taRef} className="textarea" rows={4} value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}
-            style={{ marginTop: 8 }}
-          />
-          <label className="label" htmlFor="note-context" style={{ display: "block", marginTop: 14 }}>Project or topic</label>
-          <div className="row" style={{ marginTop: 8, gap: 10 }}>
-            <input id="note-context" className="input grow" value={context} onChange={e => setContext(e.target.value)} aria-label="Project or topic"
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); capture(); } }}/>
-            <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus" size={14}/>Add note</button>
-          </div>
+      <div className={`panel capture${drag ? " over" : ""}`}
+        onDragOver={e => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={e => { e.preventDefault(); setDrag(false); readFiles([...e.dataTransfer.files]); }}>
+        <textarea
+          id="note-text" ref={taRef} className="capture-text" rows={3} value={text} aria-label="Capture a note"
+          placeholder="Capture a note: something you learned, in a sentence or two"
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}
+        />
+        <div className="capture-foot">
+          <input id="note-context" className="input capture-topic" value={context} onChange={e => setContext(e.target.value)} aria-label="Project or topic"
+            placeholder="Project or topic" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); capture(); } }}/>
+          <span className="grow"/>
+          <button className="btn btn-quiet" onClick={() => fileRef.current?.click()} title="Upload .md or .txt notes (or drop them here)"><Icon name="upload" size={14}/>Upload notes</button>
+          <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus" size={14}/>Add note</button>
         </div>
-
-        <div
-          className={`panel panel-pad dropzone notes-drop${drag ? " over" : ""}`}
-          onDragOver={e => { e.preventDefault(); setDrag(true); }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={e => { e.preventDefault(); setDrag(false); readFiles([...e.dataTransfer.files]); }}
-          onClick={() => fileRef.current?.click()} role="button" tabIndex={0}
-        >
-          <Icon name="upload" size={20}/>
-          <strong>Upload notes</strong>
-          <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,text/plain,text/markdown" multiple hidden onChange={e => { readFiles([...e.target.files]); e.target.value = ""; }}/>
-        </div>
+        <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,text/plain,text/markdown" multiple hidden onChange={e => { readFiles([...e.target.files]); e.target.value = ""; }}/>
       </div>
 
       {msg && <div style={{ margin: "14px 0" }}><Notice icon="check">{msg}</Notice></div>}
@@ -246,9 +236,7 @@ export default function Notes() {
       <section style={{ marginTop: 32 }}>
         <h2 className="h" style={{ marginBottom: 12 }}>Topics</h2>
         {topics.length === 0 ? (
-          <div className="panel empty">
-            <h3>Nothing here yet</h3>
-          </div>
+          <p className="muted small" style={{ margin: 0 }}>Processed notes are filed here by topic.</p>
         ) : (
           <div className="panel">
             {topics.map(s => {

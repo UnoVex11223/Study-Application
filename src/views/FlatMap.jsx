@@ -19,7 +19,7 @@ import { index } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
 import { layeredLayout } from "../lib/graph.js";
 import { orbitalLayout, planetAt, systemBounds, TILT, seeded, bridgesBetween, bow, onCurve, fadeIn } from "../lib/orbits.js";
-import { sunSprites, starTile, paintGalaxy, planetBody, planetShade, varyColor, PLANET_SPRITE, PLANET_R } from "../ui/sky.js";
+import { sunSprites, starTile, planetBody, planetShade, varyColor, PLANET_SPRITE, PLANET_R } from "../ui/sky.js";
 
 const RADIUS = { core: 6.4, supporting: 4.8, detail: 3.7 };
 const SLIPPING = "#F2A65A";
@@ -28,20 +28,14 @@ const short = (n) => (n.length > MAX_LABEL ? `${n.slice(0, MAX_LABEL - 1)}…` :
 const stillPreferred = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-// The starfield: three layers of stars at different depths (they drift at
-// different speeds as you move), the Milky Way behind them, and a faint
-// colour wash. Painted once per session and reused.
+// The starfield, as on the 3D map: plain black with two layers of crisp
+// stars at different depths (they drift at different speeds as you move).
+// Painted once per session and reused.
 let tiles = null;
 const starTiles = () => (tiles ||= {
-  far: starTile(640, 420, 11, { bright: 0.7, spikes: false }),
-  near: starTile(900, 70, 23, { bright: 1 }),
-  twinkle: starTile(700, 40, 37, { bright: 0.9, spikes: false }),
+  far: starTile(640, 380, 11, { bright: 0.6, spikes: false }),
+  near: starTile(900, 50, 23, { bright: 0.85, spikes: false }),
 });
-const NEBULA = [
-  "radial-gradient(ellipse 60% 45% at 18% 28%, rgba(111, 127, 212, .12), transparent 70%)",
-  "radial-gradient(ellipse 50% 40% at 82% 72%, rgba(162, 134, 204, .1), transparent 70%)",
-  "radial-gradient(ellipse 45% 35% at 62% 12%, rgba(94, 162, 191, .07), transparent 70%)",
-];
 
 function hexToRgb(hex) {
   const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || "");
@@ -96,8 +90,6 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const spaceRef = useRef(null);
-  const twinkleRef = useRef(null);
-  const galaxyRef = useRef(null);
   const sceneRef = useRef(null);
   const cam = useRef({ x: 0, y: 0, k: 1 });
   const camAnim = useRef(null);         // { from, to (a view, or a function giving one), t0, ms }
@@ -201,14 +193,7 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
     cam.current = v;
     dirty.current = true;
     // The stars drift a little as you move: far ones less than near ones.
-    if (spaceRef.current) spaceRef.current.style.backgroundPosition = `${v.x * 0.02}px ${v.y * 0.02}px, ${v.x * 0.07}px ${v.y * 0.07}px, 0 0, 0 0, 0 0`;
-    if (twinkleRef.current) twinkleRef.current.style.backgroundPosition = `${v.x * 0.045}px ${v.y * 0.045}px`;
-    const g = galaxyRef.current;
-    if (g) {
-      const { w, h } = size.current;
-      const clamp = (n, m) => Math.max(-m, Math.min(m, n));
-      g.style.transform = `translate(${clamp(v.x * 0.012, w * 0.05)}px, ${clamp(v.y * 0.012, h * 0.05)}px)`;
-    }
+    if (spaceRef.current) spaceRef.current.style.backgroundPosition = `${v.x * 0.02}px ${v.y * 0.02}px, ${v.x * 0.07}px ${v.y * 0.07}px`;
   }, []);
   /** Glide the camera; the target can be a function, to follow a moving planet. */
   const glideTo = useCallback((to, ms = 560) => {
@@ -288,7 +273,6 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
       size.current = { w: r.width, h: r.height, dpr };
       canvas.width = Math.round(r.width * dpr);
       canvas.height = Math.round(r.height * dpr);
-      if (galaxyRef.current) paintGalaxy(galaxyRef.current, r.width * 1.1, r.height * 1.1, Math.min(1.5, dpr));
       if (!fitted.current) { const v = viewFor(bounds); if (v) { setCam(v); fitted.current = true; } }
       dirty.current = true;
     };
@@ -790,10 +774,7 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
         </div>
       ) : (
         <div className="map-wrap space" ref={wrapRef}>
-          <canvas className="space-galaxy" ref={galaxyRef} aria-hidden="true"/>
-          <div className="space-bg" ref={spaceRef} style={{ backgroundImage: [starTiles().far, starTiles().near, ...NEBULA].join(", ") }}/>
-          <div className="space-twinkle" ref={twinkleRef} style={{ backgroundImage: starTiles().twinkle }}/>
-          <div className="shooting-star"/>
+          <div className="space-bg" ref={spaceRef} style={{ backgroundImage: [starTiles().far, starTiles().near].join(", ") }}/>
           <canvas ref={canvasRef} className="map-canvas" role="img" aria-label="Knowledge map"
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerLeave}/>
           <div className="map-zoom">
@@ -802,12 +783,12 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
             <button className="btn btn-icon btn-sm" onClick={fit} aria-label="Fit to screen"><Icon name="fit" size={16}/></button>
           </div>
           <div className="map-legend">
-            <span><span className="dot planet bright" style={{ "--c": "#9FB0FF" }}/>Mastered</span>
-            <span><span className="dot planet" style={{ "--c": "#8F9AD0" }}/>Learning</span>
-            <span><span className="dot planet bright" style={{ "--c": SLIPPING }}/>Slipping</span>
-            <span><span className="dot planet dark" style={{ "--c": "#9FB0FF" }}/>Not started</span>
-            {ix.lockedConcepts.size > 0 && <span><span className="dot planet dust"/>Unread chapter</span>}
-            {scope === "all" && scene.bridges.length > 0 && <span><span className="legend-stream"/>Links between books</span>}
+            <span><span className="orb mastered"/>Mastered</span>
+            <span><span className="orb learning"/>Learning</span>
+            <span><span className="orb slipping"/>Slipping</span>
+            <span><span className="orb new"/>Not started</span>
+            {ix.lockedConcepts.size > 0 && <span><span className="orb unread"/>Unread chapter</span>}
+            {scope === "all" && scene.bridges.length > 0 && <span><span className="legend-line"/>Links between books</span>}
           </div>
         </div>
       )}

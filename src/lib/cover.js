@@ -126,6 +126,70 @@ export function bookThickness({ category, unit, total }) {
   return Math.round(Math.max(9, Math.min(26, 6 + Math.sqrt(pages) * 0.95)));
 }
 
+/**
+ * The words split into k lines so the longest line is as short as it can be.
+ * Returns { lines, longest } (longest in px, from measure).
+ */
+function splitLines(words, k, size, measure) {
+  const n = words.length;
+  const widths = new Map();
+  const width = (i, j) => {
+    const key = i * 64 + j;
+    if (!widths.has(key)) widths.set(key, measure(words.slice(i, j).join(" "), size));
+    return widths.get(key);
+  };
+  let best = null;
+  const go = (from, left, lines, longest) => {
+    if (best && longest >= best.longest) return;
+    if (left === 1) {
+      const w = Math.max(longest, width(from, n));
+      if (!best || w < best.longest) best = { lines: [...lines, words.slice(from).join(" ")], longest: w };
+      return;
+    }
+    for (let to = from + 1; to <= n - left + 1; to++) go(to, left - 1, [...lines, words.slice(from, to).join(" ")], Math.max(longest, width(from, to)));
+  };
+  go(0, Math.min(k, n), [], 0);
+  return best;
+}
+
+/**
+ * A title laid out to fit a strip of type (a spine, a book lying in a pile),
+ * always in full, never cut short with "…".
+ *   length   room along each line (px)
+ *   across   room for the lines side by side (px)
+ *   measure  (text, size) → its width in px at that font size
+ * For one, two and three lines it finds the largest size (max down to min)
+ * that fits; the biggest type wins, but each extra line has to earn its place
+ * by being worth more than `perLine` px of type size. If even the smallest
+ * doesn't fit, the title takes as many lines as it needs (up to four, then
+ * smaller type) and `across` says how much room those lines need.
+ * Returns { size, lines, across }.
+ */
+export function fitTitle(title, { length, across, max = 13, min = 7, leading = 1.12, perLine = 2, measure }) {
+  const words = String(title || "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length || length <= 0) return { size: max, lines: words.length ? [words.join(" ")] : [], across };
+  let best = null;
+  for (let k = 1; k <= Math.min(3, words.length); k++) {
+    for (let size = Math.min(max, across / (k * leading)); size >= min - 1e-9; size -= 0.5) {
+      const fit = splitLines(words, k, size, measure);
+      if (fit.longest > length) continue;
+      const score = size - perLine * (k - 1);
+      if (!best || score > best.score) best = { score, size, lines: fit.lines };
+      break;
+    }
+  }
+  if (best) return { size: best.size, lines: best.lines, across };
+  const most = Math.min(4, words.length);
+  for (let k = 1; k <= most; k++) {
+    const fit = splitLines(words, k, min, measure);
+    if (fit.longest <= length || k === most) {
+      const size = fit.longest > length ? Math.max(5, Math.floor((min * length / fit.longest) * 2) / 2) : min;
+      return { size, lines: fit.lines, across: Math.max(across, Math.ceil(fit.lines.length * size * leading)) };
+    }
+  }
+  return { size: min, lines: [words.join(" ")], across };
+}
+
 // ── In the browser ─────────────────────────────────────────────────────────
 
 const SAMPLE = 180; // analysed at this size; plenty to find a margin

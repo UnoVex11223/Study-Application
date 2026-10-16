@@ -89,3 +89,37 @@ test("spine text is light on dark spines and dark on light ones", async () => {
   assert.ok(book < text, "books stand shorter than textbooks");
   assert.equal(spineHeight({ category: "reading", title: "Dune" }), book, "always the same for a title");
 });
+
+test("a title is laid out in full: one line when it fits, more lines or smaller type when it doesn't", async () => {
+  const { fitTitle } = await import("../src/lib/cover.js");
+  const measure = (text, size) => text.length * size * 0.5; // every character half as wide as the type is tall
+  const short = fitTitle("Dune", { length: 140, across: 24, measure });
+  assert.deepEqual(short, { size: 13, lines: ["Dune"], across: 24 });
+
+  // Too long for one line at full size, so it goes on two lines when the spine is wide enough...
+  const two = fitTitle("CS50: Introduction to Computer Science", { length: 140, across: 32, measure });
+  assert.equal(two.lines.length, 2);
+  assert.equal(two.lines.join(" "), "CS50: Introduction to Computer Science", "nothing left out");
+  assert.ok(two.lines.every(l => measure(l, two.size) <= 140));
+  assert.ok(two.lines.length * two.size * 1.12 <= 32);
+
+  // ...and stays on one line in smaller type when it isn't.
+  const one = fitTitle("CS50: Introduction to Computer Science", { length: 140, across: 14, measure });
+  assert.equal(one.lines.length, 1);
+  assert.ok(one.size < 13 && measure(one.lines[0], one.size) <= 140);
+
+  // A very long title never ends in "…": it asks for more room across instead.
+  const long = "A Very Long Title About The Complete History and Practice of Database Systems Engineering";
+  const fit = fitTitle(long, { length: 120, across: 24, measure });
+  assert.equal(fit.lines.join(" "), long);
+  assert.ok(!fit.lines.some(l => l.includes("…")));
+  assert.ok(fit.across >= Math.ceil(fit.lines.length * fit.size * 1.12));
+  assert.ok(fit.lines.every(l => measure(l, fit.size) <= 120 + 1e-9));
+});
+
+test("lines are balanced, not filled greedily", async () => {
+  const { fitTitle } = await import("../src/lib/cover.js");
+  const measure = (text, size) => text.length * size * 0.5;
+  const fit = fitTitle("The Pragmatic Programmer", { length: 80, across: 40, measure });
+  assert.deepEqual(fit.lines, ["The Pragmatic", "Programmer"]);
+});

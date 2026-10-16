@@ -22,7 +22,6 @@ import { lapseTimeline, statusOn, lapseDay } from "../lib/timelapse.js";
 import { keyToDate } from "../lib/time.js";
 
 const RADIUS = { core: 6.4, supporting: 4.8, detail: 3.7 };
-const SLIPPING = "#F2A65A";
 const MAX_LABEL = 30;
 const LAPSE_SECONDS = 16; // the whole history plays in about this long
 const short = (n) => (n.length > MAX_LABEL ? `${n.slice(0, MAX_LABEL - 1)}…` : n);
@@ -66,7 +65,7 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
     for (const c of concepts) perSystem.set(c.courseId, (perSystem.get(c.courseId) || 0) + 1);
     const systems = orbit.systems.map(sys => ({ ...sys, sunR: 15 + Math.min(13, Math.sqrt(perSystem.get(sys.id) || 1) * 1.6) }));
     const planets = concepts.filter(c => orbit.planets[c.id]).map(c => ({
-      id: c.id, courseId: c.courseId, name: short(c.name), core: c.importance === "core", r: RADIUS[c.importance] ?? 5,
+      id: c.id, courseId: c.courseId, name: short(c.name), fullName: c.name, core: c.importance === "core", r: RADIUS[c.importance] ?? 5,
       orbit: orbit.planets[c.id], color: varyColor(ix2.course[c.courseId]?.color || "#8A93A6", seeded(c.id, 3)), kind: "dark", fog: 0,
     }));
     const inSky = new Set(planets.map(p => p.id));
@@ -152,7 +151,7 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
       ghost.className = "planet-ghost";
       Object.assign(ghost.style, {
         left: `${host.left + at.x - rad}px`, top: `${host.top + at.y - rad}px`, width: `${rad * 2}px`, height: `${rad * 2}px`,
-        background: `radial-gradient(circle at 36% 36%, #fff 0, ${p?.color || "#9fb0ff"} 40%, transparent 72%)`, viewTransitionName: "sheet",
+        background: `radial-gradient(circle at 34% 32%, color-mix(in srgb, ${p?.color || "#8F9BD6"} 55%, #fff) 0, ${p?.color || "#8F9BD6"} 42%, #000 86%)`, viewTransitionName: "sheet",
       });
       document.body.appendChild(ghost);
       transition(() => { ghost.remove(); setSelected(id); }, "sheet");
@@ -240,13 +239,13 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
           </div>
         )}
         <div className="map-legend">
-          <span><span className="dot planet bright" style={{ "--c": "#9FB0FF" }}/>Mastered</span>
-          <span><span className="dot planet" style={{ "--c": "#8F9AD0" }}/>Learning</span>
-          <span><span className="dot planet bright" style={{ "--c": SLIPPING }}/>Slipping</span>
-          {!lapse && <span><span className="dot planet fading" style={{ "--c": "#8F9AD0" }}/>Fading</span>}
-          <span><span className="dot planet dark" style={{ "--c": "#9FB0FF" }}/>Not started</span>
-          {ix.lockedConcepts.size > 0 && <span><span className="dot planet dust"/>Unread chapter</span>}
-          {data.bridges.length > 0 && <span><span className="legend-stream"/>Links between books</span>}
+          <span><span className="orb mastered"/>Mastered</span>
+          <span><span className="orb learning"/>Learning</span>
+          <span><span className="orb slipping"/>Slipping</span>
+          {!lapse && <span><span className="orb fading"/>Fading</span>}
+          <span><span className="orb new"/>Not started</span>
+          {ix.lockedConcepts.size > 0 && <span><span className="orb unread"/>Unread chapter</span>}
+          {data.bridges.length > 0 && <span><span className="legend-line"/>Links between books</span>}
         </div>
       </div>
 

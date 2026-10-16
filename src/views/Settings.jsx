@@ -7,11 +7,12 @@ import { getApiKeySet, setApiKey, flush } from "../lib/persist.js";
 import { aiBridge } from "../lib/ai.js";
 import { play } from "../ui/sound.js";
 
+/** One group of settings: its name on the left, the controls on the right, a hairline between groups. */
 function Section({ title, children }) {
   return (
-    <section className="panel panel-pad" style={{ marginBottom: 20 }}>
-      <h2 className="h" style={{ marginBottom: 14 }}>{title}</h2>
-      {children}
+    <section className="settings-section">
+      <h2 className="settings-title">{title}</h2>
+      <div className="settings-body">{children}</div>
     </section>
   );
 }
@@ -76,11 +77,11 @@ export default function Settings() {
 
       <Section title="Study">
         <div className="field">
-          <label htmlFor="st-min">Study time per day: <strong>{s.dailyMinutes} minutes</strong></label>
+          <label htmlFor="st-min" className="field-row"><span>Study time per day</span><span className="num">{s.dailyMinutes} min</span></label>
           <input id="st-min" type="range" min={5} max={90} step={5} value={s.dailyMinutes} onChange={e => set({ dailyMinutes: Number(e.target.value) })}/>
         </div>
         <div className="field">
-          <label htmlFor="st-new">New concepts per day, at most: <strong>{s.maxNewPerDay}</strong></label>
+          <label htmlFor="st-new" className="field-row"><span>New concepts per day, at most</span><span className="num">{s.maxNewPerDay}</span></label>
           <input id="st-new" type="range" min={0} max={20} step={1} value={s.maxNewPerDay} onChange={e => set({ maxNewPerDay: Number(e.target.value) })}/>
         </div>
         <div className="field">
@@ -161,19 +162,22 @@ export default function Settings() {
         )}
       </Section>
 
-      <Section title="Appearance">
-        <div className="seg">
-          {[["dark", "Black"], ["light", "Paper"], ["system", "Match system"]].map(([v, l]) => (
-            <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
-          ))}
+      <Section title="Look and sound">
+        <div className="field">
+          <span className="label">Theme</span>
+          <div className="seg" style={{ alignSelf: "flex-start" }}>
+            {[["dark", "Black"], ["light", "Paper"], ["system", "Match system"]].map(([v, l]) => (
+              <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
+            ))}
+          </div>
         </div>
-      </Section>
-
-      <Section title="Sounds">
-        <div className="seg">
-          {[[false, "Off"], [true, "On"]].map(([v, l]) => (
-            <button key={l} className={Boolean(s.sounds) === v ? "on" : ""} onClick={() => { set({ sounds: v }); if (v) play("chime", { force: true }); }}>{l}</button>
-          ))}
+        <div className="field" style={{ marginBottom: 0 }}>
+          <span className="label">Sounds</span>
+          <div className="seg" style={{ alignSelf: "flex-start" }}>
+            {[[false, "Off"], [true, "On"]].map(([v, l]) => (
+              <button key={l} className={Boolean(s.sounds) === v ? "on" : ""} onClick={() => { set({ sounds: v }); if (v) play("chime", { force: true }); }}>{l}</button>
+            ))}
+          </div>
         </div>
       </Section>
 

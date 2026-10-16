@@ -5,12 +5,12 @@
 // lib/recall.js).
 //
 // Everything stands on shelves as a book: a cover with real thickness (from
-// its length), page edges and a spine, drawn in CSS 3D. Books are set down on
-// the shelf when the page opens, turn toward you and follow the pointer when
-// you point at one, open their cover when you log a chapter, and a book due
-// for a recall has a bookmark sticking out of the top. The shelf's edge
-// catches the light under the pointer. With reduced motion, all of it stands
-// still. Covers are shaped by lib/cover.js.
+// its length), page edges and a spine, drawn in CSS 3D, standing on a plank.
+// Books face you, turned just enough to show the edge of their pages; they're
+// set down on the shelf when the page opens, lift and turn toward you when you
+// point at one, open their cover when you log a chapter, and a book due for a
+// recall has a ribbon hanging out of the top. With reduced motion, all of it
+// stands still. Covers are shaped by lib/cover.js.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
@@ -37,8 +37,8 @@ const STATUS = {
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 // Shelf geometry: the narrowest a book column gets, and the space between books.
-const BOOK_MIN = 150;
-const BOOK_GAP = 40;
+const BOOK_MIN = 132;
+const BOOK_GAP = 36;
 
 const stillMotion = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 
@@ -90,8 +90,8 @@ function Book({ entry: e, opening, onOpen, actions }) {
       if (stillMotion()) return;
       const r = el.getBoundingClientRect();
       const fx = Math.min(1, Math.max(0, (x - r.left) / r.width)), fy = Math.min(1, Math.max(0, (y - r.top) / r.height));
-      el.style.setProperty("--ry", `${((fx - 0.5) * 24).toFixed(2)}deg`);
-      el.style.setProperty("--rx", `${((0.5 - fy) * 14).toFixed(2)}deg`);
+      el.style.setProperty("--ry", `${((fx - 0.5) * 12).toFixed(2)}deg`);
+      el.style.setProperty("--rx", `${((0.5 - fy) * 6).toFixed(2)}deg`);
       el.style.setProperty("--gx", `${(fx * 100).toFixed(1)}%`);
       el.style.setProperty("--gy", `${(fy * 100).toFixed(1)}%`);
     },
@@ -182,12 +182,6 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
     return () => { cancelAnimationFrame(ready); window.removeEventListener("resize", placeInk); };
   }, [placeInk]);
 
-  // The shelf edge catches the light under the pointer.
-  const lamp = usePointerVars(
-    (el, x, y) => { el.style.setProperty("--lamp-x", `${x}px`); el.style.setProperty("--lamp-y", `${y}px`); },
-    (el) => { el.style.removeProperty("--lamp-x"); el.style.removeProperty("--lamp-y"); },
-  );
-
   // Log a chapter by hand. On a Tenax course you can't go below what Tenax counts.
   const bump = (e, d) => {
     const done = Math.max(e.read, e.done + d, 0);
@@ -271,7 +265,7 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
           {shown.length === 0 && !withAdd && <p className="shelf-none">Nothing here yet.</p>}
         </>
       ) : (
-      <div className="shelf" ref={shelfRef} style={geometry} {...lamp}>
+      <div className="shelf" ref={shelfRef} style={geometry}>
         <div className="shelf-grid" key={filter}>
           {shown.map((e, i) => (
             <BookCard key={e.key} entry={e} index={i}
@@ -304,7 +298,7 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
             {showHidden ? "Done" : `Hidden from the shelf (${hidden.length})`}
           </button>
           {showHidden && (
-            <div className="shelf" style={geometry} {...lamp}>
+            <div className="shelf" style={geometry}>
               <div className="shelf-grid">
                 {hidden.map((e, i) => (
                   <BookCard key={e.key} entry={e} index={i} dim
@@ -367,10 +361,9 @@ function BookCard({ entry: e, index, dim, onOpen, onEdit, onBump, onHide, onRemo
   const [menu, setMenu] = useState(false);
   const reading = e.category === "reading";
   const status = STATUS[e.category];
-  const progress = e.total
-    ? `${e.done} / ${e.total} ${e.unit}`
+  const progress = e.want ? status.want
+    : e.total ? `${e.done} / ${e.total} ${e.unit}`
     : e.finished ? (e.finishedAt ? monthYear(e.finishedAt) : "Done")
-    : e.want ? status.want
     : e.done ? `${e.done} ${e.unit} ${reading ? "read" : "done"}` : "Not started";
   const one = e.unit.replace(/s$/, "");
   const more = () => { onBump(1); setOpening(n => n + 1); play("page"); };
@@ -400,7 +393,7 @@ function BookCard({ entry: e, index, dim, onOpen, onEdit, onBump, onHide, onRemo
         <div className="book-sub">
           {reading ? (
             <>
-              {e.author && <span className="ell">{e.author}</span>}
+              {e.author && <span>{e.author}</span>}
               {e.rating > 0 && <Stars value={e.rating} size={10}/>}
             </>
           ) : e.linked ? (
@@ -417,6 +410,7 @@ function BookCard({ entry: e, index, dim, onOpen, onEdit, onBump, onHide, onRemo
           <span className="book-end">
             <span className="book-pct">
               {e.finished ? <Icon name="check" size={13}/>
+                : e.want ? null
                 : e.total > 0 ? pct(e.pct)
                 : !dim && !e.want && <button className="shelf-link" onClick={onEdit}>Set total</button>}
             </span>

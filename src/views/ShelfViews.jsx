@@ -1,20 +1,42 @@
 // Two other ways to look at the shelf:
 //   SpineShelf  the books standing spine-out in a bookcase, packed close, each
 //               spine coloured from its cover (or its cloth), as thick as the
-//               book is long, with the title running down it
+//               book is long, with the whole title running down it (on more
+//               lines or in smaller type when it's long, never cut short)
 //   YearView    a year on the shelf: what you finished, as a pile of books
 //               that grows as they land, with the months they fall in
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Icon from "../ui/Icon.jsx";
 import { Figures, Figure } from "../ui/ui.jsx";
 import { useCoverInfo } from "../ui/Cover.jsx";
-import { clothFor, bookThickness, inkFor, spineHeight } from "../lib/cover.js";
+import { clothFor, bookThickness, inkFor, spineHeight, fitTitle } from "../lib/cover.js";
 import { yearOnShelf } from "../lib/shelf.js";
 import { seeded } from "../lib/orbits.js";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const lastName = (author) => String(author || "").split(/,|&| and /)[0].trim().split(/\s+/).pop() || "";
+
+// Titles are measured in the fonts they're set in, so the layouts are redone once the fonts have loaded.
+let fontsLoaded = 0;
+const fontListeners = new Set();
+if (typeof document !== "undefined" && document.fonts) {
+  const bump = () => { fontsLoaded += 1; for (const fn of fontListeners) fn(); };
+  document.fonts.ready.then(bump);
+  document.fonts.addEventListener?.("loadingdone", bump);
+}
+const useFonts = () => useSyncExternalStore((fn) => { fontListeners.add(fn); return () => fontListeners.delete(fn); }, () => fontsLoaded);
+
+let ctx = null;
+/** Width in px of text in this font (CSS shorthand without the size), at this size. */
+function measureWith(font, spacing = 0) {
+  if (!ctx) ctx = document.createElement("canvas").getContext("2d");
+  return (text, size) => {
+    ctx.font = font.replace("{size}", `${size}px`);
+    return ctx.measureText(text).width + spacing * size * text.length;
+  };
+}
+const cssVar = (name, fallback) => (typeof document !== "undefined" && getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || fallback;
 
 /** A spine's colours: from the cover's left edge, or the cloth for a book without a picture. */
 function useSpineColors(e) {
@@ -24,16 +46,40 @@ function useSpineColors(e) {
   return { bg, ink: cloth ? cloth.ink : inkFor(bg) };
 }
 
+/**
+ * How a spine is set: the title down it at the largest size that fits on one
+ * to three lines, the author's last name at the foot; a spine too thin for its
+ * title is drawn a little thicker rather than cutting the title short.
+ */
+function useSpineType(e, h, w) {
+  const fonts = useFonts();
+  const author = e.category === "reading" && e.author ? lastName(e.author) : "";
+  return useMemo(() => {
+    const serif = measureWith(`500 {size} ${cssVar("--serif", "serif")}`, 0.01);
+    const mono = measureWith(`500 {size} ${cssVar("--mono", "monospace")}`, 0.06);
+    let authorSize = 0, authorLen = 0;
+    if (author) {
+      const name = author.toUpperCase();
+      authorSize = Math.max(6, Math.min(8.5, (8.5 * 46) / Math.max(1, mono(name, 8.5))));
+      authorLen = mono(name, authorSize);
+    }
+    const length = h - 15 - 12 - (author ? authorLen + 10 : 0) - 2;
+    const fit = fitTitle(e.title, { length, across: w - 10, max: 13, min: 7.5, measure: serif });
+    return { ...fit, width: Math.max(w, fit.across + 10), author, authorSize };
+  }, [e.title, author, h, w, fonts]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 function Spine({ entry: e, index, onOpen, onMenu }) {
   const { bg, ink } = useSpineColors(e);
-  const w = Math.max(22, Math.round(bookThickness(e) * 1.9));
+  const h = spineHeight(e);
+  const type = useSpineType(e, h, Math.max(22, Math.round(bookThickness(e) * 1.9)));
   const progress = e.total ? `${e.done} / ${e.total} ${e.unit}` : e.finished ? "Finished" : e.want ? "Want to read" : "";
   return (
-    <button className={`spine${e.want ? " want" : ""}`} style={{ "--w": `${w}px`, "--h": `${spineHeight(e)}px`, "--spine": bg, "--spine-ink": ink, "--i": index }}
+    <button className={`spine${e.want ? " want" : ""}`} style={{ "--w": `${type.width}px`, "--h": `${h}px`, "--spine": bg, "--spine-ink": ink, "--i": index }}
       onClick={(ev) => onOpen(ev.currentTarget)} onContextMenu={(ev) => { ev.preventDefault(); onMenu(ev); }}
       title={[e.title, e.category === "reading" ? e.author : "", progress].filter(Boolean).join(" · ")} aria-label={`Open ${e.title}`}>
-      <span className="spine-title">{e.title}</span>
-      {e.category === "reading" && e.author && <span className="spine-author">{lastName(e.author)}</span>}
+      <span className="spine-title" style={{ "--fs": `${type.size}px` }}>{type.lines.map((l, i) => <span key={i}>{l}</span>)}</span>
+      {type.author && <span className="spine-author" style={{ "--fs": `${type.authorSize}px` }}>{type.author}</span>}
       {e.recallDue && <span className="spine-mark" aria-hidden="true"/>}
     </button>
   );
@@ -82,16 +128,26 @@ export function SpineShelf({ entries, onOpen, onEdit, onHide, onRemove, onAdd, a
   );
 }
 
-/** One finished book lying in the pile. */
+/** One finished book lying in the pile, its whole title along the spine. */
 function Slab({ entry: e, index, onOpen }) {
   const { bg, ink } = useSpineColors(e);
+  const fonts = useFonts();
   const r = (k) => seeded(e.key, k);
+  const share = 0.62 + r(1) * 0.3; // of the pile's width
+  const t = Math.max(20, Math.round(bookThickness(e) * 1.35));
+  const author = e.category === "reading" && e.author ? lastName(e.author) : "";
+  const type = useMemo(() => {
+    const serif = measureWith(`500 {size} ${cssVar("--serif", "serif")}`);
+    const mono = measureWith(`500 {size} ${cssVar("--mono", "monospace")}`, 0.06);
+    const room = 420 * share - 28 - 8 - (author ? mono(author.toUpperCase(), 9.5) + 18 : 0);
+    return fitTitle(e.title, { length: room, across: t - 6, max: Math.min(14, t * 0.62), min: 8, leading: 1.08, measure: serif });
+  }, [e.title, author, share, t, fonts]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <button className="slab" onClick={() => onOpen(e)} title={e.title}
-      style={{ "--w": `${62 + r(1) * 30}%`, "--t": `${Math.max(20, Math.round(bookThickness(e) * 1.35))}px`, "--x": `${(r(2) - 0.5) * 22}px`,
+      style={{ "--w": `${share * 100}%`, "--t": `${Math.max(t, type.across + 6)}px`, "--x": `${(r(2) - 0.5) * 22}px`,
         "--r": `${(r(3) - 0.5) * 2.4}deg`, "--spine": bg, "--spine-ink": ink, "--i": index }}>
-      <span className="slab-title">{e.title}</span>
-      {e.category === "reading" && e.author && <span className="slab-author">{lastName(e.author)}</span>}
+      <span className="slab-title" style={{ "--fs": `${type.size}px` }}>{type.lines.map((l, i) => <span key={i}>{l}</span>)}</span>
+      {author && <span className="slab-author">{author}</span>}
     </button>
   );
 }

@@ -1,14 +1,19 @@
-// The knowledge map's sky in 3D (three.js): every book is a sun, its chapters
-// are orbits on a slightly tilted plane, its concepts are planets going round.
-// Planets are real spheres lit by their own sun (a day side, a night side and
-// a bright rim of atmosphere where the light grazes the edge), so they wax and
-// wane as they go round and as you turn the camera. Suns and mastered planets
-// bloom. Books that share ideas are joined by a glowing stream with motes of
-// light drifting along it; a planet's own links arc between planets when you
-// point at it. Planets you're forgetting (low recall chance) dim, lose their
-// colour and sit in a haze. A learning path is drawn as a constellation.
-// Names are drawn on a 2D canvas over the scene, nearest and most important
-// first, and come in as you get closer.
+// The knowledge map's sky in 3D (three.js), drawn like a real orrery: every
+// book is a star, its chapters are hairline orbits on a slightly tilted plane,
+// its concepts are planets going round.
+//
+// Planets are real worlds lit by their own star: rocky, gas giants, ice
+// giants and ocean worlds (each concept always the same kind), with a day
+// side, a near-black night side and a thin atmosphere at the lit limb, so they
+// wax and wane as they go round and as you turn the camera. Their surface
+// carries the course's colour; how much says how well you know it (a concept
+// you haven't started is a grey world, one you're forgetting greys out and
+// dims, one that's slipping turns amber). Only the stars are bright enough to
+// glow. Books that share ideas are joined by one thin line with the number of
+// links on it; a planet's own links arc between planets when you point at it.
+// A learning path is drawn as a constellation. Names are drawn on a 2D canvas
+// over the scene, nearest and most important first, and come in as you get
+// closer.
 //
 // This file knows nothing about React or the store: the map page gives it
 // systems and planets (layout from lib/orbits.js, looks from the store) and
@@ -20,70 +25,119 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { sunSprites } from "./sky.js";
 import { seeded } from "../lib/orbits.js";
 
-const SLIPPING = new THREE.Color("#F2A65A");
-const DUST = new THREE.Color("#77767B");
-const WHITE_ARC = new THREE.Color(1.2, 1.25, 1.4), FAINT_ARC = new THREE.Color(0.55, 0.6, 0.75);
+const SLIPPING = new THREE.Color("#E0974A");
+const ARC = new THREE.Color(0.9, 0.92, 0.98), FAINT_ARC = new THREE.Color(0.5, 0.54, 0.62);
 const DEPTH = 1.15;            // the 2D layout is squashed for wide screens; give back some depth
 const FOV = 38;
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const smooth = (v, a, b) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };
 
-/** How a planet is drawn for its kind ("bright", "lit", "slipping", "dark", "dust"). */
-function kindLook(kind, color) {
-  const c = kind === "slipping" ? SLIPPING.clone() : kind === "dust" ? DUST.clone() : color.clone();
-  if (kind === "lit") c.lerp(new THREE.Color("#9CA3B5"), 0.18);
-  return {
-    color: c,
-    glow: kind === "bright" ? 0.55 : kind === "slipping" ? 0.5 : 0,
-    pulse: kind === "slipping" ? 1 : 0,
-    dark: kind === "dark" ? 1 : 0,
-    halo: kind === "bright" ? 1 : kind === "slipping" ? 0.8 : 0,
-    scale: kind === "dust" ? 0.72 : 1,
-  };
+/**
+ * How a planet is drawn for its kind ("bright" mastered, "lit" learning,
+ * "slipping", "dark" not started, "dust" in a chapter you haven't read):
+ * how much of the course's colour its surface carries, how bright it is, how
+ * much atmosphere shows at the limb, and its size.
+ */
+function kindLook(kind) {
+  switch (kind) {
+    case "bright": return { sat: 1, bright: 1, atmo: 1, scale: 1, amber: false };
+    case "lit": return { sat: 0.72, bright: 0.86, atmo: 0.5, scale: 1, amber: false };
+    case "slipping": return { sat: 1.3, bright: 0.98, atmo: 0.6, scale: 1, amber: true };
+    case "dust": return { sat: 0, bright: 0.38, atmo: 0, scale: 0.7, amber: false };
+    default: return { sat: 0.06, bright: 0.58, atmo: 0, scale: 1, amber: false };
+  }
+}
+
+/** What kind of world a concept is: rocky, gas giant, ice giant or ocean (always the same for a concept). Core concepts lean to the giants. */
+function worldType(p) {
+  const r = seeded(p.id, 11);
+  if (p.core) return r < 0.42 ? 1 : r < 0.66 ? 2 : r < 0.84 ? 3 : 0;
+  return r < 0.46 ? 0 : r < 0.64 ? 3 : r < 0.84 ? 1 : 2;
+}
+
+/** A star's colour: near-white, leaning a little toward its course's colour. */
+function starColor(hex) {
+  const hsl = {};
+  new THREE.Color(hex).getHSL(hsl);
+  return new THREE.Color().setHSL(hsl.h, 0.5, 0.84);
 }
 
 // ── Shaders ────────────────────────────────────────────────────────────────
 
+const NOISE = /* glsl */`
+  float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float noise(vec3 x) {
+    vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+  }
+  float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * noise(p); p = p * 2.03 + 11.7; a *= 0.5; } return s; }
+`;
+
 const PLANET_VS = /* glsl */`
-  attribute vec3 aColor; attribute vec3 aSun;
-  attribute float aGlow; attribute float aFog; attribute float aSeed; attribute float aDim; attribute float aPulse; attribute float aDark;
-  varying vec3 vN; varying vec3 vW; varying vec3 vColor; varying vec3 vSun; varying vec3 vObj;
-  varying float vGlow; varying float vFog; varying float vSeed; varying float vDim; varying float vPulse; varying float vDark;
+  attribute vec3 aColor; attribute vec3 aSun; attribute vec4 aLook; attribute vec2 aKind; attribute float aDim;
+  varying vec3 vN; varying vec3 vW; varying vec3 vObj; varying vec3 vColor; varying vec3 vSun;
+  varying vec4 vLook; varying vec2 vKind; varying float vDim;
   void main() {
     vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
     vW = w.xyz;
     vN = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
-    vObj = position; vColor = aColor; vSun = aSun;
-    vGlow = aGlow; vFog = aFog; vSeed = aSeed; vDim = aDim; vPulse = aPulse; vDark = aDark;
+    vObj = position; vColor = aColor; vSun = aSun; vLook = aLook; vKind = aKind; vDim = aDim;
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
+// aLook: how much of the course's colour, brightness, atmosphere, memory fog. aKind: seed, world type.
 const PLANET_FS = /* glsl */`
   uniform float uTime;
-  varying vec3 vN; varying vec3 vW; varying vec3 vColor; varying vec3 vSun; varying vec3 vObj;
-  varying float vGlow; varying float vFog; varying float vSeed; varying float vDim; varying float vPulse; varying float vDark;
+  varying vec3 vN; varying vec3 vW; varying vec3 vObj; varying vec3 vColor; varying vec3 vSun;
+  varying vec4 vLook; varying vec2 vKind; varying float vDim;
+  ${NOISE}
   void main() {
-    vec3 N = normalize(vN);
-    vec3 V = normalize(cameraPosition - vW);
-    vec3 L = normalize(vSun - vW);
+    vec3 N = normalize(vN), V = normalize(cameraPosition - vW), L = normalize(vSun - vW);
+    vec3 p = normalize(vObj);
+    float seed = vKind.x * 17.0, type = vKind.y;
+    vec3 albedo; float spec = 0.0;
+    if (type < 0.5) {            // rocky: mottled highlands and maria, a few dark craters
+      float h = fbm(p * 2.4 + seed), d = fbm(p * 9.0 - seed);
+      albedo = vec3(0.52, 0.48, 0.44) * (0.5 + 0.75 * h) * (0.86 + 0.28 * d);
+      albedo *= 1.0 - 0.28 * smoothstep(0.64, 0.72, noise(p * 7.0 + seed * 3.0));
+    } else if (type < 1.5) {     // gas giant: banded, with turbulence between the bands
+      float t = fbm(p * vec3(1.6, 5.0, 1.6) + seed);
+      float lat = p.y + (t - 0.5) * 0.32;
+      float bands = sin(lat * (10.0 + fract(seed) * 9.0)) * 0.5 + 0.5;
+      float fine = sin(lat * 38.0 + t * 5.0) * 0.5 + 0.5;
+      albedo = mix(vec3(0.58, 0.47, 0.36), vec3(0.88, 0.81, 0.68), bands * 0.72 + fine * 0.28);
+    } else if (type < 2.5) {     // ice giant: smooth, with faint streaks
+      float t = fbm(p * vec3(1.2, 4.2, 1.2) + seed);
+      albedo = mix(vec3(0.6, 0.75, 0.84), vec3(0.8, 0.89, 0.93), t);
+      spec = 0.18;
+    } else {                     // ocean world: seas, land and drifting cloud
+      float land = smoothstep(0.5, 0.56, fbm(p * 2.2 + seed));
+      albedo = mix(vec3(0.06, 0.14, 0.27), mix(vec3(0.33, 0.34, 0.25), vec3(0.55, 0.48, 0.36), fbm(p * 8.0)), land);
+      spec = (1.0 - land) * 0.55;
+      float cloud = smoothstep(0.55, 0.8, fbm(p * 3.4 + vec3(seed, uTime * 0.004, 0.0)));
+      albedo = mix(albedo, vec3(0.9), cloud * 0.75);
+      spec *= 1.0 - cloud;
+    }
+    // The course's colour carried by the surface's own light and dark; none of it on a world you haven't started.
+    float lum = dot(albedo, vec3(0.299, 0.587, 0.114));
+    vec3 tinted = mix(albedo, vColor * lum * 1.7, clamp(0.7 * vLook.x, 0.0, 0.92));
+    vec3 col = mix(vec3(lum) * vec3(0.95, 0.96, 1.0), tinted, min(vLook.x, 1.0)) * vLook.y;
+
     float ndl = dot(N, L);
-    float day = smoothstep(-0.1, 0.55, ndl);
-    // Faint cloud bands, a little different on every planet.
-    float band = sin(vObj.y * (6.0 + vSeed * 7.0) + sin(vObj.x * 3.0 + vSeed * 12.0) * 0.7) * 0.5 + 0.5;
-    vec3 albedo = vColor * (0.8 + 0.3 * band);
-    float facing = max(dot(N, V), 0.0);
-    float rim = pow(1.0 - facing, 2.4) * smoothstep(-0.4, 0.45, ndl);
-    vec3 col = albedo * (0.03 + 1.1 * day) * (1.0 - vDark * 0.86);
-    col += mix(albedo, vec3(1.0, 0.97, 0.9), 0.45) * rim * (0.5 + vDark * 0.7);
-    float pulse = vPulse > 0.5 ? 0.45 + 0.55 * sin(uTime * 2.6) : 1.0;
-    col += vColor * vGlow * pulse * (0.6 + 0.4 * day);
-    float lum = dot(col, vec3(0.299, 0.587, 0.114));
-    col = mix(col, vec3(lum) * vec3(0.8, 0.88, 1.05), vFog * 0.8) * (1.0 - vFog * 0.55);
-    gl_FragColor = vec4(col * vDim, 1.0);
+    float term = smoothstep(-0.1, 0.22, ndl);
+    vec3 lit = col * (0.018 + 1.2 * max(ndl, 0.0) * term + 0.03 * term);
+    vec3 H = normalize(L + V);
+    lit += vec3(1.0, 0.97, 0.92) * spec * pow(max(dot(N, H), 0.0), 42.0) * term * 0.55;
+    float fres = pow(1.0 - max(dot(N, V), 0.0), 3.2);
+    lit += mix(vec3(0.5, 0.68, 1.0), vColor, 0.35) * fres * smoothstep(-0.25, 0.35, ndl) * vLook.z * 0.85;
+    // Forgetting: the colour drains and the world dims.
+    float fog = vLook.w, l2 = dot(lit, vec3(0.299, 0.587, 0.114));
+    lit = mix(lit, vec3(l2) * vec3(0.92, 0.95, 1.0), fog * 0.85) * (1.0 - fog * 0.42);
+    gl_FragColor = vec4(lit * vDim, 1.0);
   }`;
 
 const SUN_VS = /* glsl */`
@@ -94,166 +148,112 @@ const SUN_VS = /* glsl */`
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 
+// A star: white-hot in the middle, warmer and darker toward the limb, with
+// granulation. Bright enough to glow from afar; up close it burns less hot so
+// its surface shows instead of a white disc.
 const SUN_FS = /* glsl */`
   uniform vec3 uColor; uniform float uTime; uniform float uDim; uniform float uClose;
   varying vec3 vN; varying vec3 vW; varying vec3 vObj;
-  float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
-  float noise(vec3 p) {
-    vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x), mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
-               mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x), mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
-  }
+  ${NOISE}
   void main() {
     vec3 V = normalize(cameraPosition - vW);
     float mu = max(dot(normalize(vN), V), 0.0);
-    vec3 p = normalize(vObj) * 4.0;
-    float g = noise(p + uTime * 0.05) * 0.6 + noise(p * 2.3 - uTime * 0.03) * 0.4;   // granulation
-    vec3 hot = vec3(1.0, 0.97, 0.9);
-    vec3 warm = mix(uColor, vec3(1.0, 0.82, 0.55), 0.6);
-    float g2 = noise(p * 6.0 + uTime * 0.08);
-    vec3 col = mix(warm, hot, pow(mu, 0.5) * (1.0 - 0.55 * uClose));
-    col *= 0.82 + 0.3 * g;                                                        // granulation
-    // Up close: a deep, boiling photosphere rather than a white disc.
-    vec3 photo = mix(vec3(1.0, 0.56, 0.22), uColor, 0.18) * (0.55 + 0.55 * g + 0.35 * g2);
-    col = mix(col, photo, uClose * 0.8);
-    col *= 0.45 + 0.55 * pow(mu, 0.35);                                           // limb darkening
-    gl_FragColor = vec4(col * 2.6 * uDim, 1.0);
-  }`;
-
-const POINTS_VS = /* glsl */`
-  attribute float aSize; attribute float aAlpha; attribute vec3 aColor;
-  uniform float uScale;
-  varying float vAlpha; varying vec3 vColor;
-  void main() {
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = aSize * uScale / -mv.z;
-    vAlpha = aAlpha; vColor = aColor;
-    gl_Position = projectionMatrix * mv;
-  }`;
-
-const POINTS_FS = /* glsl */`
-  varying float vAlpha; varying vec3 vColor;
-  void main() {
-    float d = length(gl_PointCoord - 0.5) * 2.0;
-    float a = pow(clamp(1.0 - d, 0.0, 1.0), 2.2) * vAlpha;
-    if (a < 0.003) discard;
-    gl_FragColor = vec4(vColor * a, a);
+    vec3 p = normalize(vObj) * 6.0;
+    float g = noise(p + uTime * 0.05) * 0.55 + noise(p * 2.7 - uTime * 0.03) * 0.3 + noise(p * 7.0 + uTime * 0.07) * 0.15;
+    vec3 limbCol = mix(vec3(1.0, 0.55, 0.26), uColor, 0.3);
+    vec3 col = mix(limbCol, mix(uColor, vec3(1.0), 0.55), pow(mu, 0.55));
+    col *= (0.42 + 0.58 * pow(mu, 0.45)) * (0.84 + 0.3 * g);
+    gl_FragColor = vec4(col * mix(2.6, 0.92, uClose) * uDim, 1.0);
   }`;
 
 const STARS_VS = /* glsl */`
-  attribute float aSize; attribute float aPhase; attribute vec3 aColor;
-  uniform float uTime; uniform float uPixel;
-  varying vec3 vColor; varying float vTw;
+  attribute float aSize; attribute vec3 aColor;
+  uniform float uPixel;
+  varying vec3 vColor;
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vTw = 0.75 + 0.25 * sin(uTime * (0.6 + aPhase) + aPhase * 40.0);
     gl_PointSize = aSize * uPixel;
     vColor = aColor;
     gl_Position = projectionMatrix * mv;
   }`;
 
 const STARS_FS = /* glsl */`
-  varying vec3 vColor; varying float vTw;
+  varying vec3 vColor;
   void main() {
     float d = length(gl_PointCoord - 0.5) * 2.0;
-    float a = smoothstep(1.0, 0.0, d);
-    a = a * a;
-    gl_FragColor = vec4(vColor * a * vTw, a);
-  }`;
-
-const RING_VS = /* glsl */`
-  attribute vec3 aColor; attribute float aAlpha;
-  varying float vR; varying vec3 vColor; varying float vAlpha;
-  void main() {
-    vR = length(position); vColor = aColor; vAlpha = aAlpha;
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
-  }`;
-
-const RING_FS = /* glsl */`
-  uniform float uInner; uniform float uOuter;
-  varying float vR; varying vec3 vColor; varying float vAlpha;
-  void main() {
-    float t = (vR - uInner) / (uOuter - uInner);
-    float edge = smoothstep(0.0, 0.14, t) * smoothstep(1.0, 0.78, t);
-    float bands = 0.6 + 0.4 * sin(t * 41.0) * sin(t * 13.0 + 1.3);
-    float gap = 1.0 - 0.85 * smoothstep(0.035, 0.0, abs(t - 0.64));
-    float a = edge * bands * gap * vAlpha;
-    if (a < 0.002) discard;
+    float a = smoothstep(1.0, 0.25, d);
     gl_FragColor = vec4(vColor * a, a);
   }`;
 
-const STREAM_FS = /* glsl */`
-  uniform vec3 uA; uniform vec3 uB; uniform float uAlpha;
-  varying vec2 vUv;
-  void main() {
-    float u = vUv.x;
-    vec3 mid = vec3(0.84, 0.87, 1.0);
-    vec3 col = u < 0.5 ? mix(uA, mid, u * 2.0) : mix(mid, uB, (u - 0.5) * 2.0);
-    float ends = smoothstep(0.0, 0.18, u) * smoothstep(1.0, 0.82, u);
-    float across = pow(sin(vUv.y * 3.14159), 2.0);
-    float a = uAlpha * ends * (0.35 + 0.65 * across);
-    gl_FragColor = vec4(col * a, a);
-  }`;
+// ── The sky behind everything, painted once onto the inside of a sphere ────
 
-const STREAM_VS = /* glsl */`
-  varying vec2 vUv;
-  void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-
-// ── The Milky Way, painted once onto the inside of a sphere ───────────────
-
+/** A faint, grey Milky Way: a band of unresolved stars with dust down the middle, like a long exposure. */
 function paintDome(w = 2048, h = 1024) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   const g = c.getContext("2d");
-  g.fillStyle = "#020309";
+  g.fillStyle = "#000";
   g.fillRect(0, 0, w, h);
   let seed = 4021;
   const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const gauss = () => (rand() + rand() + rand() - 1.5) / 1.5;
-  const bandY = (x) => h * 0.5 + Math.sin((x / w) * Math.PI * 2 + 0.6) * h * 0.2;
+  const bandY = (x) => h * 0.5 + Math.sin((x / w) * Math.PI * 2 + 0.6) * h * 0.18;
   const blob = (x, y, r, rgb, a) => {
     const gr = g.createRadialGradient(x, y, 0, x, y, r);
     gr.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${a})`);
     gr.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
     g.fillStyle = gr;
     g.fillRect(x - r, y - r, r * 2, r * 2);
-    if (x - r < 0) { g.save(); g.translate(w, 0); g.fillRect(x - r, y - r, r * 2, r * 2); g.restore(); }
-    if (x + r > w) { g.save(); g.translate(-w, 0); g.fillRect(x - r, y - r, r * 2, r * 2); g.restore(); }
   };
-  // The band's glow, then clouds of colour along it, then dark dust down the middle.
-  for (let i = 0; i < 260; i++) {
+  for (let i = 0; i < 220; i++) {
+    const x = rand() * w, y = bandY(x) + gauss() * h * 0.06;
+    blob(x, y, h * (0.05 + rand() * 0.1), [150, 150, 160], 0.03 + rand() * 0.025);
+  }
+  // Unresolved stars along the band: a fine grain rather than clouds.
+  for (let i = 0; i < 26000; i++) {
     const x = rand() * w, y = bandY(x) + gauss() * h * 0.07;
-    blob(x, y, h * (0.05 + rand() * 0.12), [120, 130, 190], 0.035 + rand() * 0.03);
+    const v = 140 + Math.floor(rand() * 90);
+    g.fillStyle = `rgba(${v}, ${v}, ${v + 8}, ${0.05 + rand() * 0.12})`;
+    g.fillRect(x, y, 1, 1);
   }
-  const tones = [[98, 120, 220], [150, 110, 210], [80, 170, 190], [210, 120, 160], [230, 200, 160]];
-  for (let i = 0; i < 70; i++) {
-    const x = rand() * w, y = bandY(x) + gauss() * h * 0.08;
-    blob(x, y, h * (0.03 + rand() * 0.08), tones[Math.floor(rand() * tones.length)], 0.03 + rand() * 0.05);
+  for (let i = 0; i < 120; i++) {
+    const x = rand() * w, y = bandY(x) + gauss() * h * 0.016;
+    blob(x, y, h * (0.01 + rand() * 0.03), [0, 0, 0], 0.5);
   }
-  for (let i = 0; i < 110; i++) {
-    const x = rand() * w, y = bandY(x) + gauss() * h * 0.018;
-    blob(x, y, h * (0.012 + rand() * 0.035), [2, 3, 9], 0.35);
-  }
-  // Two faint nebulae away from the band.
-  for (const [fx, fy, rgb] of [[0.2, 0.22, [120, 150, 230]], [0.72, 0.8, [200, 110, 150]]]) {
-    let x = w * fx, y = h * fy, dir = rand() * 6.28;
-    for (let i = 0; i < 60; i++) {
-      dir += (rand() - 0.5) * 0.9; x += Math.cos(dir) * 14; y += Math.sin(dir) * 9;
-      blob(x, y, 30 + rand() * 70, rgb, 0.012 + rand() * 0.018);
-    }
-  }
-  // The browser dithers gradients; seen magnified on the dome that's a fine crosshatch, so soften it away.
+  // Seen magnified on the dome, single-pixel grain turns into a crosshatch: soften it into haze.
   const soft = document.createElement("canvas");
   soft.width = w; soft.height = h;
   const sg = soft.getContext("2d");
-  sg.filter = "blur(3px)";
+  sg.filter = "blur(2.5px)";
   sg.drawImage(c, 0, 0);
-  const tex = new THREE.CanvasTexture(sg.filter === "blur(3px)" ? soft : c);
+  const tex = new THREE.CanvasTexture(sg.filter === "blur(2.5px)" ? soft : c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-const STAR_COLORS = [[1, 1, 1], [0.84, 0.89, 1], [1, 0.96, 0.86], [1, 0.84, 0.67], [0.67, 0.77, 1]];
+/** A star's soft glow: a smooth falloff with no rays or rings. */
+function paintGlow(size = 256) {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const g = c.getContext("2d");
+  const img = g.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const d = Math.hypot(x - size / 2 + 0.5, y - size / 2 + 0.5) / (size / 2);
+      const a = d >= 1 ? 0 : Math.pow(1 - d, 2.2) * (0.35 * Math.exp(-d * 9) + 0.65 * Math.exp(-d * 3.2));
+      const i = (y * size + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+      img.data[i + 3] = Math.round(255 * Math.min(1, a));
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// Star colours by temperature, mostly white.
+const STAR_COLORS = [[1, 1, 1], [1, 1, 1], [0.86, 0.9, 1], [1, 0.95, 0.86], [1, 0.86, 0.72], [0.74, 0.82, 1]];
 
 // ── The engine ─────────────────────────────────────────────────────────────
 
@@ -276,13 +276,14 @@ export class Sky {
     this.size = { w: 1, h: 1 };
     this.font = getComputedStyle(document.body).fontFamily || "sans-serif";
     this.serif = getComputedStyle(document.documentElement).getPropertyValue("--serif").trim() || "serif";
+    this.mono = getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "monospace";
     this.disposables = [];   // the world's resources (rebuilt by setData)
     this.backdrop = [];      // the sky's (kept until dispose)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 1;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.className = "sky3d-canvas";
     host.appendChild(renderer.domElement);
@@ -312,13 +313,15 @@ export class Sky {
     controls.addEventListener("start", () => { this.fly = null; });
     this.controls = controls;
 
-    // Post: bloom on everything bright (suns, mastered planets, streams), then tone mapping.
+    // Post: only the stars are bright enough to glow, the way a camera sees them; then tone mapping.
     this.composer = new EffectComposer(renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.72, 0.38, 0.7);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.34, 0.12, 0.9);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
+    this.glowTex = paintGlow();
+    this.backdrop.push(this.glowTex);
     this.buildBackdrop();
     this.world = new THREE.Group();
     this.scene.add(this.world);
@@ -370,22 +373,22 @@ export class Sky {
   buildBackdrop() {
     const dome = new THREE.Mesh(
       new THREE.SphereGeometry(30000, 48, 24),
-      new THREE.MeshBasicMaterial({ map: paintDome(), side: THREE.BackSide, depthWrite: false, toneMapped: false, color: new THREE.Color(0.75, 0.75, 0.75) }),
+      new THREE.MeshBasicMaterial({ map: paintDome(), side: THREE.BackSide, depthWrite: false, toneMapped: false, color: new THREE.Color(0.6, 0.6, 0.6) }),
     );
     dome.rotation.z = 0.5;
     dome.rotation.x = -0.35;
     this.scene.add(dome);
     this.backdrop.push(dome.geometry, dome.material, dome.material.map);
 
-    // Stars: most faint, a few bright, a third of them along the Milky Way.
-    const n = 12000, pos = new Float32Array(n * 3), size = new Float32Array(n), phase = new Float32Array(n), col = new Float32Array(n * 3);
+    // Stars: crisp points, most of them faint, a few bright, a third of them along the Milky Way. They don't twinkle: there's no air up here.
+    const n = 9000, pos = new Float32Array(n * 3), size = new Float32Array(n), col = new Float32Array(n * 3);
     let s = 77;
     const rand = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
     const v = new THREE.Vector3();
     const band = new THREE.Euler(-0.35, 0, 0.5);
     for (let i = 0; i < n; i++) {
-      if (i % 2 === 0) {
-        const a = rand() * Math.PI * 2, off = (rand() + rand() + rand() - 1.5) * (rand() < 0.75 ? 0.07 : 0.16);
+      if (i % 3 === 0) {
+        const a = rand() * Math.PI * 2, off = (rand() + rand() + rand() - 1.5) * 0.08;
         v.set(Math.cos(a), off, Math.sin(a)).normalize().applyEuler(band);
       } else {
         v.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1);
@@ -394,21 +397,19 @@ export class Sky {
       }
       v.multiplyScalar(26000);
       pos.set([v.x, v.y, v.z], i * 3);
-      const m = Math.pow(rand(), 6);
-      size[i] = (i % 2 === 0 ? 0.6 : 0.7) + m * 4.6;
-      phase[i] = rand();
-      const c = STAR_COLORS[Math.floor(Math.pow(rand(), 1.8) * STAR_COLORS.length)];
-      const b = (i % 2 === 0 ? 0.22 : 0.35) + m * 1.2 + rand() * 0.25;
+      const m = Math.pow(rand(), 7);
+      size[i] = 1.1 + m * 2.4;
+      const c = STAR_COLORS[Math.floor(rand() * STAR_COLORS.length)];
+      const b = 0.16 + Math.pow(rand(), 3) * 0.32 + m * 0.9;
       col.set([c[0] * b, c[1] * b, c[2] * b], i * 3);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     geo.setAttribute("aSize", new THREE.BufferAttribute(size, 1));
-    geo.setAttribute("aPhase", new THREE.BufferAttribute(phase, 1));
     geo.setAttribute("aColor", new THREE.BufferAttribute(col, 3));
     this.starMat = new THREE.ShaderMaterial({
       vertexShader: STARS_VS, fragmentShader: STARS_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      uniforms: { uTime: { value: 0 }, uPixel: { value: 1 } },
+      uniforms: { uPixel: { value: 1 } },
     });
     const stars = new THREE.Points(geo, this.starMat);
     stars.frustumCulled = false;
@@ -421,7 +422,7 @@ export class Sky {
    * systems: [{ id, name, color, lines, x, y, radius, sunR, rings: [{ r, locked }] }]
    * planets: [{ id, courseId, name, core, r, orbit: { r, phase, omega, ring }, color, kind, fog }]
    * links: [{ a, b, cross, provisional }] (planet ids)   bridges: [{ a, b, n }] (system ids)
-   * oneCourse: true when the map shows a single course (its links are drawn faintly)
+   * oneCourse: true when the map shows a single course
    */
   setData({ systems, planets, links, bridges, oneCourse = false }) {
     this.clearWorld();
@@ -434,30 +435,27 @@ export class Sky {
       g.position.copy(center);
       g.rotation.copy(tilt);
       group.add(g);
-      // The sun: a granulated, limb-darkened ball, a corona and diffraction spikes.
-      const color = new THREE.Color(sys.color);
+      // The star: a granulated, limb-darkened ball in a soft glow.
+      const color = starColor(sys.color);
       const sunMat = new THREE.ShaderMaterial({ vertexShader: SUN_VS, fragmentShader: SUN_FS, uniforms: { uColor: { value: color }, uTime: { value: 0 }, uDim: { value: 1 }, uClose: { value: 0 } } });
       const sun = new THREE.Mesh(new THREE.SphereGeometry(sys.sunR, 48, 32), sunMat);
       g.add(sun);
-      const sp = sunSprites(sys.color);
-      const corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.texture(sp.corona), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
-      corona.scale.setScalar(sys.sunR * 12);
-      g.add(corona);
-      const spikes = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.texture(sp.spikes), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.32, rotation: 0.21 }));
-      spikes.scale.setScalar(sys.sunR * 14);
-      g.add(spikes);
-      this.disposables.push(sun.geometry, sunMat, corona.material, spikes.material);
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glowTex, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.7 }));
+      glow.scale.setScalar(sys.sunR * 7);
+      g.add(glow);
+      this.disposables.push(sun.geometry, sunMat, glow.material);
       // Chapters: hairline orbits, fainter for chapters you haven't read.
       const rings = sys.rings.map(ring => {
-        const pts = new THREE.EllipseCurve(0, 0, ring.r, ring.r, 0, Math.PI * 2).getPoints(160).map(p => new THREE.Vector3(p.x, 0, p.y));
+        const pts = new THREE.EllipseCurve(0, 0, ring.r, ring.r, 0, Math.PI * 2).getPoints(200).map(p => new THREE.Vector3(p.x, 0, p.y));
         const geo = new THREE.BufferGeometry().setFromPoints(pts);
-        const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(0.8, 0.84, 0.95), transparent: true, opacity: ring.locked ? 0.05 : 0.11, depthWrite: false });
+        const base = ring.locked ? 0.035 : 0.085;
+        const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(0.78, 0.8, 0.86), transparent: true, opacity: base, depthWrite: false });
         const line = new THREE.LineLoop(geo, mat);
         g.add(line);
         this.disposables.push(geo, mat);
-        return { line, mat, base: ring.locked ? 0.05 : 0.11, locked: ring.locked };
+        return { line, mat, base, locked: ring.locked };
       });
-      return { ...sys, center, group: g, sun, sunMat, corona, spikes, rings, matrix: null };
+      return { ...sys, center, group: g, sun, sunMat, glow, rings, matrix: null };
     });
     const sysById = new Map(this.systems.map(s => [s.id, s]));
     for (const s of this.systems) { s.group.updateMatrixWorld(true); s.matrix = s.group.matrixWorld.clone(); }
@@ -466,9 +464,13 @@ export class Sky {
     const n = planets.length;
     this.planets = planets.map((p, i) => ({ ...p, i, sys: sysById.get(p.courseId), pos: new THREE.Vector3(), base: new THREE.Color(p.color) }));
     this.byId = new Map(this.planets.map(p => [p.id, p]));
-    const geo = new THREE.SphereGeometry(1, 36, 24);
-    const attr = (k) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
-    this.attrs = { aColor: attr(3), aSun: attr(3), aGlow: attr(1), aFog: attr(1), aSeed: attr(1), aDim: attr(1), aPulse: attr(1), aDark: attr(1) };
+    const geo = new THREE.SphereGeometry(1, 48, 32);
+    const attr = (k, dynamic = false) => {
+      const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * k), k);
+      if (dynamic) a.setUsage(THREE.DynamicDrawUsage);
+      return a;
+    };
+    this.attrs = { aColor: attr(3), aSun: attr(3), aLook: attr(4), aKind: attr(2), aDim: attr(1, true) };
     for (const [k, a] of Object.entries(this.attrs)) geo.setAttribute(k, a);
     this.planetMat = new THREE.ShaderMaterial({ vertexShader: PLANET_VS, fragmentShader: PLANET_FS, uniforms: { uTime: { value: 0 } } });
     this.mesh = new THREE.InstancedMesh(geo, this.planetMat, Math.max(1, n));
@@ -478,82 +480,31 @@ export class Sky {
     group.add(this.mesh);
     this.disposables.push(geo, this.planetMat);
     this.planets.forEach(p => {
-      this.attrs.aSeed.setX(p.i, seeded(p.id, 5));
+      this.attrs.aKind.setXY(p.i, seeded(p.id, 5), worldType(p));
       this.attrs.aDim.setX(p.i, 1);
       const c = p.sys?.center || new THREE.Vector3();
       this.attrs.aSun.setXYZ(p.i, c.x, c.y, c.z);
     });
 
-    // Glow and haze around planets: soft additive points.
-    const hg = new THREE.BufferGeometry();
-    this.halo = { pos: new Float32Array(n * 2 * 3), size: new Float32Array(n * 2), alpha: new Float32Array(n * 2), color: new Float32Array(n * 2 * 3) };
-    hg.setAttribute("position", new THREE.BufferAttribute(this.halo.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    hg.setAttribute("aSize", new THREE.BufferAttribute(this.halo.size, 1).setUsage(THREE.DynamicDrawUsage));
-    hg.setAttribute("aAlpha", new THREE.BufferAttribute(this.halo.alpha, 1).setUsage(THREE.DynamicDrawUsage));
-    hg.setAttribute("aColor", new THREE.BufferAttribute(this.halo.color, 3).setUsage(THREE.DynamicDrawUsage));
-    this.pointsMat = new THREE.ShaderMaterial({ vertexShader: POINTS_VS, fragmentShader: POINTS_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uScale: { value: 1 } } });
-    this.halos = new THREE.Points(hg, this.pointsMat);
-    this.halos.frustumCulled = false;
-    group.add(this.halos);
-    this.disposables.push(hg, this.pointsMat);
-
-    // Core concepts carry a faint ring of fine bands, seen nearly edge-on.
-    const cores = this.planets.filter(p => p.core);
-    const rg = new THREE.RingGeometry(1.5, 2.45, 96, 1);
-    rg.rotateX(-Math.PI / 2 + 0.35);
-    const rk = Math.max(1, cores.length);
-    this.ringAttrs = { aColor: new THREE.InstancedBufferAttribute(new Float32Array(rk * 3), 3), aAlpha: new THREE.InstancedBufferAttribute(new Float32Array(rk), 1).setUsage(THREE.DynamicDrawUsage) };
-    rg.setAttribute("aColor", this.ringAttrs.aColor);
-    rg.setAttribute("aAlpha", this.ringAttrs.aAlpha);
-    this.ringMat = new THREE.ShaderMaterial({ vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending, uniforms: { uInner: { value: 1.5 }, uOuter: { value: 2.45 } } });
-    this.ringMesh = new THREE.InstancedMesh(rg, this.ringMat, rk);
-    this.ringMesh.count = cores.length;
-    this.ringMesh.frustumCulled = false;
-    this.ringMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    const warm = new THREE.Color(1, 0.95, 0.86);
-    cores.forEach((p, k) => { p.ringIndex = k; const c = p.base.clone().lerp(warm, 0.35); this.ringAttrs.aColor.setXYZ(k, c.r, c.g, c.b); });
-    group.add(this.ringMesh);
-    this.disposables.push(rg, this.ringMat);
-
-    // Streams between books.
+    // Links between books: one thin line from one system's edge to the other's, bowed a little, with how many links it stands for.
     this.bridges = bridges.map(br => {
       const A = sysById.get(br.a), B = sysById.get(br.b);
       if (!A || !B) return null;
       const dir = B.center.clone().sub(A.center).normalize();
-      const a = A.center.clone().addScaledVector(dir, A.sunR * 2.6), b = B.center.clone().addScaledVector(dir, -B.sunR * 2.6);
+      const a = A.center.clone().addScaledVector(dir, Math.max(A.sunR * 3, A.radius - 30));
+      const b = B.center.clone().addScaledVector(dir, -Math.max(B.sunR * 3, B.radius - 30));
+      if (a.distanceTo(A.center) > b.distanceTo(A.center)) return null; // systems overlap: nothing to draw between them
       const mid = a.clone().lerp(b, 0.5);
-      mid.y += a.distanceTo(b) * 0.16;
+      mid.y += a.distanceTo(b) * 0.12;
       const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
-      const strength = Math.min(1, 0.45 + br.n / 40);
-      const mat = new THREE.ShaderMaterial({
-        vertexShader: STREAM_VS, fragmentShader: STREAM_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-        uniforms: { uA: { value: new THREE.Color(A.color) }, uB: { value: new THREE.Color(B.color) }, uAlpha: { value: 0.16 * strength } },
-      });
-      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 96, 5 + strength * 5, 10), mat);
-      const inner = new THREE.Mesh(new THREE.TubeGeometry(curve, 96, 1.4, 6), mat.clone());
-      inner.material.uniforms.uAlpha.value = 0.5 * strength;
-      group.add(tube, inner);
-      this.disposables.push(tube.geometry, mat, inner.geometry, inner.material);
-      const motes = Array.from({ length: Math.min(44, 14 + br.n) }, (_, k) => ({
-        u: seeded(`${br.a}${br.b}`, k * 3 + 1), speed: 0.012 + seeded(`${br.a}${br.b}`, k * 3 + 2) * 0.018,
-        off: new THREE.Vector3(seeded(`${br.a}${br.b}`, k * 7) - 0.5, seeded(`${br.a}${br.b}`, k * 7 + 1) - 0.5, seeded(`${br.a}${br.b}`, k * 7 + 2) - 0.5).multiplyScalar(26),
-      }));
-      return { curve, tube, inner, mat, innerMat: inner.material, motes, strength, a: br.a, b: br.b };
+      const strength = Math.min(1, 0.45 + br.n / 30);
+      const geo2 = new THREE.BufferGeometry().setFromPoints(curve.getPoints(80));
+      const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(0.82, 0.85, 0.92), transparent: true, opacity: 0.3 * strength, depthWrite: false });
+      const line = new THREE.Line(geo2, mat);
+      group.add(line);
+      this.disposables.push(geo2, mat);
+      return { curve, line, mat, strength, n: br.n, a: br.a, b: br.b, mid: curve.getPoint(0.5) };
     }).filter(Boolean);
-    const moteCount = this.bridges.reduce((k, b) => k + b.motes.length, 0);
-    const mg = new THREE.BufferGeometry();
-    this.mote = { pos: new Float32Array(Math.max(1, moteCount) * 3), size: new Float32Array(Math.max(1, moteCount)), alpha: new Float32Array(Math.max(1, moteCount)), color: new Float32Array(Math.max(1, moteCount) * 3).fill(0.9) };
-    mg.setAttribute("position", new THREE.BufferAttribute(this.mote.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    mg.setAttribute("aSize", new THREE.BufferAttribute(this.mote.size, 1));
-    mg.setAttribute("aAlpha", new THREE.BufferAttribute(this.mote.alpha, 1).setUsage(THREE.DynamicDrawUsage));
-    mg.setAttribute("aColor", new THREE.BufferAttribute(this.mote.color, 3));
-    this.motes = new THREE.Points(mg, this.pointsMat);
-    this.motes.frustumCulled = false;
-    group.add(this.motes);
-    this.disposables.push(mg);
-    let mi = 0;
-    for (const br of this.bridges) for (const m of br.motes) { this.mote.size[mi] = 10 + seeded(`${br.a}`, mi) * 14; m.i = mi++; }
 
     // Links between planets: arcs, rebuilt each frame for the few that show.
     this.links = links.map(l => ({ ...l, A: this.byId.get(l.a), B: this.byId.get(l.b) })).filter(l => l.A && l.B);
@@ -582,13 +533,6 @@ export class Sky {
     this.positionPlanets(this.clock.t);
   }
 
-  texture(canvas) {
-    const t = new THREE.CanvasTexture(canvas);
-    t.colorSpace = THREE.SRGBColorSpace;
-    this.disposables.push(t);
-    return t;
-  }
-
   clearWorld() {
     for (const d of this.disposables.splice(0)) d.dispose?.();
     this.scene.remove(this.world);
@@ -604,15 +548,14 @@ export class Sky {
     for (const p of this.planets) {
       const l = looks[p.id] || this.looks.get(p.id) || { kind: p.kind, fog: 0 };
       this.looks.set(p.id, l);
-      const k = kindLook(l.kind, p.base);
+      const k = kindLook(l.kind);
       p.look = { ...k, fog: l.fog || 0 };
-      this.attrs.aColor.setXYZ(p.i, k.color.r, k.color.g, k.color.b);
-      this.attrs.aGlow.setX(p.i, k.glow);
-      this.attrs.aPulse.setX(p.i, k.pulse);
-      this.attrs.aDark.setX(p.i, k.dark);
-      this.attrs.aFog.setX(p.i, l.fog || 0);
+      const c = k.amber ? SLIPPING : p.base;
+      this.attrs.aColor.setXYZ(p.i, c.r, c.g, c.b);
+      this.attrs.aLook.setXYZW(p.i, k.sat, k.bright, k.atmo, l.fog || 0);
     }
-    for (const k of ["aColor", "aGlow", "aPulse", "aDark", "aFog"]) this.attrs[k].needsUpdate = true;
+    this.attrs.aColor.needsUpdate = true;
+    this.attrs.aLook.needsUpdate = true;
   }
 
   /** Only these planets are in the sky (the time-lapse); null shows them all. */
@@ -808,143 +751,94 @@ export class Sky {
     this.positionPlanets(c.t);
     const tm = this.still ? 0 : secs;
     this.planetMat.uniforms.uTime.value = tm;
-    this.starMat.uniforms.uTime.value = tm;
-    this.pointsMat.uniforms.uScale.value = this.size.h / (2 * Math.tan((FOV * Math.PI) / 360));
+    this.perPx = this.size.h / (2 * Math.tan((FOV * Math.PI) / 360));
 
     const near = f.id ? this.adj.get(f.id) : null;
     const isNear = (id) => id === f.id || Boolean(near?.has(id));
     const path = this.path;
     const dimFor = (p) => {
       let d = 1;
-      if (f.id && !isNear(p.id)) d *= 1 - 0.78 * f.mix;
-      if (path && !path.set.has(p.id)) d *= 1 - 0.85 * this.pathMix;
+      if (f.id && !isNear(p.id)) d *= 1 - 0.72 * f.mix;
+      if (path && !path.set.has(p.id)) d *= 1 - 0.82 * this.pathMix;
       return d;
     };
 
-    // Planets (and their appearance in the time-lapse).
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
-    const camPos = this.camera.position;
-    let ringK = 0;
-    const ringScale = smooth(camPos.distanceTo(this.controls.target), 1600, 650);
+    // Planets (and their appearance in the time-lapse). Each turns slowly on its own axis.
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), ax = new THREE.Vector3(0.18, 1, 0).normalize(), sc = new THREE.Vector3();
     for (const p of this.planets) {
       const shown = !this.visible || this.visible.has(p.id);
       const g = this.grow.get(p.id) ?? (shown ? 1 : 0);
       const ng = g + ((shown ? 1 : 0) - g) * Math.min(1, dt * 5);
       this.grow.set(p.id, ng);
       const r = p.r * (p.look?.scale ?? 1) * (ng < 0.002 ? 0 : 0.2 + 0.8 * ng);
-      q.setFromAxisAngle(sc.set(0.3, 1, 0).normalize(), secs * 0.15 + p.i);
+      q.setFromAxisAngle(ax, tm * 0.06 + p.i * 1.7);
       m.compose(p.pos, q, sc.set(r, r, r));
       this.mesh.setMatrixAt(p.i, m);
-      this.attrs.aDim.setX(p.i, dimFor(p));
-      if (p.ringIndex != null) {
-        q.setFromAxisAngle(sc.set(0, 0, 1), 0.2 + seeded(p.id, 9) * 0.3);
-        m.compose(p.pos, q, sc.set(r, r, r));
-        this.ringMesh.setMatrixAt(p.ringIndex, m);
-        const L0 = p.look || {};
-        this.ringAttrs.aAlpha.setX(p.ringIndex, 0.42 * ringScale * dimFor(p) * ng * (1 - 0.6 * (L0.fog || 0)) * (L0.dark ? 0.45 : 1) * (L0.scale < 1 ? 0 : 1));
-        ringK++;
-      }
-      // Halo: a glow for mastered and slipping planets, a haze for fading ones.
-      const L = p.look || {};
-      const pulse = L.pulse ? 0.45 + 0.55 * Math.sin(tm * 2.6) : 1;
-      const d = dimFor(p) * ng;
-      const hi = p.i * 2, fi = p.i * 2 + 1;
-      this.halo.pos.set([p.pos.x, p.pos.y, p.pos.z], hi * 3);
-      this.halo.pos.set([p.pos.x, p.pos.y, p.pos.z], fi * 3);
-      this.halo.size[hi] = r * 7.5;
-      this.halo.alpha[hi] = (L.halo || 0) * 0.42 * pulse * d;
-      const col = L.pulse ? SLIPPING : p.base;
-      this.halo.color.set([col.r, col.g, col.b], hi * 3);
-      this.halo.size[fi] = r * (6 + 6 * (L.fog || 0));
-      this.halo.alpha[fi] = (L.fog || 0) * 0.28 * d;
-      this.halo.color.set([0.55, 0.62, 0.8], fi * 3);
+      this.attrs.aDim.setX(p.i, dimFor(p) * (0.25 + 0.75 * ng));
     }
     this.mesh.instanceMatrix.needsUpdate = true;
-    this.ringMesh.instanceMatrix.needsUpdate = ringK > 0;
-    this.ringAttrs.aAlpha.needsUpdate = ringK > 0;
     this.attrs.aDim.needsUpdate = true;
-    const hg = this.halos.geometry;
-    for (const k of ["position", "aSize", "aAlpha", "aColor"]) hg.attributes[k].needsUpdate = true;
 
-    // Suns (dimmer when the focus is elsewhere; hidden in the time-lapse until their first planet).
+    // Stars (dimmer when the focus is elsewhere; hidden in the time-lapse until their first planet).
+    const camPos = this.camera.position;
     let nearest = 0;
     for (const s of this.systems) {
       const anyShown = !this.visible || this.planets.some(p => p.courseId === s.id && this.visible.has(p.id));
       const holds = !f.id || this.planets.some(p => p.courseId === s.id && isNear(p.id));
       const pathHolds = !path || this.planets.some(p => p.courseId === s.id && path.set.has(p.id));
-      const target2 = (anyShown ? 1 : 0) * (holds ? 1 : 1 - 0.55 * f.mix) * (pathHolds ? 1 : 1 - 0.6 * this.pathMix);
+      const target2 = (anyShown ? 1 : 0) * (holds ? 1 : 1 - 0.5 * f.mix) * (pathHolds ? 1 : 1 - 0.6 * this.pathMix);
       s.vis = (s.vis ?? target2) + (target2 - (s.vis ?? target2)) * Math.min(1, dt * 5);
       s.sunMat.uniforms.uTime.value = tm;
       s.sun.scale.setScalar(0.3 + 0.7 * s.vis);
-      // Seen from afar the corona carries the sun; close up it (and the bloom of a big bright disc)
-      // would fog the whole view, so the corona draws in and the disc burns less hot.
-      const rpx = (s.sunR / Math.max(1, camPos.distanceTo(s.center))) * this.pointsMat.uniforms.uScale.value;
-      const close = smooth(rpx, 12, 70), disc = smooth(rpx, 36, 200);
-      // ...and never grows past a few hundred pixels across.
-      const perWorld = this.pointsMat.uniforms.uScale.value / Math.max(1, camPos.distanceTo(s.center));
-      s.corona.scale.setScalar(Math.min(s.sunR * (12 - 7 * close), 300 / perWorld));
-      s.spikes.scale.setScalar(Math.min(s.sunR * (14 - 8 * close), 360 / perWorld));
-      s.corona.material.opacity = 0.9 * s.vis * (1 - 0.45 * close) * (1 - 0.8 * disc) * (this.still ? 1 : 1 + 0.035 * Math.sin(secs * 0.9));
-      s.spikes.material.opacity = 0.32 * s.vis * (1 - 0.85 * close);
-      s.sunMat.uniforms.uDim.value = s.vis * (1 - 0.42 * disc);
+      // Seen from afar the glow carries the star; close up it draws in (it would fog the whole view) and the disc burns less hot.
+      const dist = Math.max(1, camPos.distanceTo(s.center));
+      const rpx = (s.sunR / dist) * this.perPx;
+      const close = smooth(rpx, 8, 40), disc = smooth(rpx, 10, 60);
+      s.glow.scale.setScalar(Math.min(s.sunR * (7 - 3 * close), 220 * dist / this.perPx));
+      s.glow.material.opacity = 0.7 * s.vis * (1 - 0.9 * close);
+      s.sunMat.uniforms.uDim.value = s.vis;
       s.sunMat.uniforms.uClose.value = disc;
       nearest = Math.max(nearest, disc * s.vis);
       for (const [k, ring] of s.rings.entries()) {
         const ringShown = !this.visible || this.planets.some(p => p.courseId === s.id && p.orbit.ring === k && this.visible.has(p.id));
         const lit = f.id && this.byId.get(f.id)?.courseId === s.id && this.byId.get(f.id)?.orbit.ring === k;
-        ring.mat.opacity = (ringShown ? ring.base : 0) * s.vis + (lit ? 0.16 * f.mix : 0);
+        ring.mat.opacity = (ringShown ? ring.base : 0) * s.vis * (1 - 0.6 * this.pathMix) + (lit ? 0.14 * f.mix : 0);
       }
     }
+    // Next to a star its glow would wash over everything: keep it tight.
+    this.bloom.strength = 0.34 * (1 - 0.7 * nearest);
+    this.bloom.radius = 0.12 * (1 - 0.6 * nearest);
 
-    // Next to a sun, bloom would wash its light over everything: keep it tight.
-    this.bloom.strength = 0.72 * (1 - 0.6 * nearest);
-    this.bloom.radius = 0.38 * (1 - 0.7 * nearest);
-
-    // Streams and their motes.
-    let mi = 0;
+    // Lines between books fade while you look at a planet or a path.
     for (const br of this.bridges) {
-      const shown = this.systems.find(s => s.id === br.a)?.vis ?? 1;
-      const shownB = this.systems.find(s => s.id === br.b)?.vis ?? 1;
-      const a = Math.min(shown, shownB) * (1 - 0.7 * f.mix) * (1 - 0.8 * this.pathMix);
-      br.mat.uniforms.uAlpha.value = 0.16 * br.strength * a;
-      br.innerMat.uniforms.uAlpha.value = 0.5 * br.strength * a;
-      for (const mo of br.motes) {
-        const u = this.still ? mo.u : (mo.u + secs * mo.speed) % 1;
-        const pt = br.curve.getPoint(u).addScaledVector(mo.off, Math.sin(Math.PI * u));
-        this.mote.pos.set([pt.x, pt.y, pt.z], mo.i * 3);
-        this.mote.alpha[mo.i] = Math.pow(Math.sin(Math.PI * u), 1.4) * 0.9 * a;
-        mi++;
-      }
+      const a = Math.min(this.systems.find(s => s.id === br.a)?.vis ?? 1, this.systems.find(s => s.id === br.b)?.vis ?? 1);
+      br.fade = a * (1 - 0.75 * f.mix) * (1 - 0.85 * this.pathMix);
+      br.mat.opacity = 0.3 * br.strength * br.fade;
     }
-    if (mi) { this.motes.geometry.attributes.position.needsUpdate = true; this.motes.geometry.attributes.aAlpha.needsUpdate = true; }
 
-    // Links: the focused planet's (bright arcs), or, in one course, all of them faintly.
+    // Links: the ones of the planet you point at or opened, as arcs (unconfirmed ones fainter).
     let v = 0;
     const SEG = this.arcSeg, P0 = new THREE.Vector3(), P1 = new THREE.Vector3(), Cc = new THREE.Vector3();
     const curveSeg = (A, B, color, alpha) => {
       Cc.copy(A).lerp(B, 0.5);
-      const lift = A.distanceTo(B) * 0.22 + 8;
-      Cc.y += lift;
+      Cc.y += A.distanceTo(B) * 0.22 + 8;
       for (let k = 0; k < SEG; k++) {
         const t0 = k / SEG, t1 = (k + 1) / SEG;
         P0.copy(A).multiplyScalar((1 - t0) * (1 - t0)).addScaledVector(Cc, 2 * (1 - t0) * t0).addScaledVector(B, t0 * t0);
         P1.copy(A).multiplyScalar((1 - t1) * (1 - t1)).addScaledVector(Cc, 2 * (1 - t1) * t1).addScaledVector(B, t1 * t1);
-        const fade = Math.sin(Math.PI * (t0 + t1) / 2) * 0.6 + 0.4;
+        const fade = Math.sin(Math.PI * (t0 + t1) / 2) * 0.5 + 0.5;
         this.arc.pos.set([P0.x, P0.y, P0.z, P1.x, P1.y, P1.z], v * 3);
         const cr = color.r * alpha * fade, cg = color.g * alpha * fade, cb = color.b * alpha * fade;
         this.arc.color.set([cr, cg, cb, cr, cg, cb], v * 3);
         v += 2;
       }
     };
-    const white = WHITE_ARC, faint = FAINT_ARC;
-    // A book's own web of links shows its shape from afar; close up it would just be lines across the view.
-    const web = this.oneCourse ? smooth(camPos.distanceTo(this.controls.target) / (this.fitDist || 1000), 0.3, 0.75) : 0;
-    for (const l of this.links) {
-      const on = f.id && (l.a === f.id || l.b === f.id) && f.mix > 0;
-      const vis = (!this.visible || (this.visible.has(l.a) && this.visible.has(l.b)));
-      if (!vis) continue;
-      if (on) curveSeg(l.A.pos, l.B.pos, white, f.mix * (l.provisional ? 0.5 : 0.95));
-      else if (web > 0.01) curveSeg(l.A.pos, l.B.pos, faint, web * (l.provisional ? 0.05 : 0.09) * (1 - 0.7 * f.mix) * (1 - 0.85 * this.pathMix));
+    if (f.id && f.mix > 0) {
+      for (const l of this.links) {
+        if (l.a !== f.id && l.b !== f.id) continue;
+        if (this.visible && !(this.visible.has(l.a) && this.visible.has(l.b))) continue;
+        curveSeg(l.A.pos, l.B.pos, l.provisional ? FAINT_ARC : ARC, f.mix * (l.provisional ? 0.5 : 0.7));
+      }
     }
     this.arcs.geometry.setDrawRange(0, v);
     this.arcs.geometry.attributes.position.needsUpdate = true;
@@ -954,7 +848,7 @@ export class Sky {
     this.drawLabels();
   }
 
-  /** Names: books always; planets nearest and most important first, as they get big enough on screen. And the learning path. */
+  /** Names: books always; planets nearest and most important first, as they get big enough on screen. The learning path, and a ring round what you point at. */
   drawLabels() {
     const g = this.lctx, { w, h } = this.size, dpr = this.dpr;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -963,7 +857,7 @@ export class Sky {
     const f = this.focus, near = f.id ? this.adj.get(f.id) : null;
     const isNear = (id) => id === f.id || Boolean(near?.has(id));
     const path = this.path;
-    const perPx = this.size.h / (2 * Math.tan((FOV * Math.PI) / 360));
+    const perPx = this.perPx || 1;
     this.screen.clear();
     const placed = [];
     const claim = (x0, y0, x1, y1, force = false) => {
@@ -971,7 +865,7 @@ export class Sky {
       placed.push([x0, y0, x1, y1]);
       return true;
     };
-    const shadow = (blur, color = "rgba(0, 0, 0, .9)") => { g.shadowBlur = blur; g.shadowColor = color; };
+    const shadow = (blur, color = "rgba(0, 0, 0, .85)") => { g.shadowBlur = blur; g.shadowColor = color; };
 
     // Planets: project them all (for picking and the path), then label the ones that earn it.
     const cands = [];
@@ -983,23 +877,35 @@ export class Sky {
       const dist = this.camera.position.distanceTo(p.pos);
       const r = Math.max(1.5, (p.r * (p.look?.scale ?? 1) / dist) * perPx);
       this.screen.set(p.id, { x, y, r, depth: dist });
-      const own = smooth(r, p.core ? 3.4 : 5.2, p.core ? 5.2 : 7.4);
+      const own = smooth(r, p.core ? 4.6 : 6.8, p.core ? 7 : 9.6);
       let a = own;
-      if (f.id) a = isNear(p.id) ? Math.max(own, f.mix) : own * (1 - 0.8 * f.mix);
-      if (path) a = path.set.has(p.id) ? Math.max(a, this.pathMix) : a * (1 - 0.85 * this.pathMix);
+      if (f.id) a = isNear(p.id) ? Math.max(own, f.mix) : own * (1 - 0.85 * f.mix);
+      if (path) a = path.set.has(p.id) ? Math.max(a, this.pathMix) : a * (1 - 0.9 * this.pathMix);
       const focus = p.id === f.id && f.mix > 0.05;
       if (a > 0.03 || focus) cands.push({ p, x, y, r, a: focus ? Math.max(a, f.mix) : a, focus, rank: (focus ? -2 : 0) + (path?.set.has(p.id) ? 0 : 1) + (f.id && isNear(p.id) ? 0 : 1) + (p.core ? 0 : 1), dist });
     }
 
-    // The learning path: a constellation, a fine gold line from each step to the next, and a circle round each step.
+    // What you point at (or opened): a thin ring round it, like a telescope's finder.
+    const ringed = f.id && this.screen.get(f.id);
+    if (ringed && f.mix > 0.02) {
+      g.save();
+      g.globalAlpha = f.mix * 0.9;
+      g.strokeStyle = "rgba(255, 255, 255, .85)";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(ringed.x, ringed.y, ringed.r + 5 + (1 - f.mix) * 6, 0, Math.PI * 2);
+      g.stroke();
+      g.restore();
+    }
+
+    // The learning path: a constellation, a fine line from each step to the next, and a circle round each step.
     if (path) this.lastPath = path;
     const pp = path || (this.pathMix > 0.01 ? this.lastPath : null);
     if (pp) {
       g.save();
       g.globalAlpha = this.pathMix;
-      shadow(7, "rgba(255, 196, 110, .6)");
-      g.strokeStyle = "rgba(255, 230, 182, .95)";
-      g.lineWidth = 1.5;
+      g.strokeStyle = "rgba(244, 226, 190, .9)";
+      g.lineWidth = 1.25;
       for (const l of pp.links) {
         const A = this.screen.get(l.from), B = this.screen.get(l.to);
         if (!A || !B) continue;
@@ -1013,7 +919,7 @@ export class Sky {
         g.stroke();
       }
       g.lineWidth = 1;
-      g.strokeStyle = "rgba(255, 228, 176, .6)";
+      g.strokeStyle = "rgba(244, 226, 190, .55)";
       for (const id of pp.nodes) {
         const S = this.screen.get(id);
         if (!S) continue;
@@ -1031,18 +937,19 @@ export class Sky {
     for (const c of cands) {
       const step = pp?.step.get(c.p.id);
       if (!c.focus && !step) continue;
-      c.text = step ? `${step}  ${c.p.name}` : c.p.name;
-      c.font = c.focus ? `600 12px ${this.font}` : `500 11.5px ${this.font}`;
+      c.text = step ? `${step}  ${c.p.fullName || c.p.name}` : c.p.fullName || c.p.name;
+      c.font = c.focus ? `600 12.5px ${this.font}` : `500 11.5px ${this.font}`;
       g.font = c.font;
-      const tw = g.measureText(c.text).width, y = c.y + c.r + (c.focus ? 15 : 14);
+      const tw = g.measureText(c.text).width, y = c.y + c.r + (c.focus ? 20 : 16);
       c.box = [c.x - tw / 2 - 3, y - 11, c.x + tw / 2 + 3, y + 4];
       c.ty = y;
       if (!claim(...c.box, c.focus)) { c.text = null; continue; }
       must.push(c);
     }
 
-    // Books' names, in the serif, under their suns.
+    // Books' names, in the serif, just under their stars' glow.
     this.sunScreen = [];
+    const fs = 14.5;
     for (const s of this.systems) {
       v.copy(s.center).project(this.camera);
       if (v.z > 1) continue;
@@ -1051,35 +958,50 @@ export class Sky {
       const r = (s.sunR / dist) * perPx;
       this.sunScreen.push({ id: s.id, x, y, r, lines: s.lines });
       if ((s.vis ?? 1) < 0.05) continue;
-      const fs = 15;
-      const y0 = y + Math.max(r * 1.25, 14) + fs + 4;
+      const y0 = y + Math.max(r * 1.6, 16) + fs + 6;
       g.font = `500 ${fs}px ${this.serif}`;
       const half = Math.max(...s.lines.map(l => g.measureText(l).width)) / 2;
       const box = [x - half, y0 - fs, x + half, y0 + (s.lines.length - 1) * fs * 1.25 + 4];
       const under = must.some(c => box[0] < c.box[2] && box[2] > c.box[0] && box[1] < c.box[3] && box[3] > c.box[1]);
       placed.push(box);
-      g.globalAlpha = 0.95 * (s.vis ?? 1) * (under ? 0.22 : 1);
-      shadow(10);
-      g.fillStyle = "#F3F2EE";
+      g.globalAlpha = (s.vis ?? 1) * (under ? 0.2 : 0.96);
+      shadow(8);
+      g.fillStyle = "#F4F3EF";
       s.lines.forEach((line, i) => g.fillText(line, x, y0 + i * fs * 1.25));
     }
 
+    // How many links each line between books stands for, at its middle.
+    g.font = `400 10.5px ${this.mono}`;
+    for (const br of this.bridges) {
+      if ((br.fade ?? 1) < 0.05) continue;
+      v.copy(br.mid).project(this.camera);
+      if (v.z > 1) continue;
+      const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
+      const text = `${br.n} link${br.n === 1 ? "" : "s"}`;
+      const tw = g.measureText(text).width;
+      if (!claim(x - tw / 2 - 6, y - 16, x + tw / 2 + 6, y - 2)) continue;
+      g.globalAlpha = 0.6 * br.fade;
+      shadow(6);
+      g.fillStyle = "#C9CDD6";
+      g.fillText(text, x, y - 6);
+    }
+
     // Planets' names: those placed above, then the rest where there's room.
-    shadow(5);
+    shadow(4);
     for (const c of must) {
       g.font = c.font;
       g.globalAlpha = Math.min(1, c.a);
-      g.fillStyle = c.focus ? "#FFFFFF" : "#FFF0CF";
+      g.fillStyle = c.focus ? "#FFFFFF" : "#F4E8D0";
       g.fillText(c.text, c.x, c.ty);
     }
-    g.font = `500 11px ${this.font}`;
+    g.font = `450 11px ${this.font}`;
     for (const c of cands) {
       if (c.box) continue;
       const tw = g.measureText(c.p.name).width;
       const y = c.y + c.r + 13;
       if (!claim(c.x - tw / 2 - 2, y - 10, c.x + tw / 2 + 2, y + 3)) continue;
-      g.globalAlpha = Math.min(1, c.a) * 0.92;
-      g.fillStyle = "#D6DBE6";
+      g.globalAlpha = Math.min(1, c.a) * 0.88;
+      g.fillStyle = "#DADDE4";
       g.fillText(c.p.name, c.x, y);
     }
     shadow(0, "transparent");
@@ -1101,7 +1023,7 @@ export class Sky {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const x = e.clientX - rect.left, y = e.clientY - rect.top;
     return this.sunScreen.find(s => Math.hypot(s.x - x, s.y - y) < Math.max(14, s.r * 1.6)
-      || (Math.abs(x - s.x) < 80 && y > s.y + s.r && y < s.y + Math.max(s.r * 1.6, 14) + 18 * s.lines.length + 8));
+      || (Math.abs(x - s.x) < 80 && y > s.y + s.r && y < s.y + Math.max(s.r * 1.6, 16) + 18 * s.lines.length + 10));
   }
 
   dispose() {

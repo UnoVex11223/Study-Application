@@ -182,7 +182,7 @@ export default function Course({ courseId }) {
         <CoverArt src={shelfItem?.cover || null} title={shelfItem?.title || course.name} className="course-cover"/>
         <div className="grow">
           <h1>{course.name}</h1>
-          <div className="row" style={{ marginTop: 14, gap: 8, flexWrap: "wrap" }}>
+          <div className="row" style={{ marginTop: 14, gap: 8 }}>
             <div className="seg" role="group" aria-label="Course status">
               {Object.entries(COURSE_STATUS).map(([k, v]) => (
                 <button key={k} className={course.status === k ? "on" : ""} onClick={() => act("course/update", { id: course.id, patch: { status: k } })}>{v.label}</button>
@@ -198,6 +198,7 @@ export default function Course({ courseId }) {
         </div>
       </div>
 
+      {course.status === "paused" && <div style={{ marginBottom: 20 }}><Notice icon="pause">Paused courses are left out of daily sessions. Their schedules resume when you switch back.</Notice></div>}
       {jobs.map(job => <JobBanner key={job.id} job={job} device={device}/>)}
       {topUps.map(t => <TopUpBanner key={t.id} task={t} onDismiss={() => bg.dismiss(t.id)}/>)}
 
@@ -222,7 +223,7 @@ export default function Course({ courseId }) {
             <Figure value={m.slipping} label="slipping"/>
           </Figures>
 
-          <div className="grid-2">
+          <div>
             <div>
               <div className="row" style={{ marginBottom: 12 }}>
                 <h2 className="h grow" style={{ margin: 0 }}>Sections</h2>
@@ -242,13 +243,12 @@ export default function Course({ courseId }) {
                           <Icon name="chevron" size={14} className="chev"/>
                           <div className="section-text">
                             <div className="list-title section-title">{s.locked && <Icon name="lock" size={13}/>}{s.title}</div>
-                            <div className="section-stats">
+                            <div className="section-stats" title={`${questionCount(concepts)} questions`}>
                               <span>{sm.total} concept{sm.total === 1 ? "" : "s"}</span>
-                              <span>{questionCount(concepts)} questions</span>
                               {s.locked ? <span>locked until you've read it</span> : <>
-                                <span title={sm.basisIsCore ? "Core concepts mastered" : "Concepts mastered"}>{sm.mastered}/{sm.basisCount} mastered</span>
-                                {sm.introduced < sm.total && <span>{sm.introduced}/{sm.total} started</span>}
-                                {sm.slipping > 0 && <span>{sm.slipping} slipping</span>}
+                                <span title={sm.basisIsCore ? "Core concepts mastered" : "Concepts mastered"}>{sm.mastered} of {sm.basisCount} mastered</span>
+                                {sm.introduced < sm.total && <span>{sm.introduced} started</span>}
+                                {sm.slipping > 0 && <span className="warn">{sm.slipping} slipping</span>}
                               </>}
                             </div>
                           </div>
@@ -326,20 +326,20 @@ export default function Course({ courseId }) {
               </div>
             </div>
 
-            <div className="stack" style={{ gap: 24 }}>
-              <div className="panel panel-pad">
-                <h2 className="h">Recall, explain, apply</h2>
-                {abilityRows.length === 0 && <p className="small muted">Shows up after a few sessions.</p>}
-                {abilityRows.map(([k, v]) => (
-                  <div key={k} className="ability-row">
-                    <span>{ABILITIES[k].label}</span>
-                    <Bar value={v.correct / v.attempts} tone="good"/>
-                    <span className="num small muted" style={{ textAlign: "right" }}>{pct(v.correct / v.attempts)} of {v.attempts}</span>
-                  </div>
-                ))}
-              </div>
-              {course.status === "paused" && <Notice icon="pause">Paused courses are left out of daily sessions. Their schedules resume when you switch back.</Notice>}
-            </div>
+            {abilityRows.length > 0 && (
+              <section className="abilities">
+                <h2 className="h">Right answers by kind of question <span className="muted small">last 60 days</span></h2>
+                <div className="ability-grid">
+                  {abilityRows.map(([k, v]) => (
+                    <div key={k} className="ability">
+                      <div className="ability-top"><span>{ABILITIES[k].label}</span><span className="num">{pct(v.correct / v.attempts)}</span></div>
+                      <Bar value={v.correct / v.attempts} thin/>
+                      <div className="ability-n num">of {v.attempts}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </>
       )}

@@ -14,13 +14,20 @@ export function useCoverInfo(src) {
   return info;
 }
 
+/** How big a cloth cover's title is set (in % of the cover's width), so the whole title fits: smaller for long titles and long words. */
+function clothTitleSize(title) {
+  const t = String(title || "Untitled");
+  const longest = Math.max(...t.split(/\s+/).map(w => w.length), 1);
+  return Math.max(6.5, Math.min(13, 98 / Math.sqrt(t.length), 140 / longest)).toFixed(2);
+}
+
 /** A book cover, 2:3: the picture (margins cropped, odd shapes set on a plate), or plain cloth with the title. */
 export function CoverArt({ src, title, author, className = "" }) {
   const info = useCoverInfo(src);
   if (!src) {
     const cloth = clothFor(title);
     return (
-      <div className={`cover-art cloth ${className}`} style={{ "--cloth": cloth.bg, "--cloth-ink": cloth.ink }}>
+      <div className={`cover-art cloth ${className}`} style={{ "--cloth": cloth.bg, "--cloth-ink": cloth.ink, "--cloth-size": `${clothTitleSize(title)}cqw` }}>
         <div className="cloth-body">
           <div className="cloth-title">{title || "Untitled"}</div>
           {author && <div className="cloth-author">{author}</div>}

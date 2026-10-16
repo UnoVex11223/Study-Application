@@ -75,29 +75,29 @@ export default function Courses() {
           {courses.map(c => {
             const m = courseMastery(state, c.id, now);
             return (
-              <button key={c.id} className="course-row" onClick={() => nav.go("course", { courseId: c.id })} style={{ opacity: c.status === "paused" ? 0.65 : 1 }}>
+              <button key={c.id} className={`course-row${c.status === "paused" ? " paused" : ""}`} onClick={() => nav.go("course", { courseId: c.id })}>
                 <span className="course-swatch" style={{ background: c.color }}/>
                 <div style={{ minWidth: 0 }}>
                   <div className="course-name">{c.name}</div>
                   <div className="section-stats">
-                    <span>{COURSE_STATUS[c.status].label.toLowerCase()}</span>
+                    {c.status !== "active" && <span>{COURSE_STATUS[c.status].label}</span>}
                     <span>{m.total} concept{m.total === 1 ? "" : "s"}</span>
-                    {m.locked > 0 && <span>{m.locked} in locked chapters</span>}
+                    {m.locked > 0 && <span>{m.locked} in unread chapters</span>}
                     {m.due > 0 && <span>{m.due} due</span>}
-                    {m.slipping > 0 && <span>{m.slipping} slipping</span>}
+                    {m.slipping > 0 && <span className="warn">{m.slipping} slipping</span>}
                   </div>
                 </div>
-                <div>
-                  <div className="course-cell-label">Mastered {pct(m.masteryPct)}</div>
-                  <Bar value={m.masteryPct} tone="good"/>
+                <div className="course-cell">
+                  <div className="course-cell-label"><span>Mastered</span><span className="num">{pct(m.masteryPct)}</span></div>
+                  <Bar value={m.masteryPct} tone="good" thin/>
                 </div>
-                <div>
-                  <div className="course-cell-label">Started {pct(m.coveragePct)}</div>
+                <div className="course-cell">
+                  <div className="course-cell-label"><span>Started</span><span className="num">{pct(m.coveragePct)}</span></div>
                   <Bar value={m.coveragePct} thin/>
                 </div>
-                <div>
-                  <div className="course-cell-label">Memory</div>
-                  <div className="num">{m.memory == null ? "–" : pct(m.memory)}</div>
+                <div className="course-cell">
+                  <div className="course-cell-label"><span>Recall</span><span className="num">{m.memory == null ? "–" : pct(m.memory)}</span></div>
+                  <Bar value={m.memory ?? 0} thin/>
                 </div>
               </button>
             );
