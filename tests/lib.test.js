@@ -13,9 +13,9 @@ const DAY = 864e5;
 const NOW = new Date(2026, 8, 26, 12, 0, 0).getTime(); // Sat 26 Sep 2026, noon local
 
 // ── helpers ────────────────────────────────────────────────────────────────
-function world({ courses = 1, sections = 1, conceptsPer = 5, abilities = ["recall"], minutes = 20, maxNew = 6 } = {}) {
+function world({ courses = 1, sections = 1, conceptsPer = 5, abilities = ["recall"], perDay = 20, maxNew = 6 } = {}) {
   const s = emptyState();
-  s.settings.dailyMinutes = minutes;
+  s.settings.dailyQuestions = perDay;
   s.settings.maxNewPerDay = maxNew;
   for (let c = 0; c < courses; c++) {
     const course = makeCourse({ name: `Course ${c}` }, c);
@@ -83,19 +83,19 @@ test("higher target retention gives shorter intervals", () => {
 });
 
 // ── planner ────────────────────────────────────────────────────────────────
-test("plan fits the daily time budget and defers the rest", () => {
-  const s = world({ conceptsPer: 100, minutes: 10 });
+test("every day has the same number of questions; the rest of what's due waits", () => {
+  const s = world({ conceptsPer: 100, perDay: 20 });
   makeAllDue(s);
   const plan = buildPlan(s, { now: NOW });
-  assert.ok(plan.estSec <= 10 * 60, `est ${plan.estSec}`);
-  assert.equal(plan.tasks.length + plan.deferred, 100);
-  assert.ok(plan.deferred > 0);
+  assert.equal(plan.tasks.length, 20);
+  assert.equal(plan.deferred, 80);
   assert.equal(plan.newCount, 0);
   assert.equal(plan.throttle, "backlog");
+  assert.equal(plan.goal, 20);
 });
 
 test("one task per concept per day (siblings buried)", () => {
-  const s = world({ conceptsPer: 4, abilities: ["recall", "explain", "apply"], minutes: 60 });
+  const s = world({ conceptsPer: 4, abilities: ["recall", "explain", "apply"], perDay: 60 });
   makeAllDue(s);
   const plan = buildPlan(s, { now: NOW });
   const concepts = plan.tasks.map(t => t.conceptId);
@@ -103,26 +103,43 @@ test("one task per concept per day (siblings buried)", () => {
   assert.equal(plan.tasks.length, 4);
 });
 
-test("most-forgotten and most-important items come first when budget is tight", () => {
-  const s = world({ conceptsPer: 3, minutes: 1 });
+test("most-forgotten and most-important items come first when the day is full", () => {
+  const s = world({ conceptsPer: 3, perDay: 1 });
   makeAllDue(s);
   const [a, b, c] = s.concepts;
   a.importance = "detail"; b.importance = "core"; c.importance = "core";
   c.srs.lastReview = NOW - 60 * DAY; // much more forgotten
   const plan = buildPlan(s, { now: NOW });
-  assert.equal(plan.tasks[0].conceptId, c.id);
-  assert.ok(!plan.tasks.some(t => t.conceptId === a.id) || plan.tasks.length === 3);
+  assert.deepEqual(plan.tasks.map(t => t.conceptId), [c.id]);
 });
 
-test("new concepts respect the daily cap and budget", () => {
-  const s = world({ conceptsPer: 30, minutes: 60, maxNew: 5 });
+test("new concepts respect the daily cap", () => {
+  const s = world({ conceptsPer: 30, perDay: 20, maxNew: 5 });
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.newCount, 5);
-  assert.ok(plan.estSec <= 60 * 60);
+  assert.equal(plan.tasks.length, 5);
+  assert.ok(plan.short, "nothing else to fill the day with");
+});
+
+test("reviews coming up soonest fill the rest of the day", () => {
+  const s = world({ conceptsPer: 40, perDay: 20, maxNew: 0 });
+  s.concepts.forEach((c, i) => {
+    const due = i < 5 ? NOW - DAY : NOW + (1 + (i % 10)) * DAY;
+    c.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: NOW - 6 * DAY, due, reps: 3 };
+  });
+  const plan = buildPlan(s, { now: NOW });
+  assert.equal(plan.tasks.length, 20);
+  assert.equal(plan.early, 15);
+  assert.ok(!plan.short);
+  const ids = new Set(plan.tasks.map(t => t.conceptId));
+  assert.ok(s.concepts.slice(0, 5).every(c => ids.has(c.id)), "everything due today is in");
+  const latestEarly = Math.max(...plan.tasks.filter(t => t.early).map(t => s.concepts.find(c => c.id === t.conceptId).srs.due));
+  const left = s.concepts.slice(5).filter(c => !ids.has(c.id));
+  assert.ok(left.every(c => c.srs.due >= latestEarly), "the soonest come first");
 });
 
 test("new intake is gated by prerequisites (knowledge frontier)", () => {
-  const s = world({ conceptsPer: 3, minutes: 60, maxNew: 10 });
+  const s = world({ conceptsPer: 3, perDay: 20, maxNew: 10 });
   const [a, b, c] = s.concepts;
   s.edges.push(makeEdge({ type: "prereq", from: a.id, to: b.id, confidence: 0.9 }));
   s.edges.push(makeEdge({ type: "prereq", from: b.id, to: c.id, confidence: 0.9 }));
@@ -132,7 +149,7 @@ test("new intake is gated by prerequisites (knowledge frontier)", () => {
 });
 
 test("provisional (low-confidence) prerequisites don't block progress", () => {
-  const s = world({ conceptsPer: 2, minutes: 60, maxNew: 10 });
+  const s = world({ conceptsPer: 2, perDay: 20, maxNew: 10 });
   const [a, b] = s.concepts;
   s.edges.push(makeEdge({ type: "prereq", from: a.id, to: b.id, confidence: 0.3 }));
   const plan = buildPlan(s, { now: NOW });
@@ -140,7 +157,7 @@ test("provisional (low-confidence) prerequisites don't block progress", () => {
 });
 
 test("new concepts are spread across active courses; paused and maintained courses get none", () => {
-  const s = world({ courses: 4, conceptsPer: 10, minutes: 120, maxNew: 6 });
+  const s = world({ courses: 4, conceptsPer: 10, perDay: 40, maxNew: 6 });
   s.courses[2].status = "maintain";
   s.courses[3].status = "paused";
   const plan = buildPlan(s, { now: NOW });
@@ -153,7 +170,7 @@ test("new concepts are spread across active courses; paused and maintained cours
 });
 
 test("paused courses are excluded from reviews too", () => {
-  const s = world({ courses: 2, conceptsPer: 5, minutes: 60 });
+  const s = world({ courses: 2, conceptsPer: 5, perDay: 20 });
   makeAllDue(s);
   s.courses[1].status = "paused";
   const plan = buildPlan(s, { now: NOW });
@@ -161,7 +178,7 @@ test("paused courses are excluded from reviews too", () => {
 });
 
 test("a heavy upcoming week throttles new material", () => {
-  const s = world({ conceptsPer: 200, minutes: 10, maxNew: 6 });
+  const s = world({ conceptsPer: 200, perDay: 20, maxNew: 6 });
   // Lots of reviews spread over the next week, none due today.
   s.concepts.forEach((c, i) => {
     c.srs = { ...newSrs(), state: "review", stability: 5, difficulty: 5, lastReview: NOW - DAY, due: NOW + (1 + (i % 7)) * DAY, reps: 2 };
@@ -170,28 +187,44 @@ test("a heavy upcoming week throttles new material", () => {
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.newCount, 0);
   assert.equal(plan.throttle, "forecast");
+  assert.equal(plan.tasks.length, 20, "the day is filled with tomorrow's reviews instead");
 });
 
-test("time already studied today reduces the remaining budget", () => {
-  const s = world({ conceptsPer: 50, minutes: 10 });
+test("questions answered in today's sessions count toward the day; practice and re-asks don't", () => {
+  const s = world({ conceptsPer: 50, perDay: 20 });
   makeAllDue(s);
   const today = dayKey(NOW, 4);
-  for (let i = 0; i < 9; i++) {
-    s.attempts.push({ ts: NOW - 1000 * (i + 1), day: today, itemId: "x", conceptId: "x", courseId: "x", ability: "recall", verdict: "correct", rating: 3, aided: false, mode: "session", ms: 60e3 });
-  }
-  // A single runaway attempt (left the app open) is capped at 5 minutes.
-  s.attempts.push({ ts: NOW - 20000, day: addDays(today, -1), itemId: "y", conceptId: "y", courseId: "x", ability: "recall", verdict: "correct", rating: 3, aided: false, mode: "session", ms: 3600e3 });
+  const answer = (extra) => s.attempts.push({ ts: NOW - 1000, day: today, itemId: "x", conceptId: "x", courseId: "x", ability: "recall", verdict: "correct", rating: 3, aided: false, mode: "session", ms: 30e3, ...extra });
+  for (let i = 0; i < 8; i++) answer();
+  answer({ requeue: true });
+  answer({ mode: "practice" });
+  answer({ day: addDays(today, -1) });
   const plan = buildPlan(s, { now: NOW });
-  assert.ok(plan.budgetSec <= 60);
-  const s2 = { ...s, days: { [today]: { extraSec: 300 } } };
-  assert.ok(buildPlan(s2, { now: NOW }).budgetSec > 300);
+  assert.equal(plan.done, 8);
+  assert.equal(plan.tasks.length, 12);
+  const more = buildPlan({ ...s, days: { [today]: { extra: 5 } } }, { now: NOW });
+  assert.equal(more.goal, 25);
+  assert.equal(more.tasks.length, 17);
 });
 
-test("learning steps due soon always make it into the plan", () => {
-  const s = world({ conceptsPer: 20, minutes: 0 });
-  s.concepts[0].srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW - 120e3, due: NOW - 60e3, reps: 4, lapses: 1 };
+test("a concept answered today isn't pulled forward again", () => {
+  const s = world({ conceptsPer: 3, perDay: 20, maxNew: 0 });
+  makeAllDue(s, { dueOffsetDays: 3 });
+  const today = dayKey(NOW, 4);
+  const c = s.concepts[0];
+  s.attempts.push({ ts: NOW - 1000, day: today, itemId: s.items[0].id, conceptId: c.id, courseId: c.courseId, ability: "recall", verdict: "correct", rating: 3, aided: false, mode: "practice", ms: 1 });
+  const plan = buildPlan(s, { now: NOW });
+  assert.equal(plan.tasks.length, 2);
+  assert.ok(!plan.tasks.some(t => t.conceptId === c.id));
+});
+
+test("same-day relearning comes first, even if it isn't due for a few minutes", () => {
+  const s = world({ conceptsPer: 20, perDay: 1 });
+  makeAllDue(s);
+  s.concepts[5].srs = { ...newSrs(), state: "relearning", stability: 1, difficulty: 6, lastReview: NOW - 60e3, due: NOW + 9 * 60e3, reps: 4, lapses: 1 };
   const plan = buildPlan(s, { now: NOW });
   assert.equal(plan.tasks.length, 1);
+  assert.equal(plan.tasks[0].conceptId, s.concepts[5].id);
   assert.equal(plan.tasks[0].kind, "learning");
 });
 
@@ -335,5 +368,8 @@ test("stored settings from before the monochrome theme switch to Black once", as
   const { normalizeState } = await import("../src/lib/model.js");
   assert.equal(normalizeState({ settings: { theme: "system", dailyMinutes: 30 } }).settings.theme, "dark");
   assert.equal(normalizeState({ settings: { theme: "light", themeVersion: 2 } }).settings.theme, "light");
-  assert.equal(normalizeState({ settings: { theme: "system", dailyMinutes: 30 } }).settings.dailyMinutes, 30);
+  assert.equal(normalizeState({ settings: { theme: "system", dailyMinutes: 30 } }).settings.dailyQuestions, 30, "a time budget becomes about a question a minute");
+  assert.equal(normalizeState({ settings: { dailyMinutes: 30 } }).settings.dailyMinutes, undefined);
+  assert.equal(normalizeState({ settings: { dailyQuestions: 15, dailyMinutes: 60 } }).settings.dailyQuestions, 15);
+  assert.equal(normalizeState({}).settings.dailyQuestions, 20);
 });

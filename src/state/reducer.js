@@ -189,7 +189,7 @@ function apply(state, action) {
     }
 
     case "attempt": {
-      const { itemId, verdict, rating, aided = false, ms = 0, mode = "session", misconceptions = [], overridden = false, now } = action;
+      const { itemId, verdict, rating, aided = false, ms = 0, mode = "session", misconceptions = [], overridden = false, requeue = false, now } = action;
       const ix = index(state);
       const item = ix.item[itemId];
       if (!item) return state;
@@ -204,6 +204,7 @@ function apply(state, action) {
         verdict, rating: rating ?? null, aided, mode, ms: Math.round(ms),
         ...(misconceptions.length ? { misconceptions } : {}),
         ...(overridden ? { overridden: true } : {}),
+        ...(requeue ? { requeue: true } : {}), // a missed question asked again in the same session
       };
       const attempts = state.attempts.length >= MAX_ATTEMPTS
         ? [...state.attempts.slice(-MAX_ATTEMPTS + 1), attempt]
@@ -230,7 +231,7 @@ function apply(state, action) {
     case "day/extra": {
       const day = dayKey(action.now, state.settings.rolloverHour);
       const cur = state.days?.[day] || {};
-      return { ...state, days: { ...state.days, [day]: { ...cur, extraSec: (cur.extraSec || 0) + action.sec } } };
+      return { ...state, days: { ...state.days, [day]: { ...cur, extra: (cur.extra || 0) + action.count } } };
     }
 
     case "settings":

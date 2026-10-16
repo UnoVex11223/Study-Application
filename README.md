@@ -26,7 +26,7 @@
 
 ## What it does
 
-- **A daily session that fits your time.** You set a daily budget, for example 20 minutes. Reviews are scheduled per concept with FSRS, and new material is let in only as fast as your budget allows, so the load stays level instead of spiking.
+- **The same number of questions every day.** You pick how many (20 by default). Reviews are scheduled per concept with FSRS and come first; new material and upcoming reviews fill the rest, and new material is let in only as fast as the days ahead allow, so the load stays level instead of spiking.
 - **Questions worth answering.** Add a chapter as text or PDF. Claude pulls out the concepts that matter, writes recall, explain, distinguish and apply questions, and a second pass reviews every question and throws out weak ones before you see them.
 - **Written answers, graded.** You answer in your own words. Claude checks each key point, quotes what you wrote, and shows the model answer and the passage from your source.
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
@@ -85,4 +85,4 @@ Electron main process (`electron.cjs`: storage, Claude calls with structured out
 
 ## History
 
-Tenax started as **AeroFlash**, a flashcard app, and was rebuilt around concepts, graded written answers and a daily time budget. **AeroShelf**, a separate tracker for books and courses, became the Shelf page.
+Tenax started as **AeroFlash**, a flashcard app, and was rebuilt around concepts, graded written answers and a fixed number of questions a day. **AeroShelf**, a separate tracker for books and courses, became the Shelf page.

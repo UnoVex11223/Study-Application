@@ -12,7 +12,7 @@ const NOW = new Date(2026, 8, 26, 12, 0, 0).getTime();
 
 function world(conceptsN, abilities) {
   const s = emptyState();
-  s.settings.dailyMinutes = 120;
+  s.settings.dailyQuestions = 100;
   const course = makeCourse({ name: "C" });
   const sec = makeSection({ courseId: course.id, title: "S" });
   s.courses.push(course); s.sections.push(sec);
@@ -112,4 +112,17 @@ test("saved data from before keeps its progress: the latest-reviewed question's 
   assert.equal(nb.srs.state, "new");
   assert.ok(out.items.every(i => !("srs" in i)));
   assert.deepEqual(normalizeState(out), out, "normalizing again changes nothing");
+});
+
+test("a missed question asked again is marked, so it doesn't count twice toward the day", () => {
+  let s = world(2, ["recall"]);
+  for (const c of s.concepts) c.srs = reviewSrs(NOW - DAY);
+  const [a] = s.items;
+  s = reducer(s, { type: "attempt", itemId: a.id, verdict: "incorrect", rating: RATING.AGAIN, mode: "session", now: NOW });
+  s = reducer(s, { type: "attempt", itemId: a.id, verdict: "correct", rating: RATING.GOOD, mode: "session", requeue: true, now: NOW + 60e3 });
+  assert.equal(s.attempts.filter(x => x.requeue).length, 1);
+  const plan = buildPlan(s, { now: NOW + 2 * 60e3 });
+  assert.equal(plan.done, 1);
+  s = reducer(s, { type: "day/extra", count: 5, now: NOW });
+  assert.equal(buildPlan(s, { now: NOW + 2 * 60e3 }).goal, 105);
 });

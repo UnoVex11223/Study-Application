@@ -1,6 +1,6 @@
 # Tenax — How It Works
 
-Tenax is a desktop study app (Electron + React) for keeping what you learn in long-term memory across many subjects at once. You add material a chapter at a time; it pulls out the concepts worth remembering, writes questions you answer from memory, and schedules a short daily session sized to the time you have.
+Tenax is a desktop study app (Electron + React) for keeping what you learn in long-term memory across many subjects at once. You add material a chapter at a time; it pulls out the concepts worth remembering, writes questions you answer from memory, and gives you the same number of questions every day.
 
 This file doubles as context you can paste into another AI when preparing material for the app.
 
@@ -8,21 +8,22 @@ This file doubles as context you can paste into another AI when preparing materi
 
 ## The daily loop
 
-1. **Today** shows one session: a number of questions, an estimated time and which courses they come from, with a button to start it. It never asks for more than your daily budget (20 minutes by default, set in Settings). Under it are only the things waiting on you, one line each: questions to fix, notes to process, books to recall.
+1. **Today** shows one session: the same number of questions every day (20 by default, Settings → Questions per day), as one big number and a row of marks, one per question, coloured by course until you answer it. Under it are the courses they come from and a button to start (or continue, once you've answered some). There are no time estimates: how long you study is up to you. Under that are only the things waiting on you, one line each: questions to fix, notes to process, books to recall.
 2. You answer each question by **typing from memory**. There is no multiple choice.
 3. Your answer is graded against the question's **key points** (see Grading), you see what you missed, and you rate how well you knew it (Again / Hard / Good / Easy, with a suggested rating preselected — press Enter to accept).
 4. The scheduler (FSRS) decides when each **concept** comes back. Memory is scheduled per concept, not per question: a concept's questions (recall, explain, apply…) take turns at its reviews, so extra questions add variety without adding review time.
 
 ### How the day stays manageable
 
-- **Time budget.** Everything due is ranked by how close it is to being forgotten, weighted by importance (core > supporting > detail) and by how many other concepts build on it. Questions are added in that order until the budget is full. Anything that doesn't fit waits for a later day, most urgent first.
+- **The same number every day.** Questions you answer in today's sessions count toward the day; practice, teach back and a missed question asked again in the same session don't. Same-day relearning comes first, then everything due, ranked by how close it is to being forgotten, weighted by importance (core > supporting > detail) and by how many other concepts build on it. Anything that doesn't fit waits for tomorrow, most urgent first, and Today says how many are waiting.
+- **The rest of the day is filled.** After reviews, new concepts fill what's left (see below), then the reviews coming up soonest (in the next two weeks) are brought forward, so the day still has its full number and the days ahead get lighter. Only when there's nothing left to ask is the day shorter, and Today says so.
 - **One question per review.** When a concept is due, one of its questions is asked: a new concept starts with its most basic question, a question you just missed comes back while you relearn it, and otherwise the question asked longest ago goes next. Your answer reschedules the whole concept.
-- **New material only when there's room.** New concepts are added only if reviews fit, capped per day (6 by default), and paused automatically if reviews were deferred today or if the coming week is already heavy.
+- **New material only when there's room.** New concepts are added only if the day's reviews all fit, capped per day (6 by default), and paused automatically if reviews were left for tomorrow or if the coming week already has close to your daily number of reviews each day.
 - **Load balancing.** When a review is scheduled days out, it lands on the least-busy day in its window, so future days stay even.
 - **Course status.** Each course is *Active* (reviews + new concepts), *Maintaining* (reviews only) or *Paused* (left out). Taking on more subjects means setting older ones to Maintaining, not drowning in reviews.
 - **Study day** starts at 4am by default, so late-night sessions count toward the day you started.
 
-"Study 5 more minutes" is offered after a session if there's more waiting, but coming back tomorrow does more for memory.
+Once the day's questions are done, **5 more** is offered if there's anything worth asking, but coming back tomorrow does more for memory.
 
 ---
 
@@ -94,7 +95,7 @@ If you miss a question whose prerequisite is shaky, the session adds a quick **f
 - **Mastered**: a concept is mastered when your last two study days with it both ended in a correct unaided answer, and — if it has an application-type question — you've answered one correctly. Course and section percentages count **core** concepts only.
 - **Recall chance now**: FSRS's estimate of remembering the concept today.
 
-**Progress** keeps to three things: four figures (day streak, answers this week and the time they took, the share of answers recalled after a week or more, and how many started concepts are mastered), **Next two weeks** (the review time each day is expected to take, against your daily budget, today highlighted) and **Activity** (a year of study days, one square per day, darker for more answers). How each course is going is on its own page.
+**Progress** keeps to three things: four figures (day streak, answers this week, the share of answers recalled after a week or more, and how many started concepts are mastered), **Next two weeks** (how many reviews are due each day, against your questions per day, today highlighted) and **Activity** (a year of study days, one square per day, darker for more answers). How each course is going is on its own page.
 
 ## Teach back
 
@@ -170,7 +171,7 @@ When books were split into reading and textbooks, anything linked to a Tenax cou
 
 **Notes, ratings and recall (Reading only).** Clicking a book opens three short notes in your own words: **What it's about**, **What I thought** and **Ideas worth keeping**; they save as you type. They aren't shown on the card, so they don't give the answer away before a recall. Textbooks and courses have none of this: the ones in Tenax have real questions instead.
 
-Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the notes, dated, so your thoughts build up over time. Due recalls show as a count on Shelf in the sidebar, a **Recall** button on the Shelf page and a line on Today; they're extra practice, separate from the daily session and its time budget, and use no AI.
+Once a book has notes, Tenax asks you to recall it now and then: you write (or just think through) what you remember, then **Show my notes** and say how it went: *Forgot most of it*, *Fuzzy*, *Remembered it* or *Easy*. The first recall is 3 days after your notes; after that the gap grows with how well you remembered (remembered: about 2.5× the last gap, at least a week; easy: 3.5×, at least two weeks; fuzzy: a little longer; forgot: two days), up to a year. Anything you wrote during a recall can be added to the notes, dated, so your thoughts build up over time. Due recalls show as a count on Shelf in the sidebar, a **Recall** button on the Shelf page and a line on Today; they're extra practice, separate from the daily session and its questions, and use no AI.
 
 ### Preparing material with another AI
 

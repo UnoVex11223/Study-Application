@@ -58,7 +58,7 @@ test("notes are processed in batches of limited size", () => {
 // ── Processing and saving ──────────────────────────────────────────────────
 function world() {
   const s = emptyState();
-  s.settings.dailyMinutes = 60;
+  s.settings.dailyQuestions = 40;
   const course = makeCourse({ name: "The C Programming Language" });
   const sec = makeSection({ courseId: course.id, title: "Chapter 5 - Pointers and Arrays" });
   const ptr = makeConcept({ courseId: course.id, sectionId: sec.id, name: "Pointer arithmetic", importance: "core" });

@@ -1,74 +1,60 @@
-// Daily planner: turns everything that's due into a session that fits your
-// time budget, and decides how much new material you can afford today.
+// Daily planner: the same number of questions every day (Settings →
+// Questions per day, 20 by default), and how much of it can be new material.
 //
 // How a day is built
-//  1. Reviews first. Memory is scheduled per concept; a due concept is asked
+//  1. How many are left: your number for the day (plus any extra you asked
+//     for after finishing), less the questions you've already answered in
+//     today's sessions. A missed question asked again in the same session
+//     doesn't count twice; practice and teach back don't count at all.
+//  2. Reviews first. Memory is scheduled per concept; a due concept is asked
 //     through one of its questions, taking turns (pickItem), so extra questions
-//     add variety without adding reviews. Everything due today is ranked by how
-//     close it is to being forgotten, weighted by importance (core > supporting
-//     > detail) and by how many other concepts build on it.
-//  2. Fill the time budget in that order. Whatever doesn't fit waits for a
-//     later day; its urgency keeps rising, so nothing is starved forever.
-//  3. New material only if there's room. New concepts come from the
-//     "knowledge frontier": concepts whose prerequisites you've already
-//     started. Intake is throttled if reviews were deferred today or if the
-//     next week is already heavy, so today's new material can't snowball into
-//     an unmanageable backlog.
-//  4. Interleave across courses so similar items aren't blocked together.
+//     add variety without adding reviews. Everything due today is ranked:
+//     same-day relearning first, then by how close it is to being forgotten,
+//     weighted by importance (core > supporting > detail) and by how many
+//     other concepts build on it. Whatever doesn't fit waits for tomorrow; its
+//     urgency keeps rising, so nothing is starved forever.
+//  3. New material fills what's left, up to the daily cap. New concepts come
+//     from the "knowledge frontier": concepts whose prerequisites you've
+//     already started. None if reviews were left over today, fewer if the
+//     coming week is already busy, so new material can't snowball.
+//  4. Anything still left is filled with the reviews coming up soonest, so the
+//     day has its full number and the days ahead get lighter.
+//  5. Interleave across courses so similar items aren't blocked together.
 
 import { retrievability } from "./fsrs.js";
-import { index, ABILITIES, IMPORTANCE } from "./model.js";
+import { index, IMPORTANCE } from "./model.js";
 import { dayKey, dayEndTs, DAY_MS } from "./time.js";
 
-const MAX_ATTEMPT_SEC = 300;       // ignore time beyond 5 min (walked away)
-const NEW_CONCEPT_FACTOR = 2.2;    // a new concept is seen ~2–3 times on day one
 const PROVISIONAL = 0.6;           // prereq edges below this confidence don't gate
-const LEARNING_ALWAYS_MAX = 12;    // short-term relearning steps always fit
+const EARLY_DAYS = 14;             // reviews pulled forward to fill a day come from the next two weeks
+export const DEFAULT_PER_DAY = 20;
 
-/** Median seconds per task, by ability, from your own recent history. */
-export function abilityTimes(state) {
-  const samples = {};
-  for (let i = state.attempts.length - 1, n = 0; i >= 0 && n < 400; i--) {
-    const a = state.attempts[i];
-    if (!a.ms || a.mode === "teachback") continue;
-    (samples[a.ability] ||= []).push(Math.min(a.ms / 1000, MAX_ATTEMPT_SEC));
-    n++;
-  }
-  const out = {};
-  for (const [k, meta] of Object.entries(ABILITIES)) {
-    const s = (samples[k] || []).sort((a, b) => a - b);
-    const median = s.length >= 5 ? s[Math.floor(s.length / 2)] : null;
-    // Blend toward the default until there's enough history.
-    out[k] = median == null ? meta.estSec : Math.round(Math.min(240, Math.max(10, (median * s.length + meta.estSec * 5) / (s.length + 5))));
-  }
-  return out;
+/** Questions in a day's session (the setting, or one worked out from the old time budget). */
+export const questionsPerDay = (settings) => Math.max(1, Math.round(settings?.dailyQuestions || DEFAULT_PER_DAY));
+
+/** Questions answered in today's sessions: practice, teach back and a missed question asked again don't count. */
+export function answeredOn(state, day) {
+  let n = 0;
+  for (const a of state.attempts) if (a.day === day && a.mode === "session" && !a.requeue) n++;
+  return n;
 }
 
-export function studiedSecOn(state, day) {
-  let sec = 0;
-  for (const a of state.attempts) if (a.day === day && a.ms) sec += Math.min(a.ms / 1000, MAX_ATTEMPT_SEC);
-  return Math.round(sec);
-}
-
-/** Seconds of reviews already scheduled for each of the next `days` days. */
+/** Reviews already scheduled for each of the next `days` days. */
 export function forecastLoad(state, { now = Date.now(), days = 14 } = {}) {
   const ix = index(state);
-  const est = abilityTimes(state);
   const { rolloverHour } = state.settings;
   const start = dayEndTs(now, rolloverHour) - DAY_MS;
-  const sec = new Array(days).fill(0), count = new Array(days).fill(0);
+  const count = new Array(days).fill(0);
   for (const c of state.concepts) {
     const srs = c.srs;
     if (!srs || srs.state === "new" || srs.due == null || !isEligible(ix, c)) continue;
-    const item = pickItem(ix, c);
-    if (!item) continue;
+    if (!pickItem(ix, c)) continue;
     let d = Math.floor((srs.due - start) / DAY_MS);
     if (d < 0) d = 0;
     if (d >= days) continue;
-    sec[d] += est[item.ability] ?? 60;
     count[d]++;
   }
-  return { sec, count };
+  return { count };
 }
 
 /**
@@ -104,37 +90,41 @@ function isEligible(ix, concept) {
 
 /**
  * Build today's session.
- * @returns {{tasks, estSec, budgetSec, spentSec, deferred, newCount, newCap,
- *            throttle, laterToday, byCourse, dueConcepts}}
+ * @returns {{tasks, perDay, goal, done, deferred, newCount, early, short, throttle, byCourse}}
+ *   goal: questions for today (perDay plus any extra); done: answered so far;
+ *   deferred: due reviews that didn't fit; early: reviews pulled forward to fill
+ *   the day; short: there wasn't enough material to fill it.
  */
 export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {}) {
   const ix = index(state);
   const s = state.settings;
   const today = dayKey(now, s.rolloverHour);
   const end = dayEndTs(now, s.rolloverHour);
-  const est = abilityTimes(state);
-  const spentSec = studiedSecOn(state, today);
-  const extraSec = state.days?.[today]?.extraSec || 0;
-  const budgetSec = Math.max(0, s.dailyMinutes * 60 + extraSec - spentSec);
+  const perDay = questionsPerDay(s);
+  const goal = perDay + (state.days?.[today]?.extra || 0);
+  const done = answeredOn(state, today);
+  const left = Math.max(0, goal - done);
 
-  // Who started today? Which concepts are introduced at all?
+  // Which concepts are introduced at all, which were started today, which were asked today.
   const firstDay = {};
-  for (const a of state.attempts) if (!firstDay[a.conceptId] || a.day < firstDay[a.conceptId]) firstDay[a.conceptId] = a.day;
+  const askedToday = new Set();
+  for (const a of state.attempts) {
+    if (!firstDay[a.conceptId] || a.day < firstDay[a.conceptId]) firstDay[a.conceptId] = a.day;
+    if (a.day === today) askedToday.add(a.conceptId);
+  }
   const introduced = new Set(Object.keys(firstDay));
   for (const c of state.concepts) if (c.srs && c.srs.state !== "new") introduced.add(c.id);
   const introducedToday = Object.values(firstDay).filter(d => d === today).length;
 
-  // ── 1. Due reviews, one question per concept ───────────────────────────────
+  // ── 1. Due reviews (and same-day relearning), one question per concept ─────
   const dueNow = [];
-  let laterToday = 0;
   for (const c of state.concepts) {
     const srs = c.srs;
     if (!srs || srs.state === "new" || srs.due == null || srs.due > end) continue;
     if (!isEligible(ix, c)) continue;
-    const learning = srs.state === "learning" || srs.state === "relearning";
-    if (learning && srs.due > now + 5 * 60000) { laterToday++; continue; }
     const item = pickItem(ix, c, { exclude });
     if (!item) continue;
+    const learning = srs.state === "learning" || srs.state === "relearning";
     dueNow.push({ item, concept: c, learning, r: retrievability(srs, now) ?? 0 });
   }
 
@@ -147,35 +137,24 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
         * (1 + 0.1 * Math.min(dependents, 5))
         * (course.status === "maintain" ? 0.9 : 1)
         + 0.02 * Math.min(overdueDays, 30);
-    return { ...x, priority, estSec: est[x.item.ability] ?? 60 };
+    return { ...x, priority };
   }).sort((a, b) => b.priority - a.priority);
 
-  const reviews = [];
-  let used = 0, deferred = 0, learningCount = 0;
-  for (const x of scored) {
-    const forced = x.learning && learningCount < LEARNING_ALWAYS_MAX;
-    if (forced || used + x.estSec <= budgetSec || (reviews.length === 0 && budgetSec > 0)) {
-      reviews.push({ itemId: x.item.id, conceptId: x.concept.id, courseId: x.concept.courseId, kind: x.learning ? "learning" : "review", estSec: x.estSec });
-      used += x.estSec;
-      if (x.learning) learningCount++;
-    } else {
-      deferred++;
-    }
-  }
+  const reviews = scored.slice(0, left).map(x => ({ itemId: x.item.id, conceptId: x.concept.id, courseId: x.concept.courseId, kind: x.learning ? "learning" : "review" }));
+  const deferred = scored.length - reviews.length;
+  const inPlan = new Set(reviews.map(t => t.conceptId));
 
-  // ── 2. How much new material can we afford? ────────────────────────────────
+  // ── 2. New material: how much can we afford? ──────────────────────────────
   let newCap = Math.max(0, s.maxNewPerDay - introducedToday);
   let throttle = null;
   if (deferred > 0) { newCap = 0; throttle = "backlog"; }
   else {
-    const { sec } = forecastLoad(state, { now, days: 8 });
-    const weekAvg = sec.slice(1).reduce((a, b) => a + b, 0) / 7;
-    const ratio = weekAvg / Math.max(60, s.dailyMinutes * 60);
+    const { count } = forecastLoad(state, { now, days: 8 });
+    const weekAvg = count.slice(1).reduce((a, b) => a + b, 0) / 7;
+    const ratio = weekAvg / perDay;
     if (ratio > 0.9) { newCap = 0; throttle = "forecast"; }
     else if (ratio > 0.7) { newCap = Math.ceil(newCap / 2); throttle = newCap ? "forecast-half" : "forecast"; }
   }
-
-  const inPlan = new Set(reviews.map(t => t.conceptId));
 
   // Frontier: new concepts whose (confident) prerequisites are already started.
   const frontierByCourse = {};
@@ -218,39 +197,53 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
     .sort((a, b) => (introducedTodayByCourse[a] || 0) - (introducedTodayByCourse[b] || 0));
   const newPicks = [];
   const cursors = Object.fromEntries(courseOrder.map(id => [id, 0]));
-  let remaining = budgetSec - used;
+  let room = Math.min(newCap, left - reviews.length);
   let progress = true;
-  while (progress && remaining > 0 && newCap > 0) {
+  while (progress && room > 0) {
     progress = false;
     for (const courseId of courseOrder) {
-      if (newCap <= 0) break;
+      if (room <= 0) break;
       const list = frontierByCourse[courseId];
       while (cursors[courseId] < list.length && inPlan.has(list[cursors[courseId]].concept.id)) cursors[courseId]++;
       if (cursors[courseId] >= list.length) continue;
-      const f = list[cursors[courseId]];
-      const cost = Math.round((est[f.item.ability] ?? 60) * NEW_CONCEPT_FACTOR);
-      if (cost > remaining) continue;
-      cursors[courseId]++;
+      const f = list[cursors[courseId]++];
       inPlan.add(f.concept.id);
-      newPicks.push({ itemId: f.item.id, conceptId: f.concept.id, courseId, kind: "new", estSec: cost });
-      remaining -= cost; newCap--; progress = true;
+      newPicks.push({ itemId: f.item.id, conceptId: f.concept.id, courseId, kind: "new" });
+      room--; progress = true;
     }
   }
 
-  // ── 3. Interleave ──────────────────────────────────────────────────────────
-  const tasks = interleave(reviews, newPicks);
-  const estSec = tasks.reduce((s2, t) => s2 + t.estSec, 0);
+  // ── 3. Fill the rest of the day with the reviews coming up soonest ────────
+  const early = [];
+  let fill = left - reviews.length - newPicks.length;
+  if (fill > 0) {
+    const horizon = end + EARLY_DAYS * DAY_MS;
+    const upcoming = state.concepts
+      .filter(c => c.srs?.state === "review" && c.srs.due > end && c.srs.due <= horizon
+        && isEligible(ix, c) && !inPlan.has(c.id) && !askedToday.has(c.id))
+      .sort((a, b) => a.srs.due - b.srs.due);
+    for (const c of upcoming) {
+      if (fill <= 0) break;
+      const item = pickItem(ix, c, { exclude });
+      if (!item) continue;
+      early.push({ itemId: item.id, conceptId: c.id, courseId: c.courseId, kind: "review", early: true });
+      inPlan.add(c.id);
+      fill--;
+    }
+  }
+
+  // ── 4. Interleave ──────────────────────────────────────────────────────────
+  const tasks = interleave([...reviews, ...early], newPicks);
   const byCourse = {};
   for (const t of tasks) {
-    const b = (byCourse[t.courseId] ||= { courseId: t.courseId, count: 0, estSec: 0, fresh: 0 });
-    b.count++; b.estSec += t.estSec;
+    const b = (byCourse[t.courseId] ||= { courseId: t.courseId, count: 0, fresh: 0 });
+    b.count++;
     if (t.kind === "new") b.fresh++;
   }
 
   return {
-    today, tasks, estSec, budgetSec, spentSec, deferred, laterToday, throttle,
-    newCount: newPicks.length,
-    dueConcepts: scored.length,
+    today, tasks, perDay, goal, done, deferred, throttle,
+    newCount: newPicks.length, early: early.length, short: tasks.length < left,
     byCourse: Object.values(byCourse).sort((a, b) => b.count - a.count),
   };
 }
@@ -261,8 +254,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
  */
 export function practiceTasks(state, { conceptId, sectionId, courseId, limit = 15, now = Date.now() }) {
   const ix = index(state);
-  const est = abilityTimes(state);
-  const task = (it, c) => ({ itemId: it.id, conceptId: c.id, courseId: c.courseId, kind: !c.srs || c.srs.state === "new" ? "new" : "practice", estSec: est[it.ability] ?? 60 });
+  const task = (it, c) => ({ itemId: it.id, conceptId: c.id, courseId: c.courseId, kind: !c.srs || c.srs.state === "new" ? "new" : "practice" });
   if (conceptId) {
     const c = ix.concept[conceptId];
     return c ? (ix.itemsByConcept[conceptId] || []).filter(it => !it.flag).map(it => task(it, c)) : [];

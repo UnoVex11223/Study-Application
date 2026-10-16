@@ -53,7 +53,7 @@ test("typed-in start pages become page ranges; estimates scale with pages", () =
 // ── Locked chapters ────────────────────────────────────────────────────────
 function lockedWorld() {
   const s = emptyState();
-  s.settings.dailyMinutes = 60;
+  s.settings.dailyQuestions = 40;
   const course = makeCourse({ name: "Book" });
   const read = makeSection({ courseId: course.id, title: "Chapter 1", order: 0 });
   const unread = makeSection({ courseId: course.id, title: "Chapter 2", order: 1, locked: true });

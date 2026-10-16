@@ -7,8 +7,8 @@ import { useStore } from "../state/store.jsx";
 import { Figures, Figure, Spark } from "../ui/ui.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import { isEvidence, conceptMastery } from "../lib/mastery.js";
-import { forecastLoad } from "../lib/planner.js";
-import { dayKey, addDays, keyToDate, formatMinutes } from "../lib/time.js";
+import { forecastLoad, questionsPerDay } from "../lib/planner.js";
+import { dayKey, addDays, keyToDate } from "../lib/time.js";
 import { lastDays, perDay, milestones, runningTotal } from "../lib/history.js";
 
 const DAY = 864e5;
@@ -54,27 +54,27 @@ function Activity({ counts, today }) {
   );
 }
 
-/** Review time scheduled for each of the next 14 days, against the daily budget. */
+/** Reviews scheduled for each of the next 14 days, against your questions per day. */
 function Forecast({ state, now }) {
-  const { sec } = forecastLoad(state, { now, days: 14 });
-  const budget = state.settings.dailyMinutes * 60;
-  const max = Math.max(budget * 1.3, ...sec, 1);
+  const { count } = forecastLoad(state, { now, days: 14 });
+  const perDay = questionsPerDay(state.settings);
+  const max = Math.max(perDay * 1.3, ...count, 1);
   return (
     <div className="forecast2">
       <div className="forecast2-plot">
-        <div className="forecast2-budget" style={{ bottom: `${(budget / max) * 100}%` }}><span>{state.settings.dailyMinutes} min</span></div>
-        {sec.map((s, i) => {
+        <div className="forecast2-budget" style={{ bottom: `${(perDay / max) * 100}%` }}><span>{perDay} a day</span></div>
+        {count.map((n, i) => {
           const d = new Date(now + i * DAY);
           return (
             <div key={i} className={`forecast2-col${i === 0 ? " today" : ""}`}
-              title={`${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}: about ${formatMinutes(s)} of reviews`}>
-              <div className={`forecast2-bar${s > budget ? " over" : ""}`} style={{ height: `${Math.max(1.5, (s / max) * 100)}%`, "--i": i }}/>
+              title={`${d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}: ${n} review${n === 1 ? "" : "s"} due`}>
+              <div className={`forecast2-bar${n > perDay ? " over" : ""}`} style={{ height: `${Math.max(1.5, (n / max) * 100)}%`, "--i": i }}/>
             </div>
           );
         })}
       </div>
       <div className="forecast2-labels">
-        {sec.map((_, i) => {
+        {count.map((_, i) => {
           const d = new Date(now + i * DAY);
           return (
             <div key={i} className={`forecast2-label${i === 0 ? " today" : ""}`}>
@@ -103,7 +103,6 @@ export default function Progress() {
 
     const weekAgo = addDays(today, -6);
     const week = state.attempts.filter(a => a.day >= weekAgo);
-    const weekSec = week.reduce((s, a) => s + Math.min((a.ms || 0) / 1000, 300), 0);
 
     // Delayed recall: answers to questions last seen a week or more earlier.
     const lastSeen = {};
@@ -127,7 +126,7 @@ export default function Progress() {
     const masteredByDay = runningTotal(milestones(state, active, now).mastered, lastDays(today, 30));
     const yearAnswers = state.attempts.filter(a => a.ts >= now - 365 * DAY).length;
 
-    return { counts, streak, week, weekSec, delayedN, delayedOk, mastered, started, perDayAnswers, masteredByDay, yearAnswers };
+    return { counts, streak, week, delayedN, delayedOk, mastered, started, perDayAnswers, masteredByDay, yearAnswers };
   }, [state, today, now]);
 
   return (
@@ -137,7 +136,7 @@ export default function Progress() {
       <Figures>
         <Figure value={data.streak} label="day streak"
           spark={<Spark kind="dots" values={data.perDayAnswers} width={96} height={12} label="Days studied in the last two weeks"/>}/>
-        <Figure value={data.week.length} label={`answers this week, ${formatMinutes(data.weekSec)}`}
+        <Figure value={data.week.length} label="answers this week"
           spark={<Spark kind="bars" values={data.perDayAnswers} width={70} label="Answers per day, last two weeks"/>}/>
         <Figure value={data.delayedN ? pct(data.delayedOk / data.delayedN) : "–"} label="recalled after a week or more"/>
         <Figure value={data.mastered} of={data.started} label="started concepts mastered"

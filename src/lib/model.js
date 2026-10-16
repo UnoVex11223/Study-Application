@@ -48,7 +48,7 @@ export const COURSE_COLORS = ["#6F7FD4", "#5BA68A", "#C9A061", "#A286CC", "#D08A
 
 export const DEFAULT_SETTINGS = {
   batchImports: true, // book imports write questions through the Batch API (half price, slower)
-  dailyMinutes: 20,
+  dailyQuestions: 20, // the same number of questions every day
   maxNewPerDay: 6,
   rolloverHour: 4,
   retention: 0.9,
@@ -65,7 +65,7 @@ export function emptyState() {
     version: SCHEMA_VERSION,
     courses: [], sections: [], concepts: [], items: [], edges: [], attempts: [],
     settings: { ...DEFAULT_SETTINGS },
-    days: {}, // per study day: { extraSec }
+    days: {}, // per study day: { extra } (questions added after finishing the day's)
     bookJobs: [], // whole-book imports in progress (see state/bookImport.jsx)
     notes: [], // your own notes, raw (see lib/notes.js); what they became lives in the Notes space
     shelf: [], // books and courses on your shelf, with covers, notes and recalls (see lib/shelf.js)
@@ -90,6 +90,11 @@ export function normalizeState(s) {
   const out = { ...base, ...s, settings: { ...base.settings, ...(s?.settings || {}) } };
   // The monochrome redesign defaults to the black theme once; later choices stick.
   if (s?.settings && s.settings.themeVersion !== 2) out.settings = { ...out.settings, theme: "dark", themeVersion: 2 };
+  // A day used to be a time budget; it's now a number of questions (about one a minute).
+  if (s?.settings && s.settings.dailyQuestions == null && s.settings.dailyMinutes != null) {
+    out.settings = { ...out.settings, dailyQuestions: Math.min(60, Math.max(5, Math.round(s.settings.dailyMinutes / 5) * 5)) };
+  }
+  if ("dailyMinutes" in out.settings) { const { dailyMinutes, ...rest } = out.settings; out.settings = rest; } // eslint-disable-line no-unused-vars
   for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes", "shelf"]) {
     if (!Array.isArray(out[k])) out[k] = [];
   }

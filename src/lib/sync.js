@@ -99,7 +99,7 @@ export function mergeStates(local, others) {
   merged.settings = settingsFrom.settings;
   merged.settingsUpdatedAt = settingsFrom.settingsUpdatedAt || 0;
   const days = {};
-  for (const s of all) for (const [d, v] of Object.entries(s.days || {})) days[d] = { ...v, extraSec: Math.max(days[d]?.extraSec || 0, v?.extraSec || 0) };
+  for (const s of all) for (const [d, v] of Object.entries(s.days || {})) days[d] = { ...v, extra: Math.max(days[d]?.extra || 0, v?.extra || 0) };
   merged.days = days;
   merged.version = Math.max(...all.map(s => s.version || 0));
 
