@@ -796,7 +796,7 @@ ipcMain.handle("book:delete", (_e, bookId) => {
 // follow the app's theme (window:chrome).
 const TITLEBAR_H = 40;
 const IS_MAC = process.platform === "darwin";
-const THEMES = { dark: { color: "#090A0B", symbolColor: "#A1A2A8" }, light: { color: "#F3EEE4", symbolColor: "#5B5448" } };
+const THEMES = { dark: { color: "#1A1A22", symbolColor: "#BCB8A2" }, light: { color: "#E5DDB0", symbolColor: "#545464" } }; // Kanagawa Wave and Lotus, as the title bar (--chrome)
 
 // Match the app's theme so the window doesn't flash the wrong color on launch.
 function themeColors() {

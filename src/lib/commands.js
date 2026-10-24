@@ -49,7 +49,7 @@ export function commandEntries(state, { plan = null, now = Date.now(), syncing =
   add({ kind: "action", id: "a:year", title: `${year} on your shelf`, icon: "shelf", to: { view: "shelf", params: { year, at } } });
   add({ kind: "action", id: "a:shelf", title: "Add to shelf", icon: "shelf", to: { view: "shelf", params: { add: at } }, suggest: true });
   const paper = state.settings.theme === "light";
-  add({ kind: "action", id: "a:theme", title: paper ? "Switch to the black theme" : "Switch to the paper theme", icon: paper ? "moon" : "sun", action: "theme" });
+  add({ kind: "action", id: "a:theme", title: paper ? "Switch to the dark theme" : "Switch to the light theme", icon: paper ? "moon" : "sun", action: "theme" });
   add({ kind: "action", id: "a:sounds", title: state.settings.sounds ? "Turn sounds off" : "Turn sounds on", icon: state.settings.sounds ? "mute" : "volume", action: "sounds" });
   if (syncing) add({ kind: "action", id: "a:sync", title: "Sync now", icon: "undo", action: "sync" });
 

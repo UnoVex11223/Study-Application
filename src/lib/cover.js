@@ -96,15 +96,16 @@ export function stripColor(px, w, box, from = 0, to = 0.08) {
   return mean(px, idx).map(Math.round);
 }
 
-// Cloth for books without a picture: dark, muted, and one cream.
+// Cloth for books without a picture: the deep tones of the Kanagawa palette
+// (the colour scheme the app is drawn in), and one paper-white.
 export const CLOTH = [
-  { bg: "#1C1E23", ink: "#E8E6E1" }, // graphite
-  { bg: "#3B2124", ink: "#EFE2D6" }, // oxblood
-  { bg: "#1E2B25", ink: "#E4E8DC" }, // forest
-  { bg: "#1D2535", ink: "#E2E6EF" }, // navy
-  { bg: "#30291F", ink: "#EDE3D1" }, // umber
-  { bg: "#E6E0D2", ink: "#24221E" }, // cream
-  { bg: "#2B2E35", ink: "#E7E8EB" }, // slate
+  { bg: "#2A2A37", ink: "#DCD7BA" }, // sumi ink
+  { bg: "#43242B", ink: "#E8D9C8" }, // winter red
+  { bg: "#2B3328", ink: "#DCD7BA" }, // winter green
+  { bg: "#223249", ink: "#DCD7BA" }, // wave blue
+  { bg: "#49443C", ink: "#E6DDC4" }, // winter yellow
+  { bg: "#DCD7BA", ink: "#1F1F28" }, // fuji white
+  { bg: "#2D4F67", ink: "#E2E4DA" }, // deep wave
 ];
 
 const hash = (s) => {

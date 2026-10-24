@@ -10,6 +10,7 @@ import { gradeWithAI, rubricFor } from "../lib/ai.js";
 import { previewIntervals, RATING_LABEL } from "../lib/fsrs.js";
 import { FLAG_REASONS } from "../lib/quality.js";
 import { play } from "../ui/sound.js";
+import { courseInk } from "../lib/model.js";
 
 const KIND_LABEL = {
   new: "New concept",
@@ -116,7 +117,7 @@ export default function TaskView({ task, item, concept, section, course, aiReady
       <article className="q-card">
         <div className="q-head">
           <span className="q-ability">{abilityLabel(item.ability)}</span>
-          <span className="dot" style={{ background: course?.color }}/>
+          <span className="dot" style={{ background: courseInk(course?.color) }}/>
           <span className="q-context grow">{course?.name}{section ? ` / ${section.title}` : ""}</span>
           <button className={`q-flag${reporting ? " on" : ""}`} onClick={() => setReporting(r => !r)} title="Report this question" aria-label="Report this question" aria-expanded={reporting}>
             <Icon name="flag" size={15}/>

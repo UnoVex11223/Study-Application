@@ -3,7 +3,7 @@ import { useStore } from "../state/store.jsx";
 import { Bar, Modal } from "../ui/ui.jsx";
 import { useNav, pct } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
-import { makeCourse, COURSE_STATUS, COURSE_COLORS } from "../lib/model.js";
+import { makeCourse, COURSE_STATUS, COURSE_COLORS, courseInk } from "../lib/model.js";
 import { courseMastery } from "../lib/mastery.js";
 
 export function CourseForm({ course, onSave, onClose }) {
@@ -26,7 +26,7 @@ export function CourseForm({ course, onSave, onClose }) {
         <div className="row">
           {COURSE_COLORS.map(c => (
             <button key={c} type="button" aria-label={`Color ${c}`} onClick={() => setColor(c)}
-              style={{ width: 24, height: 24, borderRadius: 6, background: c, border: 0, cursor: "pointer", boxShadow: (color ?? course?.color) === c ? "0 0 0 2px var(--surface), 0 0 0 4px var(--ink)" : "none" }}/>
+              style={{ width: 26, height: 26, borderRadius: 7, background: courseInk(c), border: 0, cursor: "pointer", boxShadow: (color ?? course?.color) === c ? "0 0 0 2px var(--surface), 0 0 0 4px var(--ink)" : "none" }}/>
           ))}
         </div>
       </div>
@@ -76,7 +76,7 @@ export default function Courses() {
             const m = courseMastery(state, c.id, now);
             return (
               <button key={c.id} className={`course-row${c.status === "paused" ? " paused" : ""}`} onClick={() => nav.go("course", { courseId: c.id })}>
-                <span className="course-swatch" style={{ background: c.color }}/>
+                <span className="course-swatch" style={{ background: courseInk(c.color) }}/>
                 <div style={{ minWidth: 0 }}>
                   <div className="course-name">{c.name}</div>
                   <div className="section-stats">

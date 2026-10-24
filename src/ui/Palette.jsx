@@ -12,6 +12,7 @@ import { stillMotion } from "./motion.js";
 import { play } from "./sound.js";
 import { commandEntries, groupResults } from "../lib/commands.js";
 import { rank, highlight } from "../lib/search.js";
+import { courseInk } from "../lib/model.js";
 
 function Title({ text, hits }) {
   return <>{highlight(text, hits).map((r, i) => (r.hit ? <mark key={i}>{r.text}</mark> : <span key={i}>{r.text}</span>))}</>;
@@ -93,7 +94,7 @@ export default function Palette({ plan, onClose }) {
                   <div key={r.id} id={`pal-${r.id}`} role="option" aria-selected={on} className={`palette-row${on ? " on" : ""}`}
                     onMouseMove={() => { if (!on) setSel(i); }} onClick={() => run(r)}>
                     <span className="palette-icon">
-                      {r.icon ? <Icon name={r.icon} size={15}/> : <span className="palette-dot" style={{ background: r.color }}/>}
+                      {r.icon ? <Icon name={r.icon} size={15}/> : <span className="palette-dot" style={{ background: courseInk(r.color) }}/>}
                     </span>
                     <span className="palette-text">
                       <span className="palette-title"><Title text={r.title} hits={r.hits}/></span>

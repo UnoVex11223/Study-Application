@@ -4,7 +4,7 @@
   "description": "Tenax: a study app for long-term memory, with a shelf for your books and courses",
   "author": "UnoVex11223",
   "private": true,
-  "version": "2.13.0",
+  "version": "2.14.0",
   "type": "module",
   "main": "electron.cjs",
   "scripts": {
@@ -18,9 +18,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
-    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
-    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource/shippori-mincho": "^5.3.0",
     "d3-force": "^3.0.0",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",

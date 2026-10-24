@@ -6,7 +6,7 @@ import Icon from "../ui/Icon.jsx";
 import { getApiKeySet, setApiKey, flush } from "../lib/persist.js";
 import { aiBridge } from "../lib/ai.js";
 import { play } from "../ui/sound.js";
-import { questionsPerDay } from "../lib/planner.js";
+import { questionsPerDay, MIX } from "../lib/planner.js";
 
 /** One group of settings: its name on the left, the controls on the right, a hairline between groups. */
 function Section({ title, children }) {
@@ -81,6 +81,19 @@ export default function Settings() {
           <label htmlFor="st-per-day" className="field-row"><span>Questions per day</span><span className="num">{questionsPerDay(s)}</span></label>
           <input id="st-per-day" type="range" min={5} max={60} step={5} value={questionsPerDay(s)} onChange={e => set({ dailyQuestions: Number(e.target.value) })}/>
           <span className="help">The same number every day. Reviews come first; new concepts and upcoming reviews fill the rest.</span>
+        </div>
+        <div className="field">
+          <span className="label">Daily mix</span>
+          <div className="seg" style={{ alignSelf: "flex-start" }}>
+            {Object.entries(MIX).map(([v, m]) => (
+              <button key={v} className={(s.mix || "even") === v ? "on" : ""} onClick={() => set({ mix: v })}>{m.label}</button>
+            ))}
+          </div>
+          <span className="help">
+            {(s.mix || "even") === "even"
+              ? "Every course you're studying gets its turn each day. A review that's starting to slip always comes first, wherever it is."
+              : "The most urgent reviews come first, wherever they are, so a course with more material can fill the day."}
+          </span>
         </div>
         <div className="field">
           <label htmlFor="st-new" className="field-row"><span>New concepts per day, at most</span><span className="num">{s.maxNewPerDay}</span></label>
@@ -168,7 +181,7 @@ export default function Settings() {
         <div className="field">
           <span className="label">Theme</span>
           <div className="seg" style={{ alignSelf: "flex-start" }}>
-            {[["dark", "Black"], ["light", "Paper"], ["system", "Match system"]].map(([v, l]) => (
+            {[["dark", "Dark"], ["light", "Light"], ["system", "Match system"]].map(([v, l]) => (
               <button key={v} className={s.theme === v ? "on" : ""} onClick={() => set({ theme: v })}>{l}</button>
             ))}
           </div>

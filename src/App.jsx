@@ -76,7 +76,7 @@ function useTheme(theme) {
     else root.dataset.theme = theme;
     const paint = () => {
       const css = getComputedStyle(root);
-      window.tenax?.window?.chrome?.({ color: css.getPropertyValue("--bg").trim(), symbolColor: css.getPropertyValue("--ink-2").trim() });
+      window.tenax?.window?.chrome?.({ color: css.getPropertyValue("--chrome").trim(), symbolColor: css.getPropertyValue("--ink-2").trim() });
     };
     paint();
     const media = window.matchMedia?.("(prefers-color-scheme: light)");

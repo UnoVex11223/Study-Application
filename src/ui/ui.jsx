@@ -126,7 +126,7 @@ export function Notice({ tone, icon = "info", children }) {
 
 /** The Tenax mark: a lowercase t whose base is an anchor's arms (tenax: "holding fast"). Colors follow the theme. */
 export function Logo({ size = 22 }) {
-  const stroke = { fill: "none", stroke: "var(--bg)", strokeWidth: 112, strokeLinecap: "round", strokeLinejoin: "round" };
+  const stroke = { fill: "none", stroke: "var(--chrome)", strokeWidth: 112, strokeLinecap: "round", strokeLinejoin: "round" };
   return (
     <svg className="brand-mark" width={size} height={size} viewBox="0 0 1024 1024" aria-hidden="true">
       <rect width="1024" height="1024" rx="236" fill="var(--ink)"/>

@@ -187,12 +187,12 @@ const STARS_FS = /* glsl */`
 
 // ── The sky behind everything, painted once onto the inside of a sphere ────
 
-/** A faint, grey Milky Way: a band of unresolved stars with dust down the middle, like a long exposure. */
+/** A faint Milky Way: a band of unresolved stars with dust down the middle, like a long exposure, on Kanagawa's ink-blue night. */
 function paintDome(w = 2048, h = 1024) {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   const g = c.getContext("2d");
-  g.fillStyle = "#000";
+  g.fillStyle = "#0E0E15";
   g.fillRect(0, 0, w, h);
   let seed = 4021;
   const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -207,7 +207,7 @@ function paintDome(w = 2048, h = 1024) {
   };
   for (let i = 0; i < 220; i++) {
     const x = rand() * w, y = bandY(x) + gauss() * h * 0.06;
-    blob(x, y, h * (0.05 + rand() * 0.1), [150, 150, 160], 0.03 + rand() * 0.025);
+    blob(x, y, h * (0.05 + rand() * 0.1), [148, 152, 178], 0.03 + rand() * 0.025);
   }
   // Unresolved stars along the band: a fine grain rather than clouds.
   for (let i = 0; i < 26000; i++) {
@@ -971,7 +971,7 @@ export class Sky {
     }
 
     // How many links each line between books stands for, at its middle.
-    g.font = `400 10.5px ${this.mono}`;
+    g.font = `500 11px ${this.font}`;
     for (const br of this.bridges) {
       if ((br.fade ?? 1) < 0.05) continue;
       v.copy(br.mid).project(this.camera);

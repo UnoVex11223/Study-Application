@@ -56,12 +56,11 @@ function useSpineType(e, h, w) {
   const author = e.category === "reading" && e.author ? lastName(e.author) : "";
   return useMemo(() => {
     const serif = measureWith(`500 {size} ${cssVar("--serif", "serif")}`, 0.01);
-    const mono = measureWith(`500 {size} ${cssVar("--mono", "monospace")}`, 0.06);
+    const sans = measureWith(`700 {size} ${cssVar("--sans", "sans-serif")}`, 0.03);
     let authorSize = 0, authorLen = 0;
     if (author) {
-      const name = author.toUpperCase();
-      authorSize = Math.max(6, Math.min(8.5, (8.5 * 46) / Math.max(1, mono(name, 8.5))));
-      authorLen = mono(name, authorSize);
+      authorSize = Math.max(6.5, Math.min(9.5, (9.5 * 46) / Math.max(1, sans(author, 9.5))));
+      authorLen = sans(author, authorSize);
     }
     const length = h - 15 - 12 - (author ? authorLen + 10 : 0) - 2;
     const fit = fitTitle(e.title, { length, across: w - 10, max: 13, min: 7.5, measure: serif });
@@ -138,8 +137,8 @@ function Slab({ entry: e, index, onOpen }) {
   const author = e.category === "reading" && e.author ? lastName(e.author) : "";
   const type = useMemo(() => {
     const serif = measureWith(`500 {size} ${cssVar("--serif", "serif")}`);
-    const mono = measureWith(`500 {size} ${cssVar("--mono", "monospace")}`, 0.06);
-    const room = 420 * share - 28 - 8 - (author ? mono(author.toUpperCase(), 9.5) + 18 : 0);
+    const sans = measureWith(`700 {size} ${cssVar("--sans", "sans-serif")}`, 0.03);
+    const room = 420 * share - 28 - 8 - (author ? sans(author, 10.5) + 18 : 0);
     return fitTitle(e.title, { length: room, across: t - 6, max: Math.min(14, t * 0.62), min: 8, leading: 1.08, measure: serif });
   }, [e.title, author, share, t, fonts]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

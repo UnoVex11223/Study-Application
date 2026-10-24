@@ -12,7 +12,7 @@ import { dueForRecall } from "../lib/recall.js";
 import { buildPlan } from "../lib/planner.js";
 import { useNav } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
-import { index } from "../lib/model.js";
+import { index, courseInk } from "../lib/model.js";
 import FixPanel from "./FixPanel.jsx";
 
 const EXTRA = 5; // "5 more" after the day's questions are done
@@ -21,7 +21,8 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** One short line about the day, only when there's something worth knowing. */
 function planNote(plan) {
   if (plan.short && plan.tasks.length) return `That's everything due or ready to start right now. Add material to fill your ${plan.perDay}.`;
-  if (plan.deferred) return `${plural(plan.deferred, "more review is", "more reviews are")} due; ${plan.deferred === 1 ? "it comes" : "they come"} first tomorrow.`;
+  if (plan.slipping) return `${plural(plan.slipping, "review that's starting to slip", "reviews that are starting to slip")} didn't fit; ${plan.slipping === 1 ? "it comes" : "they come"} first tomorrow.`;
+  if (plan.deferred) return `${plural(plan.deferred, "review you still know well waits", "reviews you still know well wait")} a day, so every course gets its turn.`;
   if (plan.throttle === "forecast") return "No new concepts today: the week ahead is already full of reviews.";
   if (plan.throttle === "forecast-half") return "Fewer new concepts today: the week ahead is busy.";
   return "";
@@ -78,7 +79,7 @@ export default function Today({ plan }) {
   // One mark per question today: answered ones first, then the rest grouped by course.
   const marks = [
     ...Array.from({ length: plan.done }, () => null),
-    ...plan.byCourse.flatMap(b => Array.from({ length: b.count }, () => ix.course[b.courseId]?.color || "var(--ink-3)")),
+    ...plan.byCourse.flatMap(b => Array.from({ length: b.count }, () => courseInk(ix.course[b.courseId]?.color))),
   ];
   const note = planNote(plan);
 
@@ -114,7 +115,7 @@ export default function Today({ plan }) {
           <ul className="today-courses">
             {plan.byCourse.map(b => (
               <li key={b.courseId}>
-                <span className="dot" style={{ background: ix.course[b.courseId]?.color }}/>
+                <span className="dot" style={{ background: courseInk(ix.course[b.courseId]?.color) }}/>
                 <span className="grow ell">{ix.course[b.courseId]?.name}</span>
                 {b.fresh > 0 && <span className="today-new">{b.fresh} new</span>}
                 <span className="today-n">{b.count}</span>
@@ -140,7 +141,7 @@ export default function Today({ plan }) {
 
         {(note || finished) && (
           <p className="today-note">
-            {!finished ? note : plan.deferred ? `${plural(plan.deferred, "review is", "reviews are")} still due; ${plan.deferred === 1 ? "it comes" : "they come"} first tomorrow.` : `Your next ${plan.perDay} are ready tomorrow.`}
+            {!finished ? note : plan.deferred ? `${plural(plan.deferred, "review is", "reviews are")} still due; ${plan.deferred === 1 ? "it's" : "they're"} in tomorrow's ${plan.perDay}.` : `Your next ${plan.perDay} are ready tomorrow.`}
           </p>
         )}
       </section>

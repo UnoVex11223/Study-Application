@@ -43,13 +43,24 @@ export const COURSE_STATUS = {
   paused:   { label: "Paused",      blurb: "Hidden from daily sessions" },
 };
 
-// Muted, similar-lightness hues so no course shouts over another.
-export const COURSE_COLORS = ["#6F7FD4", "#5BA68A", "#C9A061", "#A286CC", "#D08A7E", "#5EA2BF", "#C087A8", "#8A93A6"];
+// The Kanagawa palette's pigments (rebelot/kanagawa.nvim, after Hokusai):
+// crystal blue, spring green, boat yellow, oni violet, surimi orange, spring
+// blue, sakura pink, spring violet. Stored as the dark theme's colour; on the
+// page, courseInk() swaps in the light theme's deeper version.
+export const COURSE_COLORS = ["#7E9CD8", "#98BB6C", "#C0A36E", "#957FB8", "#FFA066", "#7FB4CA", "#D27E99", "#9CABCA"];
+const OLD_COURSE_COLORS = ["#6F7FD4", "#5BA68A", "#C9A061", "#A286CC", "#D08A7E", "#5EA2BF", "#C087A8", "#8A93A6"];
+
+/** A course's colour on the page, following the theme (a CSS colour). */
+export const courseInk = (color) => {
+  const k = COURSE_COLORS.indexOf(String(color || "").toUpperCase());
+  return k >= 0 ? `var(--k${k})` : color || "var(--ink-3)";
+};
 
 export const DEFAULT_SETTINGS = {
   batchImports: true, // book imports write questions through the Batch API (half price, slower)
   dailyQuestions: 20, // the same number of questions every day
   maxNewPerDay: 6,
+  mix: "even", // the day is shared out between courses ("due": the most urgent first, wherever they are)
   rolloverHour: 4,
   retention: 0.9,
   theme: "dark",
@@ -93,6 +104,13 @@ export function normalizeState(s) {
   // A day used to be a time budget; it's now a number of questions (about one a minute).
   if (s?.settings && s.settings.dailyQuestions == null && s.settings.dailyMinutes != null) {
     out.settings = { ...out.settings, dailyQuestions: Math.min(60, Math.max(5, Math.round(s.settings.dailyMinutes / 5) * 5)) };
+  }
+  // The Kanagawa redesign: courses in the old colours move to the matching new pigment.
+  if (Array.isArray(out.courses)) {
+    out.courses = out.courses.map(c => {
+      const k = OLD_COURSE_COLORS.indexOf(String(c?.color || "").toUpperCase());
+      return k >= 0 ? { ...c, color: COURSE_COLORS[k] } : c;
+    });
   }
   if ("dailyMinutes" in out.settings) { const { dailyMinutes, ...rest } = out.settings; out.settings = rest; } // eslint-disable-line no-unused-vars
   for (const k of ["courses", "sections", "concepts", "items", "edges", "attempts", "bookJobs", "notes", "shelf"]) {
