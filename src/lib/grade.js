@@ -119,9 +119,17 @@ export const VERDICT = {
   ungraded:  { label: "Ungraded",     tone: "muted" },
 };
 
-/** Suggested FSRS rating. Help (hints, reveals) caps the rating at Hard. */
-export function suggestedRating(verdict, { aided = false } = {}) {
-  if (verdict === "correct") return aided ? RATING.HARD : RATING.GOOD;
+/**
+ * Suggested FSRS rating. Help (hints, reveals) caps the rating at Hard, and so
+ * does a right answer that took much longer than usual (it isn't fluent yet).
+ * A miss you put down to a slip, when you answered without help, is Hard
+ * rather than Again: the memory is there. A wrong belief or something never
+ * really learned is Again even when part of the answer was right.
+ */
+export function suggestedRating(verdict, { aided = false, slow = false, reason = null } = {}) {
+  if (verdict === "correct") return aided || slow ? RATING.HARD : RATING.GOOD;
+  if (reason === "slip" && !aided) return RATING.HARD;
+  if (reason === "misconception" || reason === "unlearned") return RATING.AGAIN;
   if (verdict === "partial") return RATING.HARD;
   return RATING.AGAIN;
 }

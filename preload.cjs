@@ -15,9 +15,15 @@ contextBridge.exposeInMainWorld("tenax", {
     link: (payload) => ipcRenderer.invoke("ai:link", payload),
     teachback: (payload) => ipcRenderer.invoke("ai:teachback", payload),
     notes: (payload) => ipcRenderer.invoke("ai:notes", payload),
+    probe: (payload) => ipcRenderer.invoke("ai:probe", payload),
+    variant: (payload) => ipcRenderer.invoke("ai:variant", payload),
+    tests: (payload) => ipcRenderer.invoke("ai:tests", payload),
     batchCreate: (payload) => ipcRenderer.invoke("ai:batch-create", payload),
     batchStatus: (batchId) => ipcRenderer.invoke("ai:batch-status", batchId),
     batchResults: (batchId) => ipcRenderer.invoke("ai:batch-results", batchId),
+  },
+  code: {
+    run: (payload) => ipcRenderer.invoke("code:run", payload),
   },
   pdf: {
     outline: (data) => ipcRenderer.invoke("pdf:outline", data),

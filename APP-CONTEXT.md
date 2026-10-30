@@ -72,7 +72,7 @@ After import, quality keeps being enforced:
 
 ## What the AI costs, and how it's kept down
 
-- Heavy work (finding concepts, writing and reviewing questions, linking, notes) uses Claude Opus; grading uses Claude Sonnet, which is fast and a fraction of the price.
+- Heavy work (finding concepts, writing and reviewing questions, linking, notes, writing tests for code questions) uses Claude Opus; grading, Go deeper and fresh versions use Claude Sonnet, which is fast and a fraction of the price.
 - System prompts are cached, so the instructions repeated across an import or a study session are billed at a tenth after the first call. The long lists sent with linking and notes (concepts you already know) are cached too.
 - The reviewer only writes out revisions for questions it actually revises, not empty fields for every question.
 - Linking only compares new concepts with your *other* courses (within a course, prerequisites come from extraction), and is skipped when there's nothing else to link to.
@@ -99,6 +99,28 @@ If you miss a question whose prerequisite is shaky, the session adds a quick **f
 - **Recall chance now**: FSRS's estimate of remembering the concept today.
 
 **Progress** keeps to three things: four figures (day streak, answers this week, the share of answers recalled after a week or more, and how many started concepts are mastered), **Next two weeks** (how many reviews are due each day, against your questions per day, today highlighted) and **Activity** (a year of study days, one square per day, darker for more answers). How each course is going is on its own page.
+
+## Training harder
+
+A handful of things push practice past plain recall. Most of them work in the background; what you see is one toggle, a "Go deeper" link and, on a miss, an optional row of reasons.
+
+- **Implicit review.** A right, unaided answer (Good or Easy) on a concept also partly reviews the concepts it builds on (its confirmed prerequisites), the way Math Academy's "fractional implicit repetition" does. Each prerequisite's memory moves part of the way towards what a real review would give, more when it was close to due and almost nothing when it was reviewed recently; its due date only ever moves later, it isn't logged as an answer, and it happens at most once a day. So practising advanced ideas keeps the basics under them warm without asking them separately. The session summary lists what was reviewed along the way.
+- **"I'm sure."** Before checking, you can say you're sure (the toggle beside Check answer, or Ctrl+Shift+Enter). A miss you were sure about is flagged ("You were sure"), comes back a little sooner in the session, and is listed in the summary: correcting a mistake you were confident about is when the correction sticks best (the hypercorrection effect).
+- **Pace.** Tenax times how long you take to answer (before grading). Once it has eight right answers of a kind, a right answer that took more than twice your usual time (and at least 30 seconds more) is marked **Slow** and Hard is suggested instead of Good: it isn't fluent yet. Before that, a generous allowance per question type is used.
+- **Why you missed it** (optional, on any miss): *Forgot*, *Mixed it up* (a wrong belief; preselected when the grader found a misconception), *Slip* (you knew it: Hard is suggested instead of Again) and *Never really learned it* (shows the concept's summary and says to go back to the source: reviewing can't fix something you never learned). Wrong beliefs and things never learned are Again even when part of the answer was right. The summary counts the reasons.
+- **Go deeper** (on a right or partly right answer): Claude asks follow-ups like an interviewer, one level deeper each time (why it works, what if, an edge case, what it's built on), up to four. When an answer breaks, you see the correct idea and the gap, which **Save to Notes** puts in your Notes inbox; processing it turns it into a concept or extra questions like any note. It doesn't change your rating.
+- **Fresh versions** (Settings → Fresh versions, on by default). An apply or distinguish question you've answered before comes back with a new example (new values, a new snippet, a different pair), so you practise the idea rather than recall the old answer. Versions are written a few questions ahead by the faster model and go through the same rule checks as any question; if one isn't ready in time, or fails the checks, the stored question is asked. A missed fresh version comes back unchanged in the same session. The flag on a fresh version offers **Use the original question** instead of reporting it.
+- **Pretests.** A section none of whose concepts you've started (a chapter you haven't read, or one you just added) has a **Pretest** button: up to five of its core ideas, one basic question each, before you study it. Trying first makes the material stick better afterwards, even when every answer is wrong (the pretesting effect). Nothing is logged or scheduled.
+- **Workload forecast.** While a course is Maintaining or Paused, its page says what Active would mean: about how many new concepts a day (its share of your daily cap) and how many of your daily questions it would take within a month, if you get most of them right.
+
+### Code questions
+
+A question can carry **tests** (Edit question → Add tests), in Python, C or JavaScript. Your answer and the tests are written to one file and run on your computer; the question is right when the program exits cleanly (a failing assert exits otherwise). The tests decide the verdict instead of the key points, and you see the output: the failing assert, a traceback or the compiler's errors.
+
+- **Write tests with Claude** drafts tests from the question and model answer, then runs them against the model answer; only tests the model answer passes should be relied on (Check against the model answer does the same for tests you write).
+- Python runs with whichever of `python3`, `python` or `py` is installed; C builds with `gcc`, `clang` or `cc`, or with `gcc` inside WSL on Windows when there's no compiler on Windows itself; JavaScript runs on Tenax's own Node.js. Every run is limited to 10 seconds, in a fresh temporary folder that's removed afterwards.
+- If the language isn't installed on a computer, the answer is graded against the key points instead and you're told why.
+- Code answers are typed in a monospace box where Tab indents. A code question never gets a fresh version.
 
 ## Teach back
 
@@ -238,12 +260,13 @@ This version starts from an empty library. The first time it runs, anything save
 
 ```
 electron.cjs      main process: storage bridge, Claude calls (structured outputs), PDF IPC, backups, updates, title bar
+code-runner.cjs   runs a code question's tests against an answer (Python, C, JavaScript; time-limited, temporary folder)
 covers.cjs        cover search and download from Open Library (main process, tested with a stubbed fetch)
 sync-folder.cjs   sync folder: this computer's file in, the others' files out
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, mastery, graph (incl. learning paths), orbits (map layout), timelapse, grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf (incl. the year), cover (shaping covers, spine colours), recall, sync (merging), search and commands (the palette), history (sparklines)
+src/lib/          pure logic, unit-tested: fsrs, planner, training (implicit review, pace, pretests, forecast), code, mastery, graph (incl. learning paths), orbits (map layout), timelapse, grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf (incl. the year), cover (shaping covers, spine colours), recall, sync (merging), search and commands (the palette), history (sparklines)
 src/state/        reducer (pure, tested; stamps edits for sync), store (persistence), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
-src/views/        Today, FixPanel, Session/TaskView, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, ShelfViews (spines, year), KnowledgeMap (picks SkyMap, the 3D map, or FlatMap), Progress, TeachBack, Settings
+src/views/        Today, FixPanel, Session/TaskView/GoDeeper, Courses, Course, ConceptPanel, FixQuestion, AddMaterial, ImportBook, Notes, Shelf, ShelfViews (spines, year), KnowledgeMap (picks SkyMap, the 3D map, or FlatMap), Progress, TeachBack, Settings
 src/ui/           motion (timings, view transitions), sound, Palette (Ctrl+K), Cover, sky3d (the 3D map engine), webgl, sky (the flat map's pictures), ui (shared pieces)
 tests/            node --test (logic, quality gate, reducer, main-process IPC with a stubbed API)
 ```

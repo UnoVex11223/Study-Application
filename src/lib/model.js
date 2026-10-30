@@ -66,6 +66,7 @@ export const DEFAULT_SETTINGS = {
   theme: "dark",
   themeVersion: 2,
   sounds: false, // soft sounds for a right answer, the shelf and the end of a session
+  freshVersions: true, // apply and distinguish questions you've answered before come back with a new example
 };
 
 let counter = 0;

@@ -8,6 +8,7 @@ import { LEECH_LAPSES, DISPUTE_LIMIT } from "../lib/quality.js";
 import { mergeStates } from "../lib/sync.js";
 import { nextRecall } from "../lib/recall.js";
 import { updateShelfItem } from "../lib/shelf.js";
+import { implicitCredit } from "../lib/training.js";
 
 const MAX_ATTEMPTS = 30000;
 
@@ -189,7 +190,12 @@ function apply(state, action) {
     }
 
     case "attempt": {
-      const { itemId, verdict, rating, aided = false, ms = 0, mode = "session", misconceptions = [], overridden = false, requeue = false, now } = action;
+      const {
+        itemId, verdict, rating, aided = false, ms = 0, mode = "session", misconceptions = [], overridden = false, requeue = false, now,
+        answerMs = 0, sure = false, slow = false, reason = null, variant = false, tests = null, probe = null,
+      } = action;
+      // Pretests are asked before you study the material: they never touch the schedule or the log.
+      if (mode === "pretest") return state;
       const ix = index(state);
       const item = ix.item[itemId];
       if (!item) return state;
@@ -198,13 +204,23 @@ function apply(state, action) {
       const srs = rating
         ? rate(concept.srs ?? newSrs(), rating, now, { retention: state.settings.retention, loadAt: makeLoadAt(state) })
         : concept.srs;
+      // A right answer that builds on other ideas partly reviews them too.
+      const credit = rating >= RATING.GOOD && verdict === "correct" && !aided ? implicitCredit(state, concept.id, now) : {};
       const attempt = {
         ts: now, day: dayKey(now, state.settings.rolloverHour),
         itemId, conceptId: item.conceptId, courseId: concept?.courseId ?? null, ability: item.ability,
         verdict, rating: rating ?? null, aided, mode, ms: Math.round(ms),
+        ...(answerMs > 0 ? { answerMs: Math.round(answerMs) } : {}), // time to your answer, before grading
         ...(misconceptions.length ? { misconceptions } : {}),
         ...(overridden ? { overridden: true } : {}),
         ...(requeue ? { requeue: true } : {}), // a missed question asked again in the same session
+        ...(sure ? { sure: true } : {}), // you said you were sure before seeing the answer
+        ...(slow ? { slow: true } : {}),
+        ...(reason ? { reason } : {}), // why you missed it (training.js MISS_REASONS)
+        ...(variant ? { variant: true } : {}), // asked as a fresh version of the question
+        ...(tests ? { tests } : {}), // "passed" | "failed": checked by running its tests
+        ...(probe ? { probe } : {}), // Go deeper: { depth, broke }
+        ...(Object.keys(credit).length ? { credited: Object.keys(credit) } : {}),
       };
       const attempts = state.attempts.length >= MAX_ATTEMPTS
         ? [...state.attempts.slice(-MAX_ATTEMPTS + 1), attempt]
@@ -220,14 +236,17 @@ function apply(state, action) {
         if (missDays >= LEECH_LAPSES) flag = { reason: "leech", at: now };
         else if (disputes >= DISPUTE_LIMIT) flag = { reason: "disputed", at: now };
       }
+      const changed = srs !== concept.srs || Object.keys(credit).length > 0;
       return {
         ...state,
-        concepts: srs === concept.srs ? state.concepts : state.concepts.map(c => (c.id === concept.id ? { ...c, srs } : c)),
+        concepts: !changed ? state.concepts : state.concepts.map(c => {
+          if (c.id === concept.id) return srs === concept.srs ? c : { ...c, srs };
+          return credit[c.id] ? { ...c, srs: credit[c.id] } : c;
+        }),
         items: flag === item.flag ? state.items : state.items.map(i => (i.id === itemId ? { ...i, flag } : i)),
         attempts,
       };
     }
-
     case "day/extra": {
       const day = dayKey(action.now, state.settings.rolloverHour);
       const cur = state.days?.[day] || {};

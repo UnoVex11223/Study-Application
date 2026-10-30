@@ -12,7 +12,8 @@ import ItemForm from "./ItemForm.jsx";
 import { CourseForm } from "./Courses.jsx";
 import { index, COURSE_STATUS, ABILITIES } from "../lib/model.js";
 import { courseMastery, sectionMastery, abilityBreakdown } from "../lib/mastery.js";
-import { practiceTasks } from "../lib/planner.js";
+import { practiceTasks, questionsPerDay } from "../lib/planner.js";
+import { activationForecast, pretestTasks, sectionStarted } from "../lib/training.js";
 import { aiBridge, roomForQuestions } from "../lib/ai.js";
 import { lastDays, milestones, runningTotal } from "../lib/history.js";
 import { dayKey } from "../lib/time.js";
@@ -167,6 +168,12 @@ export default function Course({ courseId }) {
     const tasks = practiceTasks(state, scope);
     if (tasks.length) nav.startSession({ tasks, mode: "practice", title });
   };
+  const pretest = (s) => {
+    const tasks = pretestTasks(state, s.id);
+    if (tasks.length) nav.startSession({ tasks, mode: "pretest", title: `Pretest: ${s.title}` });
+  };
+  // What Active would mean for your days, shown while the course isn't Active yet.
+  const forecast = course.status !== "active" ? activationForecast(state, courseId) : null;
   const abilityRows = Object.entries(abilities).filter(([, v]) => v.attempts > 0);
   const jobs = state.bookJobs.filter(j => j.courseId === courseId);
   const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i })).filter(x => x.c.include && x.c.status !== "done"));
@@ -190,6 +197,11 @@ export default function Course({ courseId }) {
             </div>
             <button className="btn btn-quiet btn-sm btn-icon" title="Edit course" aria-label="Edit course" onClick={() => setEditing(true)}><Icon name="edit" size={15}/></button>
           </div>
+          {forecast && (
+            <div className="small muted" style={{ marginTop: 8 }}>
+              If Active: about {Math.max(1, Math.round(forecast.newPerDay))} new concept{Math.round(forecast.newPerDay) === 1 ? "" : "s"} a day, and within a month it would take about {Math.max(1, Math.round(forecast.perDay))} of your {questionsPerDay(state.settings)} daily questions.
+            </div>
+          )}
         </div>
         <div className="row">
           <button className="btn" onClick={() => practice({ courseId }, course.name)} disabled={!m.introduced}><Icon name="play" size={12}/>Practice</button>
@@ -275,6 +287,10 @@ export default function Course({ courseId }) {
                             );
                           })}
                           <div className="row" style={{ padding: "8px 18px 4px 48px" }}>
+                            {!sectionStarted(state, s.id) && concepts.length > 0 && (
+                              <button className="btn btn-sm" title="Try its questions before you study it: attempting first makes the material stick better, even when you get them wrong. Nothing is scheduled."
+                                onClick={() => pretest(s)}><Icon name="target" size={13}/>Pretest</button>
+                            )}
                             {!s.locked && <>
                               <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play" size={11}/>Practice section</button>
                               <button className="btn btn-sm" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}><Icon name="pen" size={13}/>Teach it back</button>

@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useStore } from "../state/store.jsx";
-import { Modal, Notice } from "../ui/ui.jsx";
+import { Modal, Notice, Spinner } from "../ui/ui.jsx";
+import Icon from "../ui/Icon.jsx";
+import { aiBridge, writeTests } from "../lib/ai.js";
+import { CODE_LANGS, guessLang, runCode } from "../lib/code.js";
 import { lintQuestion } from "../lib/quality.js";
 import { index, makeConcept, makeItem, makeSection, ABILITIES, ABILITY_KEYS, IMPORTANCE } from "../lib/model.js";
 
@@ -25,6 +28,26 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
   const [accept, setAccept] = useState((item?.accept ?? []).join("\n"));
   const [misc, setMisc] = useState((item?.misconceptions ?? []).join("\n"));
   const [hint, setHint] = useState(item?.hint ?? "");
+  // Code questions: tests run against your answer instead of grading it against the key points.
+  const [showTests, setShowTests] = useState(Boolean(item?.tests?.code));
+  const [lang, setLang] = useState(item?.tests?.lang ?? guessLang(item?.answer) ?? "python");
+  const [tests, setTests] = useState(item?.tests?.code ?? "");
+  const [testState, setTestState] = useState(null); // { busy } | { passed, output } | { error }
+  const [testNote, setTestNote] = useState("");
+
+  // Tests are only trusted once the model answer passes them.
+  const checkTests = async (code = tests) => {
+    setTestState({ busy: "Running the tests against the model answer…" });
+    const r = await runCode({ lang, solution: answer, tests: code });
+    setTestState(r.ok ? { passed: r.passed, output: r.output, stage: r.stage, timedOut: r.timedOut } : { error: r.error });
+  };
+  const draftTests = async () => {
+    setTestState({ busy: "Writing tests…" }); setTestNote("");
+    const r = await writeTests({ lang, prompt, answer });
+    if (!r.ok) { setTestState({ error: r.error }); return; }
+    setTests(r.tests); setTestNote(r.notes);
+    await checkTests(r.tests);
+  };
 
   const conceptsHere = sectionId === "__new" ? [] : (ix.conceptsBySection[sectionId] || []);
   const valid = prompt.trim() && answer.trim()
@@ -43,6 +66,7 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
       points: lines(points).length ? lines(points) : [answer.trim()],
       accept: ability === "recall" ? lines(accept) : [],
       misconceptions: lines(misc), hint: hint.trim(),
+      tests: showTests && tests.trim() ? { lang, code: tests.replace(/\s+$/, "") } : null,
     };
     if (editing) { act("item/update", { id: item.id, patch: fields }); onClose(); return; }
 
@@ -131,6 +155,46 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
           <textarea id="if-hint" className="textarea" style={{ minHeight: 56 }} value={hint} onChange={e => setHint(e.target.value)}/>
         </div>
       </div>
+      {!showTests ? (
+        <button type="button" className="link small" style={{ alignSelf: "flex-start" }} onClick={() => setShowTests(true)}>
+          Add tests: check answers by running code
+        </button>
+      ) : (
+        <div className="field">
+          <div className="field-row">
+            <span className="label">Tests</span>
+            <div className="seg seg-sm">
+              {Object.entries(CODE_LANGS).map(([k, l]) => (
+                <button key={k} type="button" className={lang === k ? "on" : ""} onClick={() => { setLang(k); setTestState(null); }}>{l.label}</button>
+              ))}
+            </div>
+          </div>
+          <textarea className="textarea answer-code" style={{ minHeight: 120 }} value={tests} spellCheck={false} aria-label="Tests"
+            placeholder={lang === "c" ? "#include <assert.h>\nint main(void) { assert(add(2, 3) == 5); return 0; }" : lang === "javascript" ? "const assert = require(\"node:assert\");\nassert.equal(add(2, 3), 5);" : "assert add(2, 3) == 5"}
+            onChange={e => { setTests(e.target.value); setTestState(null); }}/>
+          <span className="help">
+            Your answer and these tests run as one file; they pass when it exits cleanly. Name the functions the answer must define in the question.
+            {lang === "c" && " The tests hold main(); the answer mustn't."}
+          </span>
+          <div className="row" style={{ marginTop: 6 }}>
+            {aiBridge() && <button type="button" className="btn btn-sm" disabled={!prompt.trim() || !answer.trim() || testState?.busy} onClick={draftTests}><Icon name="sparkle" size={13}/>Write tests with Claude</button>}
+            <button type="button" className="btn btn-sm" disabled={!tests.trim() || !answer.trim() || testState?.busy} onClick={() => checkTests()}>Check against the model answer</button>
+            <span className="grow"/>
+            <button type="button" className="btn btn-sm btn-quiet" onClick={() => { setShowTests(false); setTests(""); setTestState(null); }}>Remove tests</button>
+          </div>
+          {testNote && <span className="help">{testNote}</span>}
+          {testState?.busy && <div className="small muted row" style={{ marginTop: 6 }}><Spinner/>{testState.busy}</div>}
+          {testState?.error && <Notice tone="warn" icon="alert">{testState.error}</Notice>}
+          {testState && "passed" in testState && (
+            testState.passed
+              ? <Notice icon="check">The model answer passes these tests.</Notice>
+              : <Notice tone="bad" icon="alert">
+                  The model answer doesn't pass ({testState.timedOut ? "timed out" : testState.stage === "build" ? "it didn't compile" : "a test failed"}). Fix the tests or the model answer before relying on them.
+                  {testState.output && <pre className="run-output" style={{ marginTop: 8 }}>{testState.output}</pre>}
+                </Notice>
+          )}
+        </div>
+      )}
       {lint.issues.length > 0 && (
         <Notice tone="warn" icon="alert">
           <strong>This question may not be worth keeping as written:</strong>

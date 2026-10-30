@@ -2,16 +2,17 @@
 // same session, and inserts a quick "foundation check" on a shaky prerequisite
 // when you miss something that builds on it.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../state/store.jsx";
 import { Bar } from "../ui/ui.jsx";
 import { useNav, useKey } from "../ui/nav.js";
 import Icon from "../ui/Icon.jsx";
 import TaskView from "./TaskView.jsx";
-import { index } from "../lib/model.js";
+import { index, ABILITY_KEYS } from "../lib/model.js";
 import { conceptMastery } from "../lib/mastery.js";
 import { buildPlan, pickItem } from "../lib/planner.js";
-import { aiAvailable } from "../lib/ai.js";
+import { aiAvailable, freshVersion } from "../lib/ai.js";
+import { typicalPace, wantsFreshVersion, MISS_REASONS } from "../lib/training.js";
 import { dayKey } from "../lib/time.js";
 import { RATING } from "../lib/fsrs.js";
 import { play } from "../ui/sound.js";
@@ -19,6 +20,7 @@ import { play } from "../ui/sound.js";
 const MAX_FOUNDATION = 3;
 const MAX_REQUEUE = 2;
 const EXTRA = 5; // questions added by "5 more" after the day's are done
+const FRESH_AHEAD = 3; // fresh versions are written this many questions ahead
 
 function foundationFor(state, conceptId, queue, from) {
   const ix = index(state);
@@ -48,12 +50,34 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
   const [aiReady, setAiReady] = useState(false);
   const [foundations, setFoundations] = useState(0);
   const [snapshot] = useState(() => state); // lapses/mastery before this session, for the summary
+  const [startedAt] = useState(() => Date.now());
+  const [fresh, setFresh] = useState({}); // itemId → { status: pending | ready | failed, question }
+  const pretest = mode === "pretest";
 
   useEffect(() => { aiAvailable().then(setAiReady); }, []);
 
   const ix = index(state);
   const task = queue[idx];
   const done = idx >= queue.length;
+
+  // Fresh versions of apply questions you've seen, written a few questions ahead so they're ready when you get there.
+  const freshOn = aiReady && !pretest && state.settings.freshVersions !== false;
+  const requested = useRef(new Set());
+  useEffect(() => {
+    if (!freshOn) return;
+    const ix2 = index(state);
+    for (const t of queue.slice(idx, idx + FRESH_AHEAD + 1)) {
+      const it = ix2.item[t.itemId];
+      if (!it || requested.current.has(it.id) || !wantsFreshVersion(ix2, t, it)) continue;
+      requested.current.add(it.id);
+      freshVersion({ item: it, concept: ix2.concept[it.conceptId] })
+        .then(r => setFresh(f => ({ ...f, [it.id]: r.ok ? { status: "ready", question: r.question } : { status: "failed" } })));
+    }
+  }, [freshOn, idx, queue]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // How long you usually take for a right answer of each kind (for spotting slow ones).
+  const attempts = state.attempts;
+  const paces = useMemo(() => Object.fromEntries(ABILITY_KEYS.map(a => [a, typicalPace(attempts, a)])), [attempts]);
 
   const exit = () => nav.endSession();
   // A low chime when the last question is done (if sounds are on).
@@ -62,13 +86,15 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
   useKey((e) => { if (e.key === "Escape" && !document.querySelector(".modal")) exit(); }, []);
 
   const onDone = (r) => {
-    act("attempt", { itemId: task.itemId, mode, requeue: task.kind === "requeue", ...r });
+    // A pretest is asked before you've studied the material: nothing is logged or scheduled.
+    if (!pretest) act("attempt", { itemId: task.itemId, mode, requeue: task.kind === "requeue", ...r });
     setResults(res => [...res, { ...r, task }]);
     let next = queue;
     if (r.rating === RATING.AGAIN) {
       const times = queue.filter(t => t.itemId === task.itemId).length;
       if (times <= MAX_REQUEUE) {
-        const at = Math.min(idx + 4, queue.length);
+        // A miss you were sure about comes back a little sooner.
+        const at = Math.min(idx + (r.sure ? 2 : 4), queue.length);
         next = [...next.slice(0, at), { ...task, kind: "requeue" }, ...next.slice(at)];
       }
       if (mode === "session" && foundations < MAX_FOUNDATION && task.kind !== "foundation") {
@@ -120,7 +146,13 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
       if (r.task.kind === "new") started.push(c);
     }
     const more = daily ? buildPlan(withExtra(state)).tasks.length : 0;
-    return { count: firsts.length, reported, unaided, recovered, missed, started, more };
+    // Prerequisites that got partial review credit from answers that built on them.
+    const strengthened = state.concepts.filter(c => (c.srs?.implicitAt ?? 0) >= startedAt && sIx.concept[c.id]?.srs !== c.srs);
+    const sureMissed = firsts.filter(r => r.sure && r.verdict !== "correct").map(r => ix.concept[r.task.conceptId]).filter(Boolean);
+    const reasons = {};
+    for (const r of results) if (r.reason) reasons[r.reason] = (reasons[r.reason] || 0) + 1;
+    const deeper = results.filter(r => r.probe);
+    return { count: firsts.length, reported, unaided, recovered, missed, started, more, strengthened, sureMissed, reasons, deeper };
   };
   const summary = done ? summarize() : null;
 
@@ -149,9 +181,26 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
               task={task} item={item} concept={concept}
               section={ix.section[concept.sectionId]} course={ix.course[concept.courseId]}
               aiReady={aiReady} retention={state.settings.retention} onDone={onDone} onReport={onReport}
+              pace={paces[item.ability] ?? null} pretest={pretest}
+              variant={!pretest && fresh[item.id]?.status === "ready" ? fresh[item.id].question : null}
             />
           )}
-          {done && summary && (
+          {done && summary && pretest && (
+            <div className="enter">
+              <article className="hero">
+                <div className="hero-label">Pretest done</div>
+                <p style={{ margin: "14px 0 10px" }}>
+                  {summary.unaided} of {summary.count} right before studying.
+                  {" "}Getting them wrong is fine: trying first makes the material stick better when you read it.
+                </p>
+                <p className="muted small" style={{ margin: 0 }}>Nothing was scheduled. These ideas come up in your sessions once you've added or read the chapter, like any new material.</p>
+              </article>
+              <div className="row" style={{ marginTop: 22 }}>
+                <button className="btn btn-primary btn-lg" onClick={exit} autoFocus>Done</button>
+              </div>
+            </div>
+          )}
+          {done && summary && !pretest && (
             <div className="enter">
               <article className="hero">
                 <div className="hero-label">Session complete</div>
@@ -165,6 +214,22 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
                 )}
                 {summary.missed.length > 0 && (
                   <p style={{ marginBottom: 10 }}><strong>Coming back soon:</strong> {summary.missed.map(c => c.name).join(", ")}.</p>
+                )}
+                {summary.sureMissed.length > 0 && (
+                  <p style={{ marginBottom: 10 }}><strong>You were sure about:</strong> {summary.sureMissed.map(c => c.name).join(", ")}. Confident mistakes are worth a second look.</p>
+                )}
+                {summary.strengthened.length > 0 && (
+                  <p className="muted" style={{ marginBottom: 10 }}>Also reviewed along the way: {summary.strengthened.map(c => c.name).join(", ")}, through answers that built on them.</p>
+                )}
+                {Object.keys(summary.reasons).length > 0 && (
+                  <p className="muted small" style={{ marginBottom: 10 }}>
+                    Why you missed: {Object.entries(summary.reasons).map(([k, n]) => `${n} ${MISS_REASONS[k]?.label.toLowerCase() ?? k}`).join(", ")}.
+                  </p>
+                )}
+                {summary.deeper.length > 0 && (
+                  <p className="muted small" style={{ marginBottom: 10 }}>
+                    Went deeper {summary.deeper.length} time{summary.deeper.length === 1 ? "" : "s"}: held up through {Math.max(...summary.deeper.map(r => r.probe.depth))} follow-up{Math.max(...summary.deeper.map(r => r.probe.depth)) === 1 ? "" : "s"} at most.
+                  </p>
                 )}
                 {summary.reported > 0 && <p className="muted" style={{ marginBottom: 10 }}>{summary.reported} reported question{summary.reported === 1 ? " is" : "s are"} waiting on Today to be fixed or restored.</p>}
                 {summary.count === 0 && !summary.reported && <p className="muted">Nothing was answered this time.</p>}

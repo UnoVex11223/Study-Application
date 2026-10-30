@@ -334,6 +334,24 @@ input[type="checkbox"] { accent-color: var(--link); width: 16px; height: 16px; m
 .rate-btn.suggested .ivl { color: var(--ink-2); }
 .feedback-foot { display: flex; align-items: center; gap: 10px; padding: 12px 22px; border-top: 1px solid var(--rule); }
 
+/* Training extras: kept quiet so the session stays one question and one answer. */
+.answer-code { font-family: var(--mono); font-size: 14px; line-height: 1.6; tab-size: 4; white-space: pre; overflow-x: auto; }
+.sure-toggle { gap: 7px; }
+.sure-box { width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid var(--surface-3); display: inline-flex; align-items: center; justify-content: center; }
+.sure-toggle.on { color: var(--ink); }
+.sure-toggle.on .sure-box { background: var(--link); border-color: var(--link); color: var(--inset); }
+.seg-sm button { padding: 4px 10px; font-size: 12.5px; }
+.run-output { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; background: var(--inset); border-radius: 10px; padding: 11px 13px; margin: 0;
+  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; }
+.relearn { margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); }
+.deeper { display: flex; flex-direction: column; gap: 12px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.deeper .sub-label { margin-bottom: 0; }
+.deeper-turn { display: flex; flex-direction: column; gap: 8px; }
+.deeper-q { font-size: 15px; }
+.deeper-a { display: flex; gap: 9px; align-items: flex-start; color: var(--ink-2); font-size: 14px; white-space: pre-wrap; }
+.deeper-input { min-height: 72px; font-size: 15px; padding: 12px 14px; border-radius: 10px; }
+.deeper-gap { padding: 12px 14px; border-radius: 10px; background: var(--warn-wash); font-size: 14px; }
+
 .enter { animation: enter var(--dur-slow) var(--ease-out) both; }
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 

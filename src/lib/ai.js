@@ -413,6 +413,49 @@ export async function gradeWithAI(item, concept, answer, followUp = null) {
   };
 }
 
+const conceptCtx = (concept) => ({ name: concept?.name ?? "", summary: concept?.summary ?? "", excerpt: concept?.source?.excerpt ?? "" });
+
+/**
+ * Go deeper: the interviewer's next step. `turns` are the follow-ups so far,
+ * the last one answered. Returns { ok, lastVerdict, lastFeedback, next, gap }.
+ */
+export async function probeWithAI({ item, concept, answer, turns = [], last = false }) {
+  const res = await callAi("probe", {
+    concept: conceptCtx(concept), question: item.prompt, modelAnswer: item.answer, answer,
+    turns: turns.map(t => ({ question: t.question, answer: t.answer })), last,
+  });
+  if (!res.ok) return res;
+  const d = res.data;
+  return {
+    ok: true, lastVerdict: d.last_verdict, lastFeedback: String(d.last_feedback || "").trim(),
+    next: String(d.next_question || "").trim(), gap: String(d.gap || "").trim(),
+  };
+}
+
+/**
+ * A fresh version of a question you've answered before: same idea and skill,
+ * a new example. It has to pass the same rule checks as any new question.
+ * Returns { ok, question } (prompt, answer, points, misconceptions, hint).
+ */
+export async function freshVersion({ item, concept }) {
+  const res = await callAi("variant", {
+    concept: conceptCtx(concept),
+    question: { ability: item.ability, prompt: item.prompt, answer: item.answer, points: item.points, misconceptions: item.misconceptions },
+  });
+  if (!res.ok) return res;
+  const q = toQuestion({ ...res.data, ability: item.ability, accept: [] }, item.id);
+  if (!q.points.length || !lintQuestion(q).ok) return { ok: false, error: "The fresh version didn't pass the checks." };
+  if (q.prompt.replace(/\s+/g, " ") === item.prompt.replace(/\s+/g, " ")) return { ok: false, error: "Same as the original." };
+  return { ok: true, question: { prompt: q.prompt, answer: q.answer, points: q.points, misconceptions: q.misconceptions, hint: q.hint } };
+}
+
+/** Claude writes tests for a code question. Returns { ok, tests, notes }. */
+export async function writeTests({ lang, prompt, answer }) {
+  const res = await callAi("tests", { lang, prompt, answer });
+  if (!res.ok) return res;
+  return { ok: true, tests: String(res.data.tests || "").trim(), notes: String(res.data.notes || "").trim() };
+}
+
 export async function teachBackWithAI({ title, concepts, text }) {
   const a = api();
   if (!a) return { ok: false, error: "AI features need the desktop app." };

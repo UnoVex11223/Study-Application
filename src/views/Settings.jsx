@@ -107,6 +107,15 @@ export default function Settings() {
             ))}
           </div>
         </div>
+        <div className="field">
+          <span className="label">Fresh versions</span>
+          <div className="seg" style={{ alignSelf: "flex-start" }}>
+            {[[true, "On"], [false, "Off"]].map(([v, l]) => (
+              <button key={l} className={(s.freshVersions !== false) === v ? "on" : ""} onClick={() => set({ freshVersions: v })}>{l}</button>
+            ))}
+          </div>
+          <span className="help">Apply and distinguish questions you've answered before come back with a new example, written by Claude, so you practise the idea instead of remembering the old answer.</span>
+        </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="st-roll">A new study day starts at</label>
           <select id="st-roll" className="select" style={{ width: 160 }} value={s.rolloverHour} onChange={e => set({ rolloverHour: Number(e.target.value) })}>
