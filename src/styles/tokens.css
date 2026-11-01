@@ -94,8 +94,6 @@
   --title-sm: 20px;    /* serif: names in lists, verdicts, groups of settings */
   --title-md: 24px;    /* serif: questions, dialogs, panels */
   --title-lg: 32px;    /* serif: page titles and key figures */
-  --display-md: 48px;  /* "Done for today" */
-  --display-xl: 144px; /* today's number of questions */
   --leading-tight: 1.2;
   --leading-ui: 1.45;
   --leading-body: 1.6;
