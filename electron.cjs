@@ -703,10 +703,11 @@ const NOTES_SCHEMA = obj({
           summary: str("1–3 sentences stating the idea precisely and correctly"),
           kind: { type: "string", enum: ["definition", "mechanism", "distinction", "procedure", "principle", "fact"] },
           importance: { type: "string", enum: ["core", "supporting", "detail"] },
-          topic: str("General subject to file it under, e.g. 'SQLite', 'Git', 'HTTP', 'C'"),
+          area: str("The field it belongs to, named like a course, e.g. 'Databases', 'Git', 'Web security', 'C programming'"),
+          topic: str("A narrower subject within the area, e.g. 'SQLite', 'Branching', 'OAuth'"),
           filled_in: { type: "boolean", description: "True if the summary adds facts the note didn't state" },
           corrected: str("If the note is wrong or misleading, what was wrong; otherwise empty"),
-          same_as: str("Id of a known concept that is the SAME idea, or empty"),
+          same_as: str("Id of a known concept that already covers this SAME idea, or empty"),
           related: {
             type: "array",
             items: obj({
@@ -731,21 +732,25 @@ If a note has force="true", keep it and extract the best idea you can.
 For a kept note, extract its concepts: usually one; split only when the note holds genuinely separate ideas (at most 3).
 - summary: state the idea precisely and correctly, faithful to the note. If the note is terse, complete it with well-established facts so it stands on its own, and set filled_in to true. If the note is wrong or misleading, write the correct idea and say what was wrong in corrected.
 - importance: core = broadly useful fundamentals; supporting = useful specifics; detail = narrow facts.
-- topic: the general subject, as a short name (a technology, tool or field). Reuse an existing topic when one fits. The note's context is a hint; a project name is rarely a good topic.
-- same_as: if a known concept is the SAME idea (not merely related), give its id. The note will then add practice to that concept instead of creating a duplicate.
+- area: the field the idea belongs to, named like a course (a technology, tool or discipline: "Databases", "Git", "Web security", "C programming"). Reuse an existing area whenever the idea fits it; start a new one only for a genuinely different field. Broad enough to collect many notes over time, never a catch-all ("Notes", "General", "Misc"). The note's context is a hint; a project name is rarely a good area.
+- topic: a narrower subject within the area, as a short name ("SQLite", "Branching", "OAuth"). Reuse one of that area's topics when it fits.
+- same_as: if a known concept already covers the SAME idea (not merely a related one), give its id. The learner already studies it, so the note adds nothing new and is left out. Unless the note has force="true": then leave same_as empty.
 - related: up to 2 known concepts that are genuinely connected (not the same_as one), each with a sentence on why.
+If a note repeats an idea from an earlier note in this batch, skip it with the reason "Same idea as another note".
 Match on meaning, never on shared words alone.`;
 
-ipcMain.handle("ai:notes", async (_e, { notes, topics = [], known = [] }) => {
+ipcMain.handle("ai:notes", async (_e, { notes, areas = [], known = [] }) => {
   const knownList = known.map((k) => `${k.id} | ${k.name} | ${k.course}${k.summary ? ` | ${k.summary}` : ""}`).join("\n");
   const noteList = notes.map((n) => `<note id="${n.id}" force="${n.force ? "true" : "false"}"${n.context ? ` context="${String(n.context).replace(/"/g, "'")}"` : ""}>
 ${escapeTag(n.text)}
 </note>`).join("\n");
-  // Topics and known concepts are the same for every batch of a run: cached.
+  const areaList = areas.map((a) => `${a.name}${a.topics?.length ? `: ${a.topics.join(", ")}` : ""}`).join("\n");
+  // Areas and known concepts are the same for every batch of a run: cached.
   const prompt = [
-    { type: "text", cache_control: { type: "ephemeral" }, text: `<existing_topics>
-${topics.join("\n") || "(none yet)"}
-</existing_topics>
+    { type: "text", cache_control: { type: "ephemeral" }, text: `<existing_areas>
+area: its topics
+${areaList || "(none yet)"}
+</existing_areas>
 
 <known_concepts>
 id | name | course | summary (summaries only for the likeliest matches)

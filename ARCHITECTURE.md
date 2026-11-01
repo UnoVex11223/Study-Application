@@ -34,11 +34,11 @@ src/
     theme.js            light/dark theme, and the window buttons' colours
   views/              one folder per part of the app
     today/              Today, the questions-to-fix panel
-    courses/            the course list, a course page, its banners, Teach it back
+    courses/            the course list and its rows (Notes lists areas with them too), a course page, its banners, Teach it back
     concepts/           shared by courses and notes: the concept panel, question forms, the outline
     material/           adding material, importing a book
     session/            a study session: the question, grading feedback, Go deeper, the summary
-    notes/              Notes
+    notes/              Notes: capture, process, the areas notes made, deleting notes
     shelf/              the shelf: books, spines, the year, a book's panel, the form, recalls
     map/                the knowledge map (3D engine in sky3d.js, flat fallback in FlatMap.jsx)
     progress/           Progress
@@ -128,7 +128,7 @@ All visual decisions live in **`src/styles/tokens.css`**. Components use those n
 | | Tokens | Use |
 |---|---|---|
 | Colour | `--bg` `--surface` `--surface-2` `--inset` `--ink` `--ink-2` `--ink-3` `--select` `--accent` `--link` `--good` `--warn` `--bad`, course pigments `--k0`…`--k7` | Each is written once as `light-dark(light, dark)`. |
-| Type | `--text-xs` 12, `--text-sm` 13, `--text-md` 14, `--text-lg` 16 (sans); `--title-sm` 20, `--title-md` 24, `--title-lg` 32 (serif); `--display-*` for the big numbers | Sans for the interface, serif for titles, names and questions. |
+| Type | `--text-xs` 12, `--text-sm` 13, `--text-md` 14, `--text-lg` 16 (sans); `--title-sm` 20, `--title-md` 24, `--title-lg` 32 (serif) | Sans for the interface, serif for titles, names and questions. |
 | Space | `--space-1` 4 … `--space-16` 64 | Everything sits on a 4px grid. |
 | Shape | `--radius-xs` 4 … `--radius-xl` 16 | Small things get small corners, dialogs the largest. |
 | Controls | `--control-sm` 28, `--control-md` 36, `--control-lg` 44 | Buttons, inputs, selects and segmented controls share these, so they line up in a row. |

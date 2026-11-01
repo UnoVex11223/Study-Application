@@ -195,6 +195,19 @@ export const makeItem = (fields) => ({
 
 export const makeEdge = (fields) => ({ id: uid("e"), type: "related", why: "", confidence: 0.8, origin: "ai", ...fields });
 
+/** The state without these concepts, their questions, their links and their review history. */
+export function removeConcepts(state, ids) {
+  const gone = new Set(ids);
+  if (!gone.size) return state;
+  return {
+    ...state,
+    concepts: state.concepts.filter(c => !gone.has(c.id)),
+    items: state.items.filter(i => !gone.has(i.conceptId)),
+    edges: state.edges.filter(e => !gone.has(e.from) && !gone.has(e.to)),
+    attempts: state.attempts.filter(a => !gone.has(a.conceptId)),
+  };
+}
+
 // ── Indexing ────────────────────────────────────────────────────────────────
 // Views and the planner need lots of lookups; build them once per state object.
 
