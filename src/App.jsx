@@ -19,13 +19,14 @@ import { pageFor, navItemFor } from "./app/routes.jsx";
 import TitleBar from "./app/TitleBar.jsx";
 import Sidebar from "./app/Sidebar.jsx";
 import Palette from "./app/Palette.jsx";
+import { StorageNotice, LoadError } from "./app/StorageNotice.jsx";
 import Session from "./views/session/Session.jsx";
 
 // Counts page changes, so going to the page you're on starts it afresh (the Shelf's year view closes, say).
 let navCount = 0;
 
 function Shell() {
-  const { state } = useStore();
+  const { state, storage, retryLoad } = useStore();
   const [route, setRoute] = useState({ view: "today" });
   const [session, setSession] = useState(null);
   const [palette, setPalette] = useState(false);
@@ -61,7 +62,10 @@ function Shell() {
     endSession: () => transition(() => setSession(null), "session"),
   }), [route, now]);
 
-  if (!state) return <div className="app-loading"/>;
+  if (!state) {
+    if (!storage.loadError) return <div className="app-loading"/>;
+    return <div className="window"><TitleBar onSearch={() => {}}/><LoadError message={storage.loadError} onRetry={retryLoad}/></div>;
+  }
 
   const counts = {
     today: plan?.tasks.length ?? 0,
@@ -80,6 +84,7 @@ function Shell() {
       </div>
       {session && <Session key={session.key} tasks={session.tasks} mode={session.mode} title={session.title} daily={session.daily}/>}
       {palette && <Palette plan={plan} onClose={() => setPalette(false)}/>}
+      <StorageNotice/>
     </NavCtx.Provider>
   );
 }

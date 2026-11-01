@@ -6,6 +6,14 @@
 .app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
 .app-loading { height: 100%; background: var(--chrome); }
 
+/* The library on disk (app/StorageNotice.jsx): a notice in the corner, or a screen if it can't be opened. */
+.storage-notice { position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: var(--z-palette); width: min(440px, 92vw); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); animation: enter var(--dur-slow) var(--ease-out) both; }
+/* The washes are see-through; over the page they sit on the panel colour. */
+.storage-notice .notice.bad { background: linear-gradient(var(--bad-wash), var(--bad-wash)), var(--surface); }
+.storage-notice .notice.warn { background: linear-gradient(var(--warn-wash), var(--warn-wash)), var(--surface); }
+.load-error { flex: 1; display: grid; place-items: center; padding: var(--space-12); background: var(--bg); border-top-left-radius: var(--radius-xl); border-top-right-radius: var(--radius-xl); }
+.load-error > .panel { max-width: 520px; }
+
 /* ── Title bar ──────────────────────────────────────────────────────────────
    The window has no frame: this bar is where you drag it, and the system
    draws its own buttons over the right end (on a Mac, traffic lights at the

@@ -5,6 +5,14 @@ contextBridge.exposeInMainWorld("tenax", {
     get: (key) => ipcRenderer.invoke("store-get", key),
     set: (key, val) => ipcRenderer.invoke("store-set", key, val),
   },
+  // The library database (db.cjs), driven by src/lib/persist.js.
+  db: {
+    load: () => ipcRenderer.invoke("db:load"),
+    apply: (delta) => ipcRenderer.invoke("db:apply", delta),
+    replace: (state) => ipcRenderer.invoke("db:replace", state),
+    saveNow: (payload) => ipcRenderer.sendSync("db:save-now", payload),
+    legacyDone: () => ipcRenderer.invoke("db:legacy-done"),
+  },
   ai: {
     status: () => ipcRenderer.invoke("ai:status"),
     extract: (payload) => ipcRenderer.invoke("ai:extract", payload),

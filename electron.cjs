@@ -5,6 +5,7 @@ const Store = require("electron-store");
 const Anthropic = require("@anthropic-ai/sdk");
 const pdf = require("./pdf-text.cjs");
 const { createSync } = require("./sync-folder.cjs");
+const { openLibrary } = require("./db.cjs");
 const codeRunner = require("./code-runner.cjs");
 
 // Your data stays in the folder earlier versions used (%APPDATA%\aeroflash on
@@ -78,26 +79,70 @@ function cleanStart() {
 }
 cleanStart();
 
-// ── Store bridge ──────────────────────────────────────────────────────────────
-// The renderer can write the API key but never read it back.
+// ── The library (see db.cjs) ──────────────────────────────────────────────────
+// Your library is a SQLite database in the data folder; the interface sends
+// only what changed after each edit. config.json (electron-store) keeps just
+// the small things: the API key, this computer's sync settings.
+// Versions before the database kept the whole library in config.json under
+// LEGACY_KEY. The interface brings that in (merging it, if an older version
+// wrote it since) and then asks for it to be archived (db:legacy-done).
+const LEGACY_KEY = "af3_state";
+let library = null, libraryRecovered = null, libraryError = "";
+if (FIRST_COPY) {
+  try {
+    ({ library, recovered: libraryRecovered } = openLibrary({ dir: app.getPath("userData") }));
+  } catch (err) {
+    libraryError = `Tenax couldn't open its library file: ${err.message}`;
+  }
+}
+app.on("will-quit", () => { try { library?.close(); } catch { /* quitting anyway */ } });
+
 // ── Sync folder (see sync-folder.cjs) ────────────────────────────────────────
-// This computer's copy is written to the sync folder when you leave Tenax
-// (switch windows, minimize, close it, lock or sleep the computer) and at
-// most every few minutes while you keep studying, not after every answer:
-// each write is a new upload and a new version on the cloud drive. The UI
-// pulls the other computers' copies.
+// This computer's changes go to the sync folder when you leave Tenax (switch
+// windows, minimize, close it, lock or sleep the computer) and at most every
+// few minutes while you keep studying, not after every answer: each write is
+// an upload. What's written is a small file of what changed since the last
+// upload, and about once a day a full copy that replaces those files. The UI
+// pulls the other computers' files.
 const sync = createSync({ store, version: app.getVersion?.() ?? "0" });
 const PUSH_EVERY = 5 * 60e3;
-let pushTimer = null, pendingPush = null;
-const flushPush = () => {
+const SYNC_SEQ = "sync_seq";        // library props: the number of this computer's last change file
+const SYNC_PUSHED = "sync_pushed";  // and what it covered: { rev, attemptSeq }
+let pushTimer = null;
+
+/** A full copy of the library, covering every change file so far (which are then removed). */
+function pushSnapshot() {
+  const state = library?.loadState();
+  if (!state) return;
+  const seq = library.getProp(SYNC_SEQ, 0);
+  const covered = { rev: library.revision(), attemptSeq: library.lastAttemptSeq() };
+  if (sync.pushSnapshot(state, { throughSeq: seq }).ok) {
+    library.setProp(SYNC_PUSHED, covered);
+    sync.prune(seq);
+  }
+}
+
+/** Hand this computer's changes over: what changed since the last upload, and a fresh full copy when it's due. */
+function flushPush() {
   clearTimeout(pushTimer);
   pushTimer = null;
-  if (pendingPush) { sync.push(pendingPush); pendingPush = null; }
-};
-const schedulePush = (state) => {
-  if (!sync.enabled()) return;
-  pendingPush = state;
-  if (!pushTimer) pushTimer = setTimeout(flushPush, PUSH_EVERY);
+  if (!library?.initialized() || !sync.enabled()) return;
+  try {
+    if (!sync.hasSnapshot()) { pushSnapshot(); return; }
+    const changes = library.changesSince(library.getProp(SYNC_PUSHED, { rev: 0, attemptSeq: 0 }));
+    if (!changes.empty) {
+      const seq = library.getProp(SYNC_SEQ, 0) + 1;
+      if (!sync.pushChanges(changes.state, seq).ok) return; // tried again next time
+      library.setProp(SYNC_SEQ, seq);
+      library.setProp(SYNC_PUSHED, { rev: changes.rev, attemptSeq: changes.attemptSeq });
+    }
+    if (sync.needsCompaction()) pushSnapshot();
+  } catch (err) {
+    console.error("Sync push failed:", err);
+  }
+}
+const schedulePush = () => {
+  if (sync.enabled() && !pushTimer) pushTimer = setTimeout(flushPush, PUSH_EVERY);
 };
 app.on("before-quit", flushPush);
 
@@ -112,16 +157,14 @@ ipcMain.handle("sync:choose", async (e) => {
   });
   if (res.canceled || !res.filePaths?.[0]) return current;
   const out = sync.setFolder(res.filePaths[0]);
-  const state = store.get("af3_state");
-  if (state) sync.push(state);
+  pushSnapshot();
   return out;
 });
 // One-click setup uses the suggested folder (OneDrive\Tenax); any other
 // folder goes through the picker, so the page can't point sync anywhere.
 ipcMain.handle("sync:use", () => {
   const out = sync.setFolder(sync.status().suggested);
-  const state = store.get("af3_state");
-  if (state) sync.push(state);
+  pushSnapshot();
   return out;
 });
 ipcMain.handle("sync:stop", () => { flushPush(); return sync.stop(); });
@@ -162,14 +205,50 @@ ipcMain.handle("app:update-install", () => {
   return true;
 });
 
-// The key can be set from the UI but never read back.
+// Small settings outside the library. The key can be set from the UI but never read back.
 ipcMain.handle("store-get", (_event, key) => (key === API_KEY || key === API_KEY_ENC ? null : store.get(key, null)));
 ipcMain.handle("store-set", (_event, key, val) => {
   if (key === API_KEY) return saveApiKey(val);
   if (key === API_KEY_ENC) return;
   if (val === null || val === undefined) store.delete(key);
   else store.set(key, val);
-  if (key === "af3_state" && val) schedulePush(val);
+});
+
+// The library: loaded once, then saved a change at a time (src/lib/persist.js).
+ipcMain.handle("db:load", () => {
+  if (!library) return { ok: false, error: libraryError || "The library isn't open." };
+  const out = { ok: true, state: library.loadState(), legacy: store.get(LEGACY_KEY) ?? null, recovered: libraryRecovered };
+  libraryRecovered = null; // said once
+  return out;
+});
+const save = (write) => {
+  try {
+    write();
+    schedulePush();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || "The change couldn't be saved." };
+  }
+};
+ipcMain.handle("db:apply", (_e, delta) => save(() => library.apply(delta)));
+ipcMain.handle("db:replace", (_e, state) => save(() => library.replace(state)));
+// When the window closes, what's left is sent synchronously so nothing is lost.
+ipcMain.on("db:save-now", (e, { delta, state } = {}) => {
+  e.returnValue = save(() => (state ? library.replace(state) : library.apply(delta)));
+});
+// The library from before the database is in now: archive it out of config.json.
+ipcMain.handle("db:legacy-done", () => {
+  const legacy = store.get(LEGACY_KEY);
+  if (!legacy) return { ok: true };
+  try {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+    const file = path.join(app.getPath("userData"), `backup-before-database-${stamp}.json`);
+    fs.writeFileSync(file, JSON.stringify(legacy));
+    store.delete(LEGACY_KEY);
+    return { ok: true, file: path.basename(file) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // ── Automatic backups ─────────────────────────────────────────────────────────
@@ -181,7 +260,8 @@ const BACKUP_NAME = /^tenax-\d{4}-\d{2}-\d{2}\.json$/;
 
 function autoBackup(now = new Date()) {
   try {
-    const state = store.get("af3_state");
+    // Every review is in the backup, not just the ones the app keeps in memory.
+    const state = library?.initialized() ? library.loadState({ allAttempts: true }) : store.get(LEGACY_KEY);
     if (!state) return;
     fs.mkdirSync(backupsDir(), { recursive: true });
     const file = path.join(backupsDir(), `tenax-${now.toISOString().slice(0, 10)}.json`);
@@ -912,7 +992,8 @@ const THEMES = { dark: { color: "#1A1A22", symbolColor: "#BCB8A2" }, light: { co
 
 // Match the app's theme so the window doesn't flash the wrong color on launch.
 function themeColors() {
-  const theme = store.get("af3_state")?.settings?.theme ?? "dark";
+  let theme = "dark";
+  try { theme = library?.getMeta("settings")?.theme ?? store.get(LEGACY_KEY)?.settings?.theme ?? "dark"; } catch { /* the default */ }
   const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
   return THEMES[dark ? "dark" : "light"];
 }

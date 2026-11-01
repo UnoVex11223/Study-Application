@@ -40,6 +40,7 @@
       "preload.cjs",
       "pdf-text.cjs",
       "sync-folder.cjs",
+      "db.cjs",
       "covers.cjs",
       "code-runner.cjs"
     ],

@@ -137,7 +137,7 @@ test("questions missed 5 times or overruled twice are flagged automatically", ()
 
   ({ s, it } = oneItemState());
   s = reducer(s, { type: "attempt", itemId: it.id, verdict: "correct", rating: 3, overridden: true, now: Date.now() });
-  assert.equal(s.items[0].flag, null);
+  assert.equal(s.items[0].flag ?? null, null, "not flagged after one overrule");
   s = reducer(s, { type: "attempt", itemId: it.id, verdict: "correct", rating: 3, overridden: true, now: Date.now() + 1000 });
   assert.equal(s.items[0].flag?.reason, "disputed");
 });

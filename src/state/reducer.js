@@ -1,5 +1,5 @@
 // All state changes, as a pure reducer (unit-tested in tests/).
-import { emptyState, normalizeState, index } from "../lib/model.js";
+import { emptyState, normalizeState, index, RECORD_COLLECTIONS } from "../lib/model.js";
 import { rate, newSrs, RATING } from "../lib/fsrs.js";
 import { makeLoadAt } from "../lib/planner.js";
 import { mergeEdges } from "../lib/graph.js";
@@ -243,7 +243,8 @@ function apply(state, action) {
           if (c.id === concept.id) return srs === concept.srs ? c : { ...c, srs };
           return credit[c.id] ? { ...c, srs: credit[c.id] } : c;
         }),
-        items: flag === item.flag ? state.items : state.items.map(i => (i.id === itemId ? { ...i, flag } : i)),
+        // (No flag before and none now is no change: a question isn't rewritten just for being answered.)
+        items: flag === (item.flag || null) ? state.items : state.items.map(i => (i.id === itemId ? { ...i, flag } : i)),
         attempts,
       };
     }
@@ -278,7 +279,7 @@ function apply(state, action) {
 // several computers uses these to keep the newest version of each record and
 // to carry deletions across. Loads, restores and merges aren't user edits and
 // aren't stamped.
-const TRACKED = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf"];
+const TRACKED = RECORD_COLLECTIONS;
 // A restore ("replace") *is* tracked: every restored record counts as edited
 // now and everything else as deleted, so the restore wins on your other
 // computers too instead of being overridden by their newer copies.

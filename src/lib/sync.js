@@ -8,9 +8,8 @@
 //   • settings: the most recently changed copy wins
 // Pure functions; unit-tested in tests/sync.test.js.
 
-import { normalizeState, SCHEMA_VERSION } from "./model.js";
+import { normalizeState, SCHEMA_VERSION, RECORD_COLLECTIONS as COLLECTIONS } from "./model.js";
 
-const COLLECTIONS = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf"];
 const MAX_ATTEMPTS = 30000;
 
 const attemptKey = (a) => `${a.ts}|${a.itemId}|${a.mode || ""}|${a.rating ?? ""}`;
