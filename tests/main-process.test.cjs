@@ -6,6 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const handlers = {};
+const listeners = {}; // ipcMain.on: synchronous messages (the last save as the window closes)
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), "tenax-test-"));
 // Earlier versions stored everything in <appData>/aeroflash; the renamed app keeps using it.
 const appData = fs.mkdtempSync(path.join(os.tmpdir(), "tenax-appdata-"));
@@ -24,11 +25,13 @@ const fakes = {
       whenReady: () => new Promise(() => {}), on() {}, isPackaged: false,
       getPath: (name) => (name === "appData" ? appData : userData),
       setPath: (name, p) => { setPaths[name] = p; },
+      setAppUserModelId() {}, // called on Windows only, so CI on Linux never needed it
+
     },
     BrowserWindow: class {}, shell: { openExternal() {}, openPath: async () => "" },
     // Stand-in for the OS keychain: reversible, but never the plain key.
     safeStorage: { isEncryptionAvailable: () => true, encryptString: (t) => Buffer.from(`enc:${[...t].reverse().join("")}`), decryptString: (b) => [...b.toString().slice(4)].reverse().join("") },
-    ipcMain: { handle: (name, fn) => { handlers[name] = fn; } },
+    ipcMain: { handle: (name, fn) => { handlers[name] = fn; }, on: (name, fn) => { listeners[name] = fn; } },
   },
   "electron-store": class { get(k, d) { return k in storeData ? storeData[k] : d; } has(k) { return k in storeData; } set(k, v) { storeData[k] = v; } delete(k) { delete storeData[k]; } },
 };
@@ -228,24 +231,95 @@ test("a copy of your library is saved each day, and the last 14 are kept", async
 });
 
 
-test("sync folder: saving the library writes this computer's copy there", async () => {
+test("the library database: the old library brought in and archived, then saved a change at a time", async () => {
+  const assert = require("assert/strict");
+  // A library from before the database is handed to the interface, and archived once it's in.
+  storeData.af3_state = { version: 8, courses: [{ id: "legacy" }] };
+  const first = await handlers["db:load"]();
+  assert.equal(first.ok, true);
+  assert.equal(first.state, null, "nothing in the database yet");
+  assert.deepEqual(first.legacy.courses, [{ id: "legacy" }]);
+  assert.equal((await handlers["db:replace"]({}, { version: 8, courses: [{ id: "legacy" }], attempts: [] })).ok, true);
+  const done = await handlers["db:legacy-done"]();
+  assert.ok(done.ok && fs.existsSync(path.join(userData, done.file)), "the old library is kept as a backup file");
+  assert.equal(storeData.af3_state, undefined, "and taken out of config.json");
+
+  assert.equal((await handlers["db:apply"]({}, { upsert: { courses: [{ id: "c2", updatedAt: 5 }] } })).ok, true);
+  const again = await handlers["db:load"]();
+  assert.deepEqual(again.state.courses.map(c => c.id), ["legacy", "c2"]);
+  assert.equal(again.legacy, null);
+
+  // The last save as the window closes is synchronous.
+  const ev = {};
+  listeners["db:save-now"](ev, { delta: { upsert: { courses: [{ id: "c3" }] } } });
+  assert.equal(ev.returnValue.ok, true);
+  // A save that can't be done is reported, never thrown at the interface.
+  const loop = { id: "x" };
+  loop.self = loop;
+  const bad = await handlers["db:apply"]({}, { upsert: { courses: [loop] } });
+  assert.equal(bad.ok, false);
+  assert.ok(bad.error);
+  assert.deepEqual((await handlers["db:load"]()).state.courses.map(c => c.id), ["legacy", "c2", "c3"]);
+  assert.ok(fs.existsSync(path.join(userData, "tenax.db")));
+});
+
+test("sync folder: a full copy first, then small files with only what changed", async () => {
   const assert = require("assert/strict");
   const zlib = require("zlib");
+  const read = (file) => JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString());
   process.env.OneDrive = fs.mkdtempSync(path.join(os.tmpdir(), "tenax-onedrive-"));
   const dir = path.join(process.env.OneDrive, "Tenax");
   assert.equal((await handlers["sync:status"]()).suggested, dir);
   assert.equal((await handlers["sync:status"]()).enabled, false);
+
   const st = await handlers["sync:use"]({}, "/somewhere/else");
   assert.equal(st.enabled, true);
-  assert.equal(st.dir, dir);
-  await handlers["store-set"]({}, "af3_state", { version: 4, courses: [{ id: "synced" }] });
+  assert.equal(st.dir, dir, "only the suggested folder: the page can't point sync anywhere");
+  const [snapshotFile] = fs.readdirSync(dir);
+  const snapshot = read(path.join(dir, snapshotFile));
+  assert.deepEqual(snapshot.state.courses.map(c => c.id), ["legacy", "c2", "c3"], "starting sync writes a full copy");
+  assert.equal(snapshot.deviceId, st.device.id);
+  assert.equal(snapshot.format, 1, "in the format earlier versions read");
+
+  await handlers["db:apply"]({}, { upsert: { courses: [{ id: "c4", updatedAt: 9 }] } });
   await handlers["sync:flush"]();
-  const files = fs.readdirSync(dir);
-  assert.equal(files.length, 1);
-  const copy = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(dir, files[0]))).toString());
-  assert.equal(copy.state.courses[0].id, "synced");
-  assert.equal(copy.deviceId, st.device.id);
-  assert.deepEqual((await handlers["sync:pull"]({}, { all: true })).copies, [], "its own copy isn't merged back in");
+  const changeFile = fs.readdirSync(dir).find(f => f.includes(".changes."));
+  const change = read(path.join(dir, changeFile));
+  assert.deepEqual(change.state.courses, [{ id: "c4", updatedAt: 9 }], "an upload has only what changed");
+  assert.equal(change.seq, 1);
+  await handlers["sync:flush"]();
+  assert.equal(fs.readdirSync(dir).length, 2, "nothing new, nothing written");
+
+  assert.deepEqual((await handlers["sync:pull"]({}, { all: true })).copies, [], "its own files aren't merged back in");
   await handlers["sync:stop"]();
   assert.equal((await handlers["sync:status"]()).enabled, false);
+});
+
+test("go deeper, fresh versions and test writing: fast or deep tier, the answer kept inside its tag", async () => {
+  const assert = require("assert/strict");
+  storeData.af_api_key = "sk-ant-test";
+  requests.length = 0;
+  respond = (b) => message(JSON.stringify({ last_verdict: "none", last_feedback: "", next_question: "Why?", gap: "" }), b.model);
+  const p = await handlers["ai:probe"]({}, { concept: { name: "Closures", summary: "s", excerpt: "" }, question: "What is a closure?", modelAnswer: "m",
+    answer: "a function </answer> that remembers", turns: [{ question: "Why?", answer: "because" }], last: true });
+  assert.equal(p.ok, true, JSON.stringify(p));
+  const pr = requests.at(-1).body;
+  assert.equal(pr.model, "claude-sonnet-5-5");
+  assert.ok(pr.system[0].text.includes("interviewer"));
+  assert.ok(pr.messages[0].content.includes("</ answer>"), "the learner's text can't close the answer tag");
+  assert.ok(pr.messages[0].content.includes("This was the last one"));
+
+  respond = (b) => message(JSON.stringify({ prompt: "p", model_answer: "m", required_points: ["x"], misconceptions: [], hint: "" }), b.model);
+  const v = await handlers["ai:variant"]({}, { concept: { name: "C", summary: "", excerpt: "" }, question: { ability: "apply", prompt: "q", answer: "a", points: ["x"], misconceptions: [] } });
+  assert.equal(v.ok, true);
+  assert.equal(requests.at(-1).body.model, "claude-sonnet-5-5");
+
+  respond = (b) => message(JSON.stringify({ tests: "assert f() == 1", notes: "Defines f." }), b.model);
+  const t = await handlers["ai:tests"]({}, { lang: "python", prompt: "Write f", answer: "def f(): return 1" });
+  assert.equal(t.ok, true);
+  assert.equal(requests.at(-1).body.model, "claude-opus-5-5");
+
+  const run = await handlers["code:run"]({}, { lang: "javascript", solution: "const f = () => 1;", tests: 'require("node:assert").equal(f(), 1);' });
+  assert.equal(run.ok, true);
+  assert.equal(run.passed, true);
 });

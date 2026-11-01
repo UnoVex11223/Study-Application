@@ -27,6 +27,12 @@ export const SHELF_KINDS = {
 
 export const categoryOf = (kind) => SHELF_KINDS[kind]?.category ?? "study";
 
+/** What an item can be marked as, by category ("Want to read" is for books only). */
+export const SHELF_STATUS = {
+  reading: { active: "Reading", finished: "Finished", want: "Want to read" },
+  study: { active: "In progress", finished: "Finished" },
+};
+
 export const makeShelfItem = (fields = {}) => ({
   id: uid("sh"), kind: "reading", title: "", author: "", description: "", cover: null,
   unitLabel: SHELF_KINDS[fields.kind]?.unit || "pages", total: 0, done: 0, courseId: null, hidden: false,

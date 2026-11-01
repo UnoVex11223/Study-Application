@@ -1,0 +1,95 @@
+/* Courses and a course (views/courses/), and the outline of sections and
+   concepts they share with Notes (views/concepts/Outline.jsx). */
+
+/* ── The list of courses ────────────────────────────────────────────────── */
+.course-row {
+  display: grid; grid-template-columns: 4px minmax(0, 1fr) repeat(3, 112px); align-items: center; gap: var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-5) 0;
+}
+.course-row.paused { opacity: .6; }
+.course-swatch { width: 4px; height: 36px; border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: var(--c); }
+.course-main { display: grid; gap: var(--space-1); min-width: 0; }
+.course-name { font: 500 var(--title-sm) / var(--leading-tight) var(--serif); }
+.course-metric { display: grid; gap: var(--space-2); }
+.course-metric-label { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--text-xs); color: var(--ink-3); }
+.course-metric-label .num { color: var(--ink); font-weight: 700; }
+@media (max-width: 1100px) {
+  .course-row { grid-template-columns: 4px minmax(0, 1fr) repeat(2, 104px); gap: var(--space-5); }
+  .course-row > :nth-child(5) { display: none; }
+}
+
+/* Colours to pick from in the course form. */
+.swatches { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.swatch { width: var(--control-sm); height: var(--control-sm); padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--c); cursor: pointer; }
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+
+/* ── A course's header: the book beside the name, then one row of controls ── */
+.course-head { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: end; gap: var(--space-5); }
+.course-head-main { display: grid; gap: var(--space-4); min-width: 0; }
+.course-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
+.course-cover {
+  width: 60px; aspect-ratio: 2 / 3; flex-shrink: 0; border-radius: 2px 4px 4px 2px;
+  box-shadow: 0 14px 28px -10px rgba(0, 0, 0, .6), 0 2px 5px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .06);
+}
+.course-cover::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .32), rgba(255, 255, 255, .14) 2px, rgba(0, 0, 0, .2) 4px, rgba(255, 255, 255, 0) 9px),
+    linear-gradient(100deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, 0) 35%, rgba(0, 0, 0, .14));
+}
+/* Too small to read beside the title, so a plain cloth cover there. */
+.course-cover .cloth-body { display: none; }
+
+/* Work in progress on this course: a book import, more questions. */
+.banner { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); background: var(--surface); }
+.banner > svg { flex-shrink: 0; width: var(--icon-md); height: var(--icon-md); color: var(--ink-3); }
+
+/* ── The outline: sections that open to show their concepts ─────────────── */
+.outline-item + .outline-item { border-top: 1px solid var(--rule); }
+.outline-item:first-child, .outline-item:first-child .outline-head { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.outline-item:last-child, .outline-item:last-child .outline-head:only-child { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+.outline-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; transition: background var(--dur-quick) var(--ease-out); }
+.outline-head:has(.outline-toggle:hover) { background: var(--surface-2); }
+.outline-toggle {
+  display: grid; grid-template-columns: var(--icon-md) minmax(0, 1fr); align-items: center; gap: var(--space-3);
+  width: 100%; min-height: 64px; padding: var(--space-3) 0 var(--space-3) var(--space-5);
+  border: 0; background: none; color: inherit; font: inherit; text-align: left;
+}
+button.outline-toggle { cursor: pointer; }
+button.outline-toggle:focus-visible { box-shadow: inset 0 0 0 2px var(--link); }
+.outline-toggle > svg { color: var(--ink-3); }
+.outline-toggle .chev { transition: transform var(--dur-base) var(--ease-out); }
+.outline-item.open .chev { transform: rotate(90deg); }
+.outline-text { display: grid; gap: 2px; min-width: 0; }
+.outline-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-weight: 600; color: var(--ink); }
+.outline-title > svg { flex-shrink: 0; color: var(--ink-3); }
+.outline-item.waiting .outline-title { color: var(--ink-2); }
+.outline-side { display: grid; justify-items: end; gap: var(--space-2); width: 168px; padding: 0 var(--space-5) 0 var(--space-4); }
+.outline-side:empty { display: none; }
+.outline-side .bar { width: 100%; }
+.outline-pct { font-size: var(--text-sm); font-weight: 700; color: var(--ink-2); }
+.outline-body { padding-bottom: var(--space-2); }
+
+/* A concept in an open section, lined up under the section's title. */
+.concept-row {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3);
+  width: 100%; min-height: 40px; padding: var(--space-1) var(--space-5) var(--space-1) calc(var(--space-5) + var(--icon-md) + var(--space-3));
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.concept-row:hover { background: var(--surface-2); }
+.concept-row:focus-visible { box-shadow: inset 0 0 0 2px var(--link); }
+.concept-row.suspended { opacity: .5; }
+.outline-actions {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2);
+  padding: var(--space-2) var(--space-5) var(--space-2) calc(var(--space-5) + var(--icon-md) + var(--space-3));
+}
+
+/* ── How often each kind of question is answered right ──────────────────── */
+.ability-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4) var(--space-8); }
+.ability { display: grid; gap: var(--space-2); }
+.ability-top { display: flex; justify-content: space-between; gap: var(--space-2); }
+.ability-n { font-size: var(--text-xs); color: var(--ink-3); }
+
+/* ── Teach it back ──────────────────────────────────────────────────────── */
+.teach-section { width: auto; max-width: 360px; }
+.teach-input { min-height: 320px; }
+.teach-summary { font-size: var(--text-lg); line-height: var(--leading-body); }

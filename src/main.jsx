@@ -10,7 +10,7 @@ import "@fontsource/shippori-mincho/latin-700.css";
 import "@fontsource/shippori-mincho/latin-ext-700.css";
 import "@fontsource-variable/geist-mono";
 import App from "./App.jsx";
-import "./styles.css";
+import "./styles/index.css";
 
 // Files dropped anywhere but a drop zone do nothing (instead of opening in the window).
 for (const type of ["dragover", "drop"]) window.addEventListener(type, (e) => { if (!e.defaultPrevented) e.preventDefault(); });

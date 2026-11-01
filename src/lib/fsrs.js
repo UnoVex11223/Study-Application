@@ -173,6 +173,26 @@ export function rate(srs, rating, now = Date.now(), opts = {}) {
   return s;
 }
 
+/**
+ * Partial credit for a memory that was used without being asked: answering a
+ * concept that builds on this one exercises it too (Math Academy's
+ * "fractional implicit repetition"). Stability moves part of the way towards
+ * what a Good review would give, but the last real review stays the anchor,
+ * so the credit is large when the memory was close to due and close to nothing
+ * when it was reviewed recently. Never brings a due date forward.
+ * Returns the same object when there's nothing to credit.
+ */
+export function implicitReview(srs, now = Date.now(), { weight = 0.5, retention = 0.9 } = {}) {
+  if (!srs || srs.state !== "review" || !srs.lastReview || !srs.stability || weight <= 0) return srs;
+  if ((now - srs.lastReview) / DAY_MS < 1) return srs; // reviewed today: nothing to add
+  if (srs.implicitAt && now - srs.implicitAt < 20 * 3600e3) return srs; // once a day at most
+  const full = remember(srs, RATING.GOOD, now).stability;
+  if (!(full > srs.stability)) return srs;
+  const stability = srs.stability + Math.min(1, weight) * (full - srs.stability);
+  const due = Math.max(srs.due ?? 0, srs.lastReview + intervalDays(stability, retention) * DAY_MS);
+  return { ...srs, stability, due, implicitAt: now };
+}
+
 export function formatInterval(ms) {
   const mins = Math.round(ms / 60000);
   if (mins < 60) return `${Math.max(mins, 1)}m`;

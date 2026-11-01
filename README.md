@@ -28,7 +28,8 @@
 
 - **The same number of questions every day, from every subject.** You pick how many (20 by default). Reviews are scheduled per concept with FSRS-6; anything starting to slip comes first, and the rest of the day is shared out so each course you're studying gets its turn, instead of the biggest one filling the day. Ideas that are easy to confuse across subjects are asked back to back. New material is let in only as fast as the days ahead allow, so the load stays level instead of spiking.
 - **Questions worth answering.** Add a chapter as text or PDF. Claude pulls out the concepts that matter, writes recall, explain, distinguish and apply questions, and a second pass reviews every question and throws out weak ones before you see them.
-- **Written answers, graded.** You answer in your own words. Claude checks each key point, quotes what you wrote, and shows the model answer and the passage from your source.
+- **Written answers, graded.** You answer in your own words. Claude checks each key point, quotes what you wrote, and shows the model answer and the passage from your source. Code questions can carry tests in Python, C or JavaScript that run against your answer instead.
+- **Practice that pushes.** Right answers on advanced ideas partly review the basics under them. Say you're sure before checking and confident misses get flagged; right-but-slow answers count as Hard; misses can be tagged by why. **Go deeper** asks interviewer-style follow-ups until an answer breaks and saves the gap as a note, apply questions come back with fresh examples, and you can pretest a chapter before reading it.
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
 - **Notes.** Jot down things you learn outside a course. Each note becomes new concepts, extra questions on something you already study, or nothing if it isn't worth remembering, without inflating a course's totals.
 - **Shelf.** Your reading, textbooks and courses standing on shelves as 3D books, each kind with its own tab, or spine-out like a real bookcase with every title in full. Tenax courses show up on their own; anything else you add by hand, and **Find a cover** fetches its cover from Open Library. A year view stacks up what you finished that year. Books you read for fun also get star ratings and a few notes in your own words (what it's about, what you thought, ideas worth keeping), and every so often Tenax asks what you remember before showing your notes again: a few days later, then further apart each time it sticks.
@@ -51,7 +52,7 @@ Tenax updates itself: new releases download in the background and install the ne
 
 ### Using it on more than one computer
 
-On each computer, go to **Settings → Sync across computers** and choose the same folder (one click for OneDrive). Each computer writes its own compressed copy there and merges in the others' copies, record by record, so studying on the desktop in the morning and the laptop at night just works. The API key and book PDFs stay on each computer. The files are small: a few MB even for a large library.
+On each computer, go to **Settings → Sync across computers** and choose the same folder (one click for OneDrive). Each computer writes what changed there as small compressed files (with a full copy about once a day) and merges in the others' changes, record by record, so studying on the desktop in the morning and the laptop at night just works. The API key and book PDFs stay on each computer. The files are small: a few KB after a study session, a few MB for the daily copy of even a large library.
 
 ### What it costs
 
@@ -59,7 +60,7 @@ Tenax is free; the AI calls are billed to your API key. Book imports go through 
 
 ## Your data
 
-Everything is stored locally in one file, with an automatic daily backup (the last 14 are kept; **Settings → Your data**). You can export or restore a backup at any time. Tenax only talks to the Anthropic API (the text you study and your answers, to write and grade questions), to GitHub (to check for updates) and, when you click **Find a cover**, to Open Library (the title and author).
+Everything is stored locally in a SQLite database that saves each change as you make it (a crash or power cut never leaves half a save), with an automatic daily backup (the last 14 are kept; **Settings → Your data**). If the file is ever damaged, Tenax sets it aside and restores the latest backup. You can export or restore a backup at any time. Tenax only talks to the Anthropic API (the text you study and your answers, to write and grade questions), to GitHub (to check for updates) and, when you click **Find a cover**, to Open Library (the title and author).
 
 ## Building from source
 
@@ -79,7 +80,9 @@ npm run dist       # build a Windows installer into release/
 
 ### How it's put together
 
-Electron main process (`electron.cjs`: storage, Claude calls with structured outputs, PDF reading, backups, updates) and a React 19 + Vite interface (`src/`). The core logic (scheduling, planning, mastery, the quality gate, sync merging) is plain JavaScript under `src/lib/` with unit tests in `tests/`.
+Electron main process (`electron.cjs`: storage, Claude calls with structured outputs, PDF reading, backups, updates) and a React 19 + Vite interface (`src/`). The core logic (scheduling, planning, mastery, the quality gate, sync merging) is plain JavaScript under `src/lib/` with unit tests in `tests/`. The interface is one folder per part of the app (`src/views/`), built from shared pieces (`src/ui/`) and one set of design tokens (`src/styles/tokens.css`).
+
+[ARCHITECTURE.md](ARCHITECTURE.md) is the guide to working on the code: where things live, how data flows, how a page is built, and recipes for common changes.
 
 [APP-CONTEXT.md](APP-CONTEXT.md) explains how everything works in detail: the daily planner, question quality, grading, mastery, book imports, notes, the shelf, sync and costs.
 

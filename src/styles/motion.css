@@ -1,0 +1,55 @@
+/* Motion: how the screen changes between states (see ui/motion.js).
+   Each kind of change is a view-transition type, and these rules say which
+   parts move and how:
+     page     the page crossfades and the new one rises into place
+     book     a book on the shelf flies into the course page's header
+     sheet    a planet on the map grows into its concept panel
+     session  a study session slides up over everything, and back down
+   With reduced motion turned on in the system, everything changes at once. */
+
+::view-transition-group(*) { animation-duration: var(--dur-slow); animation-timing-function: var(--ease-out); }
+
+/* page (and book): the page area crossfades and the new page rises into place. */
+html:active-view-transition-type(page) .main, html:active-view-transition-type(book) .main { view-transition-name: page; }
+::view-transition-old(page) { animation: var(--dur-quick) var(--ease-out) both vt-out; }
+::view-transition-new(page) { animation: var(--dur-slow) var(--ease-out) 40ms both vt-rise; }
+
+/* The sidebar highlight slides between items, under their labels. */
+::view-transition-group(nav-pill) { z-index: 1; animation-timing-function: var(--ease-spring); }
+::view-transition-group(*.nav-label) { z-index: 2; }
+
+/* book: a book on the shelf flies into the course page's header and straightens out. */
+html:active-view-transition-type(book) .course-cover { view-transition-name: book; }
+::view-transition-group(book) { z-index: 10; animation-duration: var(--dur-travel); animation-timing-function: var(--ease-in-out); }
+::view-transition-old(book), ::view-transition-new(book) { height: 100%; object-fit: fill; }
+::view-transition-old(book) { animation: var(--dur-travel) var(--ease-in-out) both vt-out-late; }
+::view-transition-new(book) { animation: var(--dur-travel) var(--ease-in-out) both vt-in-late; }
+.book-hold.flying .menu { display: none; }
+
+/* sheet: a planet on the map grows into its concept panel. */
+html:active-view-transition-type(sheet) .drawer { view-transition-name: sheet; }
+html:active-view-transition-type(sheet)::view-transition-old(root) { animation: none; opacity: 0; }
+html:active-view-transition-type(sheet)::view-transition-new(root) { animation: none; }
+::view-transition-group(sheet) { z-index: 10; animation-duration: 520ms; border-radius: var(--radius-lg); }
+::view-transition-old(sheet) { animation: 110ms linear both vt-out; }
+::view-transition-new(sheet) { animation: 260ms var(--ease-out) both vt-in; }
+.planet-ghost { position: fixed; z-index: var(--z-ghost); border-radius: 50%; pointer-events: none; }
+
+/* session: a study session slides up over everything, and back down when it ends. */
+html:active-view-transition-type(session) .session { view-transition-name: session; }
+html:active-view-transition-type(session)::view-transition-old(root) { animation: none; opacity: 0; }
+html:active-view-transition-type(session)::view-transition-new(root) { animation: none; }
+::view-transition-group(session) { z-index: 10; }
+::view-transition-new(session) { animation: var(--dur-slow) var(--ease-out) both vt-sheet-up; }
+::view-transition-old(session) { animation: var(--dur-base) var(--ease-out) both vt-sheet-down; }
+
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; } }
+@keyframes vt-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes vt-out-late { 0%, 30% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes vt-in-late { 0%, 30% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes vt-sheet-up { 0% { opacity: 0; transform: translateY(28px) scale(.99); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes vt-sheet-down { 0% { opacity: 1; } 70% { opacity: 0; } 100% { opacity: 0; transform: translateY(18px); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

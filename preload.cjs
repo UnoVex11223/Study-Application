@@ -5,6 +5,14 @@ contextBridge.exposeInMainWorld("tenax", {
     get: (key) => ipcRenderer.invoke("store-get", key),
     set: (key, val) => ipcRenderer.invoke("store-set", key, val),
   },
+  // The library database (db.cjs), driven by src/lib/persist.js.
+  db: {
+    load: () => ipcRenderer.invoke("db:load"),
+    apply: (delta) => ipcRenderer.invoke("db:apply", delta),
+    replace: (state) => ipcRenderer.invoke("db:replace", state),
+    saveNow: (payload) => ipcRenderer.sendSync("db:save-now", payload),
+    legacyDone: () => ipcRenderer.invoke("db:legacy-done"),
+  },
   ai: {
     status: () => ipcRenderer.invoke("ai:status"),
     extract: (payload) => ipcRenderer.invoke("ai:extract", payload),
@@ -15,9 +23,15 @@ contextBridge.exposeInMainWorld("tenax", {
     link: (payload) => ipcRenderer.invoke("ai:link", payload),
     teachback: (payload) => ipcRenderer.invoke("ai:teachback", payload),
     notes: (payload) => ipcRenderer.invoke("ai:notes", payload),
+    probe: (payload) => ipcRenderer.invoke("ai:probe", payload),
+    variant: (payload) => ipcRenderer.invoke("ai:variant", payload),
+    tests: (payload) => ipcRenderer.invoke("ai:tests", payload),
     batchCreate: (payload) => ipcRenderer.invoke("ai:batch-create", payload),
     batchStatus: (batchId) => ipcRenderer.invoke("ai:batch-status", batchId),
     batchResults: (batchId) => ipcRenderer.invoke("ai:batch-results", batchId),
+  },
+  code: {
+    run: (payload) => ipcRenderer.invoke("code:run", payload),
   },
   pdf: {
     outline: (data) => ipcRenderer.invoke("pdf:outline", data),

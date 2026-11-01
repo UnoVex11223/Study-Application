@@ -1,7 +1,8 @@
 // Keeps this computer in step with your others through the sync folder:
-// pulls their copies when the app starts, every few minutes and whenever the
-// window regains focus, and merges them in (lib/sync.js). This computer's own
-// copy is written by the main process after each change.
+// pulls what they wrote (their full copies and the change files after them,
+// see sync-folder.cjs) when the app starts, every few minutes and whenever
+// the window regains focus, and merges it in (lib/sync.js). This computer's
+// own changes are written there by the main process (electron.cjs).
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useStore } from "./store.jsx";

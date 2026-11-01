@@ -22,6 +22,9 @@ import { newSrs, RATING } from "./fsrs.js";
 
 export const SCHEMA_VERSION = 8;
 
+/** The lists of records with ids (stamped when edited, merged one by one when syncing). */
+export const RECORD_COLLECTIONS = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf"];
+
 export const ABILITIES = {
   recall:      { label: "Recall",      estSec: 25, rank: 0, blurb: "Produce a term, fact or definition from memory" },
   explain:     { label: "Explain",     estSec: 70, rank: 1, blurb: "Explain what something is and why it matters" },
@@ -30,6 +33,8 @@ export const ABILITIES = {
   connect:     { label: "Connect",     estSec: 90, rank: 4, blurb: "Explain how several ideas work together" },
 };
 export const ABILITY_KEYS = Object.keys(ABILITIES);
+/** "explain" → "Explain" (unknown kinds read as themselves). */
+export const abilityLabel = (a) => ABILITIES[a]?.label ?? a;
 
 export const IMPORTANCE = {
   core:       { label: "Core",       weight: 1,    rank: 0 },
@@ -66,6 +71,7 @@ export const DEFAULT_SETTINGS = {
   theme: "dark",
   themeVersion: 2,
   sounds: false, // soft sounds for a right answer, the shelf and the end of a session
+  freshVersions: true, // apply and distinguish questions you've answered before come back with a new example
 };
 
 let counter = 0;
@@ -133,7 +139,12 @@ export function normalizeState(s) {
     if (!cur || (srs.lastReview ?? 0) > (cur.lastReview ?? 0)) oldSrs[i.conceptId] = srs;
   }
   out.concepts = out.concepts.map(c => (c.srs ? c : { ...c, srs: oldSrs[c.id] ?? newSrs() }));
+  // Questions already in shape are kept as they are (the same objects), so
+  // saving and syncing can tell what really changed.
+  const itemInShape = (i) => !("srs" in i) && !("lapsesAtClear" in i)
+    && Array.isArray(i.accept) && Array.isArray(i.points) && Array.isArray(i.misconceptions) && typeof i.hint === "string";
   out.items = out.items.map(i => {
+    if (itemInShape(i)) return i;
     const { srs, lapsesAtClear, ...rest } = i; // eslint-disable-line no-unused-vars
     return { accept: [], points: [], misconceptions: [], hint: "", ...rest };
   });

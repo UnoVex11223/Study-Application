@@ -1,0 +1,26 @@
+/* All of the app's styles, in the order they apply:
+     tokens      every colour, size, space and timing (change things here first)
+     base        reset, type, focus, layout helpers, markdown
+     components  buttons, forms, lists, panels, dialogs, menus…  (src/ui/)
+     shell       title bar, sidebar, pages, the command palette   (src/app/, ui/layout.jsx)
+     one file per part of the app                                  (src/views/<part>/)
+     motion      how the screen changes between pages and panels   (ui/motion.js) */
+
+@import "./tokens.css";
+@import "./base.css";
+@import "./components.css";
+@import "./shell.css";
+@import "./covers.css";
+
+@import "./today.css";
+@import "./courses.css";
+@import "./concepts.css";
+@import "./material.css";
+@import "./session.css";
+@import "./notes.css";
+@import "./shelf.css";
+@import "./map.css";
+@import "./progress.css";
+@import "./settings.css";
+
+@import "./motion.css";

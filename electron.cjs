@@ -5,11 +5,26 @@ const Store = require("electron-store");
 const Anthropic = require("@anthropic-ai/sdk");
 const pdf = require("./pdf-text.cjs");
 const { createSync } = require("./sync-folder.cjs");
+const { openLibrary } = require("./db.cjs");
+const codeRunner = require("./code-runner.cjs");
 
 // Your data stays in the folder earlier versions used (%APPDATA%\aeroflash on
 // Windows), so renaming the app never loses your library or API key.
 const LEGACY_DATA = path.join(app.getPath("appData"), "aeroflash");
 if (fs.existsSync(LEGACY_DATA)) app.setPath("userData", LEGACY_DATA);
+
+// One copy at a time. Two copies (the installed app and a development build,
+// say) would both write the same library, each undoing the other's changes;
+// a second launch brings the open window forward and quits.
+const FIRST_COPY = app.requestSingleInstanceLock?.() ?? true;
+if (!FIRST_COPY) app.exit(0);
+app.on("second-instance", () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+});
 
 const store = new Store();
 const API_KEY = "af_api_key";         // plain text (older versions, or no OS encryption available)
@@ -64,26 +79,70 @@ function cleanStart() {
 }
 cleanStart();
 
-// ── Store bridge ──────────────────────────────────────────────────────────────
-// The renderer can write the API key but never read it back.
+// ── The library (see db.cjs) ──────────────────────────────────────────────────
+// Your library is a SQLite database in the data folder; the interface sends
+// only what changed after each edit. config.json (electron-store) keeps just
+// the small things: the API key, this computer's sync settings.
+// Versions before the database kept the whole library in config.json under
+// LEGACY_KEY. The interface brings that in (merging it, if an older version
+// wrote it since) and then asks for it to be archived (db:legacy-done).
+const LEGACY_KEY = "af3_state";
+let library = null, libraryRecovered = null, libraryError = "";
+if (FIRST_COPY) {
+  try {
+    ({ library, recovered: libraryRecovered } = openLibrary({ dir: app.getPath("userData") }));
+  } catch (err) {
+    libraryError = `Tenax couldn't open its library file: ${err.message}`;
+  }
+}
+app.on("will-quit", () => { try { library?.close(); } catch { /* quitting anyway */ } });
+
 // ── Sync folder (see sync-folder.cjs) ────────────────────────────────────────
-// This computer's copy is written to the sync folder when you leave Tenax
-// (switch windows, minimize, close it, lock or sleep the computer) and at
-// most every few minutes while you keep studying, not after every answer:
-// each write is a new upload and a new version on the cloud drive. The UI
-// pulls the other computers' copies.
+// This computer's changes go to the sync folder when you leave Tenax (switch
+// windows, minimize, close it, lock or sleep the computer) and at most every
+// few minutes while you keep studying, not after every answer: each write is
+// an upload. What's written is a small file of what changed since the last
+// upload, and about once a day a full copy that replaces those files. The UI
+// pulls the other computers' files.
 const sync = createSync({ store, version: app.getVersion?.() ?? "0" });
 const PUSH_EVERY = 5 * 60e3;
-let pushTimer = null, pendingPush = null;
-const flushPush = () => {
+const SYNC_SEQ = "sync_seq";        // library props: the number of this computer's last change file
+const SYNC_PUSHED = "sync_pushed";  // and what it covered: { rev, attemptSeq }
+let pushTimer = null;
+
+/** A full copy of the library, covering every change file so far (which are then removed). */
+function pushSnapshot() {
+  const state = library?.loadState();
+  if (!state) return;
+  const seq = library.getProp(SYNC_SEQ, 0);
+  const covered = { rev: library.revision(), attemptSeq: library.lastAttemptSeq() };
+  if (sync.pushSnapshot(state, { throughSeq: seq }).ok) {
+    library.setProp(SYNC_PUSHED, covered);
+    sync.prune(seq);
+  }
+}
+
+/** Hand this computer's changes over: what changed since the last upload, and a fresh full copy when it's due. */
+function flushPush() {
   clearTimeout(pushTimer);
   pushTimer = null;
-  if (pendingPush) { sync.push(pendingPush); pendingPush = null; }
-};
-const schedulePush = (state) => {
-  if (!sync.enabled()) return;
-  pendingPush = state;
-  if (!pushTimer) pushTimer = setTimeout(flushPush, PUSH_EVERY);
+  if (!library?.initialized() || !sync.enabled()) return;
+  try {
+    if (!sync.hasSnapshot()) { pushSnapshot(); return; }
+    const changes = library.changesSince(library.getProp(SYNC_PUSHED, { rev: 0, attemptSeq: 0 }));
+    if (!changes.empty) {
+      const seq = library.getProp(SYNC_SEQ, 0) + 1;
+      if (!sync.pushChanges(changes.state, seq).ok) return; // tried again next time
+      library.setProp(SYNC_SEQ, seq);
+      library.setProp(SYNC_PUSHED, { rev: changes.rev, attemptSeq: changes.attemptSeq });
+    }
+    if (sync.needsCompaction()) pushSnapshot();
+  } catch (err) {
+    console.error("Sync push failed:", err);
+  }
+}
+const schedulePush = () => {
+  if (sync.enabled() && !pushTimer) pushTimer = setTimeout(flushPush, PUSH_EVERY);
 };
 app.on("before-quit", flushPush);
 
@@ -98,16 +157,14 @@ ipcMain.handle("sync:choose", async (e) => {
   });
   if (res.canceled || !res.filePaths?.[0]) return current;
   const out = sync.setFolder(res.filePaths[0]);
-  const state = store.get("af3_state");
-  if (state) sync.push(state);
+  pushSnapshot();
   return out;
 });
 // One-click setup uses the suggested folder (OneDrive\Tenax); any other
 // folder goes through the picker, so the page can't point sync anywhere.
 ipcMain.handle("sync:use", () => {
   const out = sync.setFolder(sync.status().suggested);
-  const state = store.get("af3_state");
-  if (state) sync.push(state);
+  pushSnapshot();
   return out;
 });
 ipcMain.handle("sync:stop", () => { flushPush(); return sync.stop(); });
@@ -148,14 +205,50 @@ ipcMain.handle("app:update-install", () => {
   return true;
 });
 
-// The key can be set from the UI but never read back.
+// Small settings outside the library. The key can be set from the UI but never read back.
 ipcMain.handle("store-get", (_event, key) => (key === API_KEY || key === API_KEY_ENC ? null : store.get(key, null)));
 ipcMain.handle("store-set", (_event, key, val) => {
   if (key === API_KEY) return saveApiKey(val);
   if (key === API_KEY_ENC) return;
   if (val === null || val === undefined) store.delete(key);
   else store.set(key, val);
-  if (key === "af3_state" && val) schedulePush(val);
+});
+
+// The library: loaded once, then saved a change at a time (src/lib/persist.js).
+ipcMain.handle("db:load", () => {
+  if (!library) return { ok: false, error: libraryError || "The library isn't open." };
+  const out = { ok: true, state: library.loadState(), legacy: store.get(LEGACY_KEY) ?? null, recovered: libraryRecovered };
+  libraryRecovered = null; // said once
+  return out;
+});
+const save = (write) => {
+  try {
+    write();
+    schedulePush();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || "The change couldn't be saved." };
+  }
+};
+ipcMain.handle("db:apply", (_e, delta) => save(() => library.apply(delta)));
+ipcMain.handle("db:replace", (_e, state) => save(() => library.replace(state)));
+// When the window closes, what's left is sent synchronously so nothing is lost.
+ipcMain.on("db:save-now", (e, { delta, state } = {}) => {
+  e.returnValue = save(() => (state ? library.replace(state) : library.apply(delta)));
+});
+// The library from before the database is in now: archive it out of config.json.
+ipcMain.handle("db:legacy-done", () => {
+  const legacy = store.get(LEGACY_KEY);
+  if (!legacy) return { ok: true };
+  try {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+    const file = path.join(app.getPath("userData"), `backup-before-database-${stamp}.json`);
+    fs.writeFileSync(file, JSON.stringify(legacy));
+    store.delete(LEGACY_KEY);
+    return { ok: true, file: path.basename(file) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // ── Automatic backups ─────────────────────────────────────────────────────────
@@ -167,7 +260,8 @@ const BACKUP_NAME = /^tenax-\d{4}-\d{2}-\d{2}\.json$/;
 
 function autoBackup(now = new Date()) {
   try {
-    const state = store.get("af3_state");
+    // Every review is in the backup, not just the ones the app keeps in memory.
+    const state = library?.initialized() ? library.loadState({ allAttempts: true }) : store.get(LEGACY_KEY);
     if (!state) return;
     fs.mkdirSync(backupsDir(), { recursive: true });
     const file = path.join(backupsDir(), `tenax-${now.toISOString().slice(0, 10)}.json`);
@@ -700,6 +794,104 @@ ${escapeTag(text)}
   return structured({ tier: "deep", system: TEACH_SYSTEM, prompt, schema: TEACH_SCHEMA, maxTokens: 4000 });
 });
 
+// ── 6. Go deeper: an interviewer's follow-ups ────────────────────────────────
+// After you answer, Claude asks "why?" and "what if?" one level deeper each
+// time until an answer breaks; the gap it finds can become a note.
+const PROBE_SCHEMA = obj({
+  last_verdict: { type: "string", enum: ["none", "correct", "partial", "incorrect"], description: "Grade of the learner's latest follow-up answer; none if there isn't one yet" },
+  last_feedback: str("1–2 sentences on the latest follow-up answer: what was missing or wrong and the correct idea. Empty if none or fully correct"),
+  next_question: str("The next follow-up question, or empty when stopping"),
+  gap: str("When the latest answer missed or got something wrong: the idea they were missing, written as a standalone fact worth remembering (1–3 sentences, no reference to this conversation). Otherwise empty"),
+});
+
+const PROBE_SYSTEM = `You are a sharp technical interviewer testing how deep a learner's understanding of one concept goes. They have just answered a review question about it. Ask follow-up questions, one at a time, each one level deeper than the last: why it works, what happens if something changes, an edge case, what it's built on underneath, how it fails, how it relates to its foundations, a common mistake.
+
+Each follow-up:
+- asks exactly one thing, answerable from understanding in 1–3 sentences or a few lines of code;
+- stays on this concept and the ideas directly underneath it;
+- never asks for trivia, exact numbers, names, history or anything you'd look up;
+- doesn't repeat or rephrase an earlier question, and doesn't contain its answer.
+
+Grading the latest follow-up answer: grade meaning, not wording; informal language is fine. "I don't know" is incorrect.
+- correct: ask the next, deeper question (unless told this is the last).
+- partial or incorrect: stop. next_question is empty; last_feedback says what was missing and gives the correct idea; gap states that idea as a fact to remember.
+No praise or filler.`;
+
+ipcMain.handle("ai:probe", async (_e, { concept, question, modelAnswer, answer, turns = [], last = false }) => {
+  const history = turns.map((t, i) => `<follow_up n="${i + 1}">
+question: ${t.question}
+<answer>
+${escapeTag(t.answer)}
+</answer>
+</follow_up>`).join("\n");
+  const prompt = `Concept: ${concept.name}
+${concept.summary ? `Summary: ${concept.summary}\n` : ""}${concept.excerpt ? `Source: ${concept.excerpt}\n` : ""}
+Review question: ${question}
+Model answer: ${modelAnswer}
+<answer>
+${escapeTag(answer)}
+</answer>
+${history ? `\n${history}\n` : ""}
+${turns.length ? `Grade follow-up ${turns.length}.${last ? " This was the last one: grade it, and leave next_question empty." : ""}` : "Ask the first follow-up (last_verdict is none)."}`;
+  return structured({ tier: "fast", system: PROBE_SYSTEM, prompt, schema: PROBE_SCHEMA, maxTokens: 1500 });
+});
+
+// ── 7. Fresh versions of a question ──────────────────────────────────────────
+// An apply or distinguish question you've answered before comes back with a
+// new example, so you can't answer from memory of the old one.
+const VARIANT_SCHEMA = obj({
+  prompt: str(), model_answer: str(), required_points: strList(), misconceptions: strList(), hint: str(),
+});
+
+const VARIANT_SYSTEM = `You write a fresh version of a review question the learner has answered before, so they practise the idea rather than recall the old example.
+
+Keep: the concept tested, the question type, the skill it takes, and the difficulty.
+Change: the surface — a new scenario, new values, a new code snippet, a different pair of things to tell apart. It must not be answerable by remembering the old answer.
+The answer must be determinable and correct: work it out carefully before writing the model answer. For code, trace it exactly. Prefer a simpler example you are certain about to a clever one you aren't.
+Write 1–3 key points in the style of the original's and the misconceptions that fit the new version.
+
+${QUALITY_BAR}`;
+
+ipcMain.handle("ai:variant", async (_e, { concept, question }) => {
+  const prompt = `Concept: ${concept.name}
+${concept.summary ? `Summary: ${concept.summary}\n` : ""}${concept.excerpt ? `Source: ${concept.excerpt}\n` : ""}
+Question type: ${question.ability}
+Question: ${question.prompt}
+Model answer: ${question.answer}
+Key points: ${(question.points || []).join(" | ")}
+${question.misconceptions?.length ? `Misconceptions: ${question.misconceptions.join(" | ")}\n` : ""}
+Write the fresh version.`;
+  return structured({ tier: "fast", system: VARIANT_SYSTEM, prompt, schema: VARIANT_SCHEMA, maxTokens: 3000 });
+});
+
+// ── 8. Tests for a code question ─────────────────────────────────────────────
+const TESTS_SCHEMA = obj({
+  tests: str("Test code appended after the learner's answer in the same file"),
+  notes: str("One sentence on what the tests check and what the answer must define (names, signatures)"),
+});
+
+const TESTS_SYSTEM = `You write automated tests for a "write this code from memory" question. The learner's answer and your tests are put in one file, in that order, and run; the tests pass when the program exits with status 0.
+
+- Python: plain assert statements at top level. No test frameworks, no input().
+- C: #include what you need (e.g. <assert.h>, <string.h>) and write int main(void) that uses assert and returns 0. The answer must not contain main.
+- JavaScript (CommonJS): const assert = require("node:assert"); then assert calls at top level.
+
+Test the behaviour the question asks for, through the names and signatures the question (or its model answer) defines: normal cases, edge cases (empty input, zero, one element, boundaries) and the mistakes people make. Never test incidental details the question doesn't require (exact printed output, helper names). Keep it under about 40 lines, and make sure the model answer passes.`;
+
+ipcMain.handle("ai:tests", async (_e, { lang, prompt, answer }) => {
+  const body = `Language: ${lang}
+Question:
+${prompt}
+
+Model answer:
+${answer}`;
+  return structured({ tier: "deep", system: TESTS_SYSTEM, prompt: body, schema: TESTS_SCHEMA, maxTokens: 3000 });
+});
+
+ipcMain.handle("code:run", (_e, payload) => codeRunner.runTests({
+  lang: String(payload?.lang || ""), solution: String(payload?.solution || ""), tests: String(payload?.tests || ""),
+}));
+
 // ── Batches ─────────────────────────────────────────────────────────────────
 // Whole-book imports can send question writing and review through the
 // Message Batches API: same models and prompts at half the price, results
@@ -800,7 +992,8 @@ const THEMES = { dark: { color: "#1A1A22", symbolColor: "#BCB8A2" }, light: { co
 
 // Match the app's theme so the window doesn't flash the wrong color on launch.
 function themeColors() {
-  const theme = store.get("af3_state")?.settings?.theme ?? "dark";
+  let theme = "dark";
+  try { theme = library?.getMeta("settings")?.theme ?? store.get(LEGACY_KEY)?.settings?.theme ?? "dark"; } catch { /* the default */ }
   const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
   return THEMES[dark ? "dark" : "light"];
 }
@@ -857,6 +1050,7 @@ function createWindow() {
 // Lets Windows group the taskbar button under Tenax with its own icon.
 if (process.platform === "win32") app.setAppUserModelId("app.tenax.desktop");
 app.whenReady().then(() => {
+  if (!FIRST_COPY) return;
   createWindow();
   autoBackup();
   setInterval(() => autoBackup(), 6 * 3600e3).unref?.();

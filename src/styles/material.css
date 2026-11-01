@@ -1,0 +1,33 @@
+/* Adding material and importing a book (views/material/). */
+
+/* Where you are: 1. Source  2. Choose concepts  3. Review questions */
+.steps { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink-3); }
+.steps > li { display: inline-flex; align-items: center; height: var(--control-sm); padding: 0 var(--space-3); border-radius: var(--radius-full); background: var(--surface); }
+.steps > li.on { background: var(--select); color: var(--select-ink); }
+.steps > li.done { background: var(--good-wash); color: var(--good); }
+.step-title { font: 500 var(--title-md) / var(--leading-tight) var(--serif); }
+
+/* Step 1: the source. */
+.source-row { grid-template-columns: minmax(0, 1fr) 200px; }
+.source-text { min-height: 240px; }
+.pdf-picker { padding: var(--space-4); border-radius: var(--radius-lg); background: var(--surface-2); }
+.pdf-picker { --btn-bg: color-mix(in srgb, var(--surface-3) 45%, var(--surface-2)); --btn-quiet-hover: color-mix(in srgb, var(--surface-3) 45%, var(--surface-2)); }
+.pdf-range { display: grid; grid-template-columns: minmax(200px, 1fr) 96px 96px auto; align-items: end; gap: var(--space-3); }
+
+/* Steps 2 and 3: a list per section, a row per concept. */
+.list-head { padding: var(--space-3) var(--space-5); font-weight: 600; color: var(--ink); }
+.list-head + .list-row, .list-head + .review-concept { border-top: 1px solid var(--rule); }
+.pick-row { cursor: pointer; }
+.pick-row > input { margin-top: 3px; }
+.pick-row.off { opacity: .5; }
+.review-concept { padding: var(--space-4) var(--space-5); }
+.review-concept + .review-concept { border-top: 1px solid var(--rule); }
+
+/* Importing a book. */
+.book-drop { flex-direction: column; gap: var(--space-2); padding: var(--space-12) var(--space-6); }
+.book-drop > svg { color: var(--ink-3); }
+.start-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px var(--control-md); align-items: center; gap: var(--space-2); }
+.chapter-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) 88px 128px; align-items: center; gap: var(--space-4); min-height: 44px; padding: var(--space-2) var(--space-5); }
+.chapter-row + .chapter-row { border-top: 1px solid var(--rule); }
+.chapter-row.off > span { color: var(--ink-3); }
+.chapter-head { min-height: 36px; font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); }

@@ -1,0 +1,34 @@
+/* Concepts and their questions (views/concepts/): the concept panel, question
+   cards, a rewrite proposal, and questions waiting to be kept or left out. */
+
+/* A question in the concept panel (or a concept to check in Teach it back). */
+.item-card { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-2); }
+.item-card.flagged { background: var(--warn-wash); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 40%, transparent); }
+.item-card .md { font-size: var(--text-md); }
+/* Cards already sit a shade up, so their buttons step up once more. */
+.item-card, .proposal, .review-q {
+  --btn-bg: color-mix(in srgb, var(--surface-3) 45%, var(--surface-2));
+  --btn-bg-hover: color-mix(in srgb, var(--surface-3) 70%, var(--surface-2));
+  --btn-quiet-hover: color-mix(in srgb, var(--surface-3) 45%, var(--surface-2));
+}
+
+/* Connections: a caption, then one concept per line. */
+.rel-group { display: grid; gap: var(--space-1); }
+.rel { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-2) 0; }
+.rel + .rel { border-top: 1px solid var(--rule); }
+.concept-link { display: inline-flex; align-items: center; gap: var(--space-2); }
+.concept-link .muted { font-weight: 400; }
+
+/* "Answer and key points", folded away until you open it. */
+.disclosure > summary { width: fit-content; font-size: var(--text-sm); color: var(--ink-3); cursor: pointer; }
+.disclosure > summary:hover { color: var(--ink-2); }
+.disclosure[open] > summary { margin-bottom: var(--space-2); }
+
+/* Claude's rewrite of a flagged question. */
+.proposal { padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--select-2); }
+
+/* A written question to keep (ticked) or leave out. */
+.review-q { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); }
+.review-q > input { margin-top: 2px; }
+.review-q.off { opacity: .55; }
+.review-q .md { font-size: var(--text-md); }

@@ -1,0 +1,166 @@
+/* Design tokens: every colour, size, space and timing the interface uses.
+   Components use these names, never raw values, so changing one here changes
+   it everywhere. (Physical things drawn in CSS, like the books on the shelf
+   and the night sky, keep their own lighting values in their files.)
+
+   Colour is Kanagawa, the scheme rebelot made for Neovim after Hokusai's
+   woodblock print (github.com/rebelot/kanagawa.nvim): flat colour, areas told
+   apart by tone rather than lines and shadows. Each colour is written once as
+   light-dark(<Lotus, the light theme>, <Wave, the dark theme>); which one
+   shows follows `color-scheme`, set from Settings → Theme at the end of this
+   file. Anything inside an element with its own color-scheme (the knowledge
+   map is always night) resolves to that scheme's value. */
+
+:root {
+  /* ── Colour: surfaces ──────────────────────────────────────────────────── */
+  --bg:           light-dark(#F2ECBC, #1F1F28);  /* the page (sumiInk3) */
+  --chrome:       light-dark(#E5DDB0, #1A1A22);  /* title bar and sidebar, a shade darker (sumiInk2) */
+  --surface:      light-dark(#E7DBA0, #2A2A37);  /* panels, cards, menus (sumiInk4) */
+  --surface-2:    light-dark(#E4D794, #363646);  /* hover, one step up (sumiInk5) */
+  --surface-3:    light-dark(#D5CEA3, #54546D);  /* tracks and empty marks (sumiInk6) */
+  --inset:        light-dark(#F8F4D8, #16161D);  /* what you type into (sumiInk0) */
+
+  /* ── Colour: text and lines ────────────────────────────────────────────── */
+  --ink:          light-dark(#43436C, #DCD7BA);  /* text (fujiWhite) */
+  --ink-2:        light-dark(#545464, #BCB8A2);  /* secondary text */
+  --ink-3:        light-dark(#716E61, #727169);  /* hints and meta (fujiGray) */
+  --rule:         light-dark(rgba(67, 67, 108, .11), rgba(220, 215, 186, .08));
+  --rule-strong:  light-dark(rgba(67, 67, 108, .2), rgba(220, 215, 186, .16));
+
+  /* ── Colour: meaning ───────────────────────────────────────────────────── */
+  --select:       light-dark(#C7D7E0, #223249);  /* whatever is selected (waveBlue1) */
+  --select-2:     light-dark(#B5CBD2, #2D4F67);  /* (waveBlue2) */
+  --select-ink:   light-dark(#43436C, #DCD7BA);
+  --accent:       light-dark(#43436C, #E6C384);  /* the one thing to do next (carpYellow) */
+  --accent-hover: light-dark(#2F2F55, #EDD3A0);
+  --on-accent:    light-dark(#F2ECBC, #16161D);
+  --link:         light-dark(#4D699B, #7E9CD8);  /* links and focus (crystalBlue) */
+  --good:         light-dark(#6F894E, #98BB6C);
+  --good-wash:    light-dark(rgba(111, 137, 78, .14), rgba(152, 187, 108, .13));
+  --warn:         light-dark(#CC6D00, #FFA066);
+  --warn-wash:    light-dark(rgba(204, 109, 0, .11), rgba(255, 160, 102, .12));
+  --bad:          light-dark(#C84053, #E46876);
+  --bad-wash:     light-dark(rgba(200, 64, 83, .1), rgba(228, 104, 118, .12));
+  --scrim:        light-dark(rgba(67, 67, 108, .2), rgba(16, 16, 22, .62));
+
+  /* Course pigments, in the order of COURSE_COLORS (lib/model.js): crystal
+     blue, spring green, boat yellow, oni violet, surimi orange, spring blue,
+     sakura pink, spring violet. Light theme: each pigment's deeper shade.
+     Used through courseInk() in lib/model.js, which writes var(--kN). */
+  --k0: light-dark(#4D699B, #7E9CD8);
+  --k1: light-dark(#6F894E, #98BB6C);
+  --k2: light-dark(#836F4A, #C0A36E);
+  --k3: light-dark(#624C83, #957FB8);
+  --k4: light-dark(#CC6D00, #FFA066);
+  --k5: light-dark(#4E8CA2, #7FB4CA);
+  --k6: light-dark(#B35B79, #D27E99);
+  --k7: light-dark(#5A7785, #9CABCA);
+
+  /* The shelf's paper and planks (see shelf.css). */
+  --paper:          light-dark(#FBF8E4, #D3CCAD);
+  --paper-line:     light-dark(#DCD5AC, #A9A285);
+  --paper-shade:    light-dark(rgba(67, 60, 30, .14), rgba(0, 0, 0, .3));
+  --ledge-line:     light-dark(#CFC59A, #363646);
+  --ledge-face:     light-dark(#E5DDB0, #16161D);
+  --ledge-face-2:   light-dark(#DCD5AC, #121218);
+  --ledge-drop:     light-dark(rgba(67, 60, 30, .1), rgba(0, 0, 0, .45));
+  --plank-top-back: light-dark(#D5CEA3, #16161D);
+  --plank-top:      light-dark(#E4D794, #2A2A37);
+  --plank-edge-hi:  light-dark(#EDE6BE, #363646);
+  --plank-edge:     light-dark(#D5CEA3, #1A1A22);
+  --plank-edge-2:   light-dark(#C9C08F, #121218);
+  --book-shadow:    light-dark(rgba(67, 60, 30, .3), rgba(0, 0, 0, .6));
+  --book-contact:   light-dark(rgba(67, 60, 30, .45), rgba(0, 0, 0, .85));
+  --book-dim: brightness(.78) saturate(.85);   /* the rest of the shelf while you point at one book */
+
+  /* Depth: only things that float over the page (dialogs, menus) cast a shadow. */
+  --shadow-pop: 0 22px 48px -16px light-dark(rgba(67, 60, 30, .35), rgba(8, 8, 12, .7)),
+                0 2px 8px light-dark(rgba(67, 60, 30, .12), rgba(8, 8, 12, .3));
+  --focus-ring: 0 0 0 2px var(--link);
+  --grain-img: none;   /* the light theme's paper grain (set below) */
+  --grain-paper: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .38  0 0 0 0 .33  0 0 0 0 .16  .11 0 0 0 -.04'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+
+  /* ── Type ──────────────────────────────────────────────────────────────── */
+  /* These three names are also read by script (the map and the shelf's spines measure text). */
+  --sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Shippori Mincho", "Iowan Old Style", Georgia, serif;
+  --mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  /* One scale. Sans for the interface, serif for titles, display for the big moments. */
+  --text-xs: 12px;     /* tags, counts, keyboard keys */
+  --text-sm: 13px;     /* meta, help, captions */
+  --text-md: 14px;     /* the interface: buttons, lists, labels, inputs */
+  --text-lg: 16px;     /* reading and writing: answers, notes, summaries */
+  --title-sm: 20px;    /* serif: names in lists, verdicts, groups of settings */
+  --title-md: 24px;    /* serif: questions, dialogs, panels */
+  --title-lg: 32px;    /* serif: page titles and key figures */
+  --display-md: 48px;  /* "Done for today" */
+  --display-xl: 144px; /* today's number of questions */
+  --leading-tight: 1.2;
+  --leading-ui: 1.45;
+  --leading-body: 1.6;
+
+  /* ── Space: a 4px grid ─────────────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Shape ─────────────────────────────────────────────────────────────── */
+  --radius-xs: 4px;    /* tags, keys, small marks */
+  --radius-sm: 6px;    /* small buttons, menu items */
+  --radius-md: 8px;    /* buttons, inputs, segmented controls */
+  --radius-lg: 12px;   /* panels, lists, notices, menus */
+  --radius-xl: 16px;   /* dialogs, drawers, the question card, the page sheet */
+  --radius-full: 999px;
+
+  /* Controls share three heights, so a button, an input and a select line up. */
+  --control-sm: 28px;
+  --control-md: 36px;
+  --control-lg: 44px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 18px;
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+  --titlebar-h: 40px;  /* also TITLEBAR_H in electron.cjs */
+  --sidebar-w: 232px;
+  --page-max: 1040px;  /* the page column, padding included: every page's title starts at the same place */
+  --page-pad-x: var(--space-12);
+  --measure: 760px;    /* narrow pages and the study session: a comfortable line length */
+
+  /* Stacking, bottom to top. */
+  --z-scrim: 30;
+  --z-dialog: 31;
+  --z-ghost: 35;
+  --z-session: 40;
+  --z-titlebar: 45;
+  --z-menu: 50;
+  --z-palette: 60;
+
+  /* ── Motion: the curves and timings everything uses (ui/motion.js mirrors them) ── */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);     /* most things: quick start, soft landing */
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1); /* things that travel across the screen */
+  --ease-spring: cubic-bezier(.34, 1.36, .64, 1); /* a small overshoot, for things that pop in */
+  --dur-quick: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  --dur-travel: 560ms;
+
+  /* Settings → Theme: "Match system" (no data-theme) follows the computer. */
+  color-scheme: light dark;
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+
+/* The few theme differences that aren't colours. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --grain-img: var(--grain-paper); --book-dim: saturate(.75) opacity(.8); }
+}
+:root[data-theme="light"] { --grain-img: var(--grain-paper); --book-dim: saturate(.75) opacity(.8); }

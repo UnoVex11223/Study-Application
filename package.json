@@ -40,7 +40,9 @@
       "preload.cjs",
       "pdf-text.cjs",
       "sync-folder.cjs",
-      "covers.cjs"
+      "db.cjs",
+      "covers.cjs",
+      "code-runner.cjs"
     ],
     "directories": {
       "output": "release"
