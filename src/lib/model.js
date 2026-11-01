@@ -30,6 +30,8 @@ export const ABILITIES = {
   connect:     { label: "Connect",     estSec: 90, rank: 4, blurb: "Explain how several ideas work together" },
 };
 export const ABILITY_KEYS = Object.keys(ABILITIES);
+/** "explain" → "Explain" (unknown kinds read as themselves). */
+export const abilityLabel = (a) => ABILITIES[a]?.label ?? a;
 
 export const IMPORTANCE = {
   core:       { label: "Core",       weight: 1,    rank: 0 },

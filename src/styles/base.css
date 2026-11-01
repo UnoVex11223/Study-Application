@@ -1,0 +1,90 @@
+/* Base: the reset, default type, focus, scrollbars, a few layout helpers and
+   markdown. Everything here applies app-wide. */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--chrome);
+  color: var(--ink);
+  font: 400 var(--text-md) / var(--leading-ui) var(--sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p, ul, ol, figure, blockquote { margin: 0; }
+button, input, textarea, select { font: inherit; color: inherit; }
+::selection { background: var(--select-2); color: var(--select-ink); }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: var(--radius-md); border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--surface-3); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Text helpers ───────────────────────────────────────────────────────── */
+.muted { color: var(--ink-3); }
+.small { font-size: var(--text-sm); }
+.num { font-variant-numeric: tabular-nums; }
+.strong { font-weight: 600; color: var(--ink); }
+.ell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+.error-text { font-size: var(--text-sm); color: var(--bad); }
+
+.link {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--link); font: inherit; font-weight: 600; text-align: left; text-decoration: none;
+}
+.link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.kbd {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 var(--space-1); border-radius: var(--radius-xs);
+  font: 600 var(--text-xs) / 1 var(--sans); color: var(--ink-3); background: var(--inset);
+}
+
+/* ── Layout helpers ─────────────────────────────────────────────────────────
+   .row lays things out in a line, .stack one above the other; .gap-N sets the
+   space between them from the spacing scale. Parents space their children,
+   so components don't carry outside margins. */
+.row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.row.wrap { flex-wrap: wrap; }
+.row.top { align-items: flex-start; }
+.row.baseline { align-items: baseline; }
+.row.end { justify-content: flex-end; }
+.row.center { justify-content: center; }
+.stack { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.grow { flex: 1; min-width: 0; }
+.gap-1 { gap: var(--space-1); }
+.gap-2 { gap: var(--space-2); }
+.gap-3 { gap: var(--space-3); }
+.gap-4 { gap: var(--space-4); }
+.gap-5 { gap: var(--space-5); }
+.gap-6 { gap: var(--space-6); }
+.gap-8 { gap: var(--space-8); }
+.rule-top { padding-top: var(--space-4); border-top: 1px solid var(--rule); }
+
+/* Something new on screen eases in once (a result, the next question). */
+.enter { animation: enter var(--dur-slow) var(--ease-out) both; }
+@keyframes enter { from { opacity: 0; transform: translateY(8px); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes grow-up { from { transform: scaleY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Markdown (ui/Markdown.jsx) ─────────────────────────────────────────── */
+.md p + p, .md p + ul, .md ul + p, .md pre + p, .md p + pre, .md ol + p, .md p + ol { margin-top: .55em; }
+.md ul, .md ol { padding-left: 1.3em; }
+.md code {
+  font-family: var(--mono); font-size: .86em; word-spacing: 0;
+  padding: .12em .42em; border-radius: var(--radius-xs); background: var(--inset); color: var(--ink);
+}
+.md pre {
+  margin: 0; padding: var(--space-3) var(--space-4); overflow-x: auto; border-radius: var(--radius-md);
+  font: 400 var(--text-sm) / var(--leading-body) var(--mono); word-spacing: 0; background: var(--inset); color: var(--ink);
+}
+.md pre code { padding: 0; background: none; font-size: inherit; }
+.md .katex-display { margin: .4em 0; }
+.md strong { font-weight: 700; }
+.bullets { padding-left: 18px; }

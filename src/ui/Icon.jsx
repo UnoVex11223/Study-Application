@@ -1,4 +1,7 @@
-// Small stroke icon set (24px grid, drawn for this app).
+// Small stroke icon set (24px grid, drawn for this app). Icons are sized by
+// where they sit (a button, the sidebar, a menu: see styles/components.css),
+// so call sites rarely pass a size. Filled shapes (play) are drawn a little
+// smaller than stroked ones, so they look the same size beside them.
 const PATHS = {
   today: <><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M9 15l2 2 4-4"/></>,
   courses: <><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/></>,
@@ -6,7 +9,8 @@ const PATHS = {
   progress: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></>,
   plus: <path d="M12 5v14M5 12h14"/>,
-  play: <path d="M8 5.5v13l10.5-6.5z"/>,
+  play: <path d="M8.5 6.5v11l9-5.5z"/>,
+  more: <><circle cx="5.5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18.5" cy="12" r="1"/></>,
   check: <path d="M5 12.5l4.5 4.5L19 7.5"/>,
   x: <path d="M6 6l12 12M18 6L6 18"/>,
   chevron: <path d="M9 6l6 6-6 6"/>,
@@ -44,7 +48,7 @@ const PATHS = {
   spines: <><path d="M5.5 19V6.5M9 19V4.5M12.5 19V7.5M16 19V5.5M19.5 19V8.5"/><path d="M2.5 19.5h19"/></>,
 };
 
-export default function Icon({ name, size = 18, stroke = 1.7, className, style }) {
+export default function Icon({ name, size = 16, stroke = 1.7, className, style }) {
   const filled = name === "play";
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor"

@@ -6,6 +6,7 @@
 import { index } from "./model.js";
 import { dueForRecall } from "./recall.js";
 import { SHELF_KINDS } from "./shelf.js";
+import { plural } from "./format.js";
 
 export const PAGES = [
   { id: "today", label: "Today", icon: "today" },
@@ -27,7 +28,6 @@ const firstLine = (text, n) => {
   const line = String(text || "").split("\n").find(l => l.trim()) || "";
   return line.length > n ? `${line.slice(0, n - 1).trim()}…` : line.trim();
 };
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Every entry for this state. `at` makes pages that open something (a form, a panel) open it again. */
 export function commandEntries(state, { plan = null, now = Date.now(), syncing = false, at = now } = {}) {

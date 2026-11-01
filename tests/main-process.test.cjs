@@ -24,6 +24,8 @@ const fakes = {
       whenReady: () => new Promise(() => {}), on() {}, isPackaged: false,
       getPath: (name) => (name === "appData" ? appData : userData),
       setPath: (name, p) => { setPaths[name] = p; },
+      setAppUserModelId() {}, // called on Windows only, so CI on Linux never needed it
+
     },
     BrowserWindow: class {}, shell: { openExternal() {}, openPath: async () => "" },
     // Stand-in for the OS keychain: reversible, but never the plain key.

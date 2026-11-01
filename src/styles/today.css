@@ -1,0 +1,32 @@
+/* Today (views/today/). The one loud thing in the app: the day's number,
+   big, in the serif, with a strip of marks in the courses' pigments under it. */
+
+.today-main { display: grid; }
+.today-date { font: 600 var(--text-md) / var(--leading-ui) var(--sans); color: var(--ink-3); }
+.today-count { display: flex; align-items: baseline; gap: var(--space-4); margin-top: var(--space-8); }
+.today-num { font: 500 var(--display-xl) / .78 var(--serif); letter-spacing: -.035em; font-variant-numeric: lining-nums tabular-nums; }
+.today-unit { font-size: var(--title-sm); font-weight: 500; color: var(--ink-2); }
+.today-title { margin-top: var(--space-6); font: 500 var(--display-md) / 1.08 var(--serif); letter-spacing: -.01em; }
+
+/* A mark for each question: answered ones in the text colour, the rest in their course's pigment. */
+.today-marks { display: flex; gap: var(--space-1); margin-top: var(--space-10); }
+.mark {
+  flex: 1 1 0; min-width: 4px; height: 12px; border-radius: var(--radius-xs); background: var(--c);
+  transform-origin: 50% 100%; animation: grow-up var(--dur-slow) var(--ease-out) both; animation-delay: calc(min(var(--i), 60) * 14ms);
+}
+.mark.done { background: var(--ink); opacity: .9; }
+
+.today-courses { list-style: none; margin-top: var(--space-5); padding: 0; }
+.today-courses li { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; font-size: var(--text-lg); }
+.today-courses li + li { border-top: 1px solid var(--rule); }
+.today-new { flex-shrink: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink-3); }
+.today-n { flex-shrink: 0; min-width: 2ch; text-align: right; font-weight: 700; }
+
+.today-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); margin-top: var(--space-8); }
+.today-foot:empty { display: none; }
+.today-done { color: var(--ink-3); }
+.today-note { margin-top: var(--space-4); font-size: var(--text-sm); color: var(--ink-3); }
+
+/* Questions to fix (FixPanel), one after another in the drawer. */
+.fix-item { display: grid; gap: var(--space-3); }
+.fix-item + .fix-item { padding-top: var(--space-6); border-top: 1px solid var(--rule); }

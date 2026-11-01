@@ -80,7 +80,9 @@ npm run dist       # build a Windows installer into release/
 
 ### How it's put together
 
-Electron main process (`electron.cjs`: storage, Claude calls with structured outputs, PDF reading, backups, updates) and a React 19 + Vite interface (`src/`). The core logic (scheduling, planning, mastery, the quality gate, sync merging) is plain JavaScript under `src/lib/` with unit tests in `tests/`.
+Electron main process (`electron.cjs`: storage, Claude calls with structured outputs, PDF reading, backups, updates) and a React 19 + Vite interface (`src/`). The core logic (scheduling, planning, mastery, the quality gate, sync merging) is plain JavaScript under `src/lib/` with unit tests in `tests/`. The interface is one folder per part of the app (`src/views/`), built from shared pieces (`src/ui/`) and one set of design tokens (`src/styles/tokens.css`).
+
+[ARCHITECTURE.md](ARCHITECTURE.md) is the guide to working on the code: where things live, how data flows, how a page is built, and recipes for common changes.
 
 [APP-CONTEXT.md](APP-CONTEXT.md) explains how everything works in detail: the daily planner, question quality, grading, mastery, book imports, notes, the shelf, sync and costs.
 
