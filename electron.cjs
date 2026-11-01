@@ -12,6 +12,19 @@ const codeRunner = require("./code-runner.cjs");
 const LEGACY_DATA = path.join(app.getPath("appData"), "aeroflash");
 if (fs.existsSync(LEGACY_DATA)) app.setPath("userData", LEGACY_DATA);
 
+// One copy at a time. Two copies (the installed app and a development build,
+// say) would both write the same library, each undoing the other's changes;
+// a second launch brings the open window forward and quits.
+const FIRST_COPY = app.requestSingleInstanceLock?.() ?? true;
+if (!FIRST_COPY) app.exit(0);
+app.on("second-instance", () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+});
+
 const store = new Store();
 const API_KEY = "af_api_key";         // plain text (older versions, or no OS encryption available)
 const API_KEY_ENC = "af_api_key_enc"; // encrypted with the OS (Windows: DPAPI, macOS: Keychain)
@@ -956,6 +969,7 @@ function createWindow() {
 // Lets Windows group the taskbar button under Tenax with its own icon.
 if (process.platform === "win32") app.setAppUserModelId("app.tenax.desktop");
 app.whenReady().then(() => {
+  if (!FIRST_COPY) return;
   createWindow();
   autoBackup();
   setInterval(() => autoBackup(), 6 * 3600e3).unref?.();
