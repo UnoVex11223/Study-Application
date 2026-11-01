@@ -17,6 +17,11 @@ The interface never touches files or the API key directly. It asks through `wind
 ## Where things live
 
 ```
+electron.cjs          the main process: the window, IPC handlers, Claude calls, backups, sync uploads, updates
+preload.cjs           the bridge: everything the interface can ask for (window.tenax)
+db.cjs                the library on disk: a SQLite database (tenax.db)
+sync-folder.cjs       the sync folder: this computer's files in, the other computers' out
+covers.cjs, code-runner.cjs, pdf-text.cjs    cover search, running code tests, reading PDFs
 src/
   main.jsx            entry: loads the fonts and styles, renders <App/>
   App.jsx             providers + the shell: which page shows, the study session, the palette
@@ -25,6 +30,7 @@ src/
     TitleBar.jsx        the Tenax mark and the search box
     Sidebar.jsx         the pages, their counts, background work
     Palette.jsx         Ctrl+K search and commands
+    StorageNotice.jsx   says when saving fails or the library was restored, and the can't-open screen
     theme.js            light/dark theme, and the window buttons' colours
   views/              one folder per part of the app
     today/              Today, the questions-to-fix panel
@@ -51,6 +57,9 @@ src/
     model.js            the data model: courses → sections → concepts → questions
     planner.js          what to ask today
     fsrs.js             when each concept comes back
+    persist.js          loading the library, and saving what changed (through window.tenax.db)
+    delta.js            what changed between two versions of the library
+    sync.js             merging another computer's copy, record by record
     mastery.js, grade.js, quality.js, ai.js, shelf.js, format.js, …
   styles/             all CSS, one file per part (see "The design system")
 tests/                node --test, for lib/, the reducer and the main process
@@ -74,6 +83,20 @@ Three rules keep this tidy:
 - **Changing:** `act(type, payload)`. Every action is a `case` in `state/reducer.js`. The reducer never mutates; it returns a new state, and it stamps changed records so sync can merge computers.
 - **Computing:** anything derived (today's plan, mastery, a course's numbers) is a function in `lib/` called with the state. Don't store what you can compute.
 - **Navigating:** `const nav = useNav();` then `nav.go("course", { courseId })`, `nav.startSession({ tasks, mode })`, and `nav.now` (a clock that ticks once a minute). Routes are listed in `app/routes.jsx`.
+
+## Saving and syncing
+
+```
+ new state ──▶ persist.js ──diffLibrary(saved, new)──▶ db:apply ──▶ db.cjs ──▶ tenax.db
+                                                                      │
+          electron.cjs, when you leave the app: changesSince(last upload) ──▶ sync-folder.cjs ──▶ cloud drive
+```
+
+- **Only what changed is saved.** The reducer never edits a record in place, so `lib/delta.js` finds what an action touched by identity (`before !== after`) without comparing contents. The flip side: a reducer case that rebuilds a record it didn't change makes it look edited, so return the same object when nothing changed.
+- **`lib/persist.js`** saves a quarter of a second after the last change, one save at a time. A failed save is retried with everything since the last good one and reported through `onSaveStatus` (shown by `app/StorageNotice.jsx`). Actions that swap the whole library (`replace`, `reset`; `REPLACES` in `state/store.jsx`) are saved by replacing it.
+- **`db.cjs`** keeps one row per record (`records`: kind, id, updated_at, rev, the record as JSON), reviews in `attempts` (append-only), deletions in `tombstones` and everything else (settings, per-day extras) in `meta`. Each write is a transaction with its own revision number, which is how `changesSince` knows what the sync folder hasn't seen yet.
+- **`sync-folder.cjs`** writes numbered change files and, about once a day, a full copy that replaces them; reading another computer's files, it takes its full copy and then its change files in order, and waits for a missing one rather than skipping it. Merging is `lib/sync.js` (`mergeStates`), dispatched as `sync/merge` by `state/sync.jsx`.
+- **A new kind of record** (like `shelf`) goes in `RECORD_COLLECTIONS` in `lib/model.js`: saving, diffing, merging and the reducer's sync stamps all read that list, and `db.cjs` stores any list of records as rows.
 
 ## How a page is built
 

@@ -52,7 +52,7 @@ Tenax updates itself: new releases download in the background and install the ne
 
 ### Using it on more than one computer
 
-On each computer, go to **Settings → Sync across computers** and choose the same folder (one click for OneDrive). Each computer writes its own compressed copy there and merges in the others' copies, record by record, so studying on the desktop in the morning and the laptop at night just works. The API key and book PDFs stay on each computer. The files are small: a few MB even for a large library.
+On each computer, go to **Settings → Sync across computers** and choose the same folder (one click for OneDrive). Each computer writes what changed there as small compressed files (with a full copy about once a day) and merges in the others' changes, record by record, so studying on the desktop in the morning and the laptop at night just works. The API key and book PDFs stay on each computer. The files are small: a few KB after a study session, a few MB for the daily copy of even a large library.
 
 ### What it costs
 
@@ -60,7 +60,7 @@ Tenax is free; the AI calls are billed to your API key. Book imports go through 
 
 ## Your data
 
-Everything is stored locally in one file, with an automatic daily backup (the last 14 are kept; **Settings → Your data**). You can export or restore a backup at any time. Tenax only talks to the Anthropic API (the text you study and your answers, to write and grade questions), to GitHub (to check for updates) and, when you click **Find a cover**, to Open Library (the title and author).
+Everything is stored locally in a SQLite database that saves each change as you make it (a crash or power cut never leaves half a save), with an automatic daily backup (the last 14 are kept; **Settings → Your data**). If the file is ever damaged, Tenax sets it aside and restores the latest backup. You can export or restore a backup at any time. Tenax only talks to the Anthropic API (the text you study and your answers, to write and grade questions), to GitHub (to check for updates) and, when you click **Find a cover**, to Open Library (the title and author).
 
 ## Building from source
 
