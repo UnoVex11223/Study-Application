@@ -159,7 +159,7 @@ Cost: by default (Settings → Book imports: **Half price**) question writing an
 
 - **Capture** a note in the box (with an optional project or topic), or **upload** .md/.txt files (the button beside it, or drop them on the box); each bullet or paragraph becomes a note, with its heading as context. Keep one running notes file per project and upload it whenever you've added to it: notes you've added before are recognized and skipped.
 - **Process** the inbox: Claude checks each note against everything you study and decides:
-  - *new idea* → a concept filed under an **area** (a field: "Databases", "Git", "Web security"…) and a topic within it ("SQLite", "Branching"…), linked to related concepts from your courses on the map;
+  - *new idea* → a concept filed under an **area** (a broad field, the size of a university course: "Web development", "Security", "Databases"…) and a topic within it, the size of a chapter ("Authentication", "REST APIs"…), linked to related concepts from your courses on the map. A handful of areas is meant to hold everything, so a tool or technique is a topic, never an area of its own;
   - *something you already study* (in any course, or from an earlier note in the same batch) → left out; a note with nothing new is skipped and says what already covers it;
   - *skip* → to-dos, project-specific details, anything that looks like a secret, or too vague to recover an idea — with the reason, and **Keep anyway** (which also brings in an idea you already have).
   Terse notes are completed so they stand alone and marked *filled in by Claude — check it*; a note that's wrong is corrected and says so.
@@ -168,7 +168,9 @@ Cost: by default (Settings → Book imports: **Half price**) question writing an
 
 Each area is a course of its own, made the first time a note needs it: its own row on Today, its own page, its own system on the map. Areas are listed on Notes and on Courses (marked *From your notes*), and can be paused, practised, added to or deleted like any course. A book or course you added yourself is never changed by a note.
 
-Libraries from earlier versions, which kept every note in one "Notes" course, are split on first start: each of its topics becomes an area, with its concepts and their review history.
+**Regroup** (beside Areas) has Claude put your topics into a few broad areas, for when they've spread too thin. A narrow area joining a broad one usually becomes one of its topics ("Git › Branching" and "Git › Rebasing" become the topic "Git" in "Software engineering"), topics on the same subject merge, and an area left empty is removed. An area keeps its course when it's renamed, so its colour stays, and concepts keep their review history wherever they move.
+
+Libraries from earlier versions, which kept every note in one "Notes" course, are split on first start: each of its topics becomes an area, with its concepts and their review history. Those areas are as narrow as the old topics were, so **Regroup** once afterwards.
 
 ### Shelf
 

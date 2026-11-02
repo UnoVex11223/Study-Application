@@ -1,9 +1,10 @@
 // Notes: things you want to remember that come from projects, docs and
-// everyday work rather than a course. Claude files each idea under an area
-// ("Databases", "Git"…), and each area is a course of its own (kind "notes"),
-// with a section per topic, so it gets its own place on Today and on the map.
-// Areas are made as notes need them. An idea you already study, in any
-// course, is left out; a related one is linked to it on the map.
+// everyday work rather than a course. Claude files each idea under a broad
+// area ("Web development", "Security"…), and each area is a course of its own
+// (kind "notes"), with a section per topic ("Authentication", "REST APIs"), so
+// it gets its own place on Today and on the map. Areas are made as notes need
+// them, and can be regrouped into broader ones later. An idea you already
+// study, in any course, is left out; a related one is linked to it on the map.
 //
 //   note { id, text, context, source, createdAt, hash, force?,
 //          status: inbox | done | skipped, reason?, result?: { conceptIds, covered } }
@@ -117,6 +118,106 @@ export function splitNotesSpace(state) {
     sections: state.sections.map(s => (moveTo.has(s.id) ? { ...s, courseId: moveTo.get(s.id), order: 0 } : s)),
     concepts: state.concepts.map(k => (moveTo.has(k.sectionId) ? { ...k, courseId: moveTo.get(k.sectionId) } : k)),
   };
+}
+
+/** Ask Claude to put your topics into a few broad areas. Returns { ok, moves: [{ sectionId, area, topic }] }. */
+export async function planRegroup(state) {
+  const ix = index(state);
+  const areas = noteAreas(state).map(c => ({
+    name: c.name,
+    topics: (ix.sectionsByCourse[c.id] || []).map(s => ({ id: s.id, name: s.title, concepts: (ix.conceptsBySection[s.id] || []).slice(0, 12).map(k => k.name) })),
+  }));
+  if (!areas.length) return { ok: false, error: "There are no areas to regroup yet." };
+  const res = await callAi("areas", { areas });
+  if (!res.ok) return res;
+  const moves = (res.data.topics || [])
+    .filter(t => ix.section[t.id] && t.area?.trim())
+    .map(t => ({ sectionId: t.id, area: t.area.trim(), topic: (t.topic || "").trim() || ix.section[t.id].title }));
+  return moves.length ? { ok: true, moves } : { ok: false, error: "Claude didn't regroup anything. Try again." };
+}
+
+/**
+ * Move topics into the areas Claude chose for them: [{ sectionId, area, topic }].
+ * An area keeps the course already called that; otherwise the course giving
+ * it the most concepts is renamed for it (so its colour and place stay), or
+ * a new one is made. Topics that end up with the same name in an area become
+ * one, and areas left with no topics go. Concepts keep their history.
+ */
+export function regroupAreas(state, moves, now = Date.now()) {
+  const ix = index(state);
+  const areas = noteAreas(state);
+  const isArea = new Set(areas.map(c => c.id));
+  const plan = new Map(moves.filter(m => nameKey(m.area || "") && isArea.has(ix.section[m.sectionId]?.courseId)).map(m => [m.sectionId, m]));
+  if (!plan.size) return state;
+
+  // 1. A course for each area named.
+  const targets = new Map();
+  for (const m of plan.values()) {
+    const k = nameKey(m.area);
+    if (!targets.has(k)) targets.set(k, { name: m.area.trim(), moves: [] });
+    targets.get(k).moves.push(m);
+  }
+  const courseOf = new Map(), claimed = new Set(), names = new Map(), added = [];
+  for (const [k] of targets) {
+    const same = areas.find(c => nameKey(c.name) === k);
+    if (same) { courseOf.set(k, same.id); claimed.add(same.id); }
+  }
+  const taken = new Set(state.courses.map(c => c.id));
+  for (const [k, t] of targets) {
+    if (courseOf.has(k)) continue;
+    const gives = {};
+    for (const m of t.moves) {
+      const from = ix.section[m.sectionId].courseId;
+      gives[from] = (gives[from] || 0) + 1 + (ix.conceptsBySection[m.sectionId] || []).length;
+    }
+    let id = Object.keys(gives).filter(c => !claimed.has(c)).sort((a, b) => gives[b] - gives[a])[0];
+    if (id) names.set(id, t.name);
+    else {
+      // Made from the first topic's id, so it reads the same on every computer.
+      id = `c_${t.moves[0].sectionId}`;
+      while (taken.has(id)) id += "_";
+      added.push(makeCourse({ id, name: t.name, kind: "notes", createdAt: now }, state.courses.length + added.length));
+      taken.add(id);
+    }
+    courseOf.set(k, id); claimed.add(id);
+  }
+
+  // 2. Topics into their areas: those already there keep their place, the
+  // rest follow; a topic named like one already in the area merges into it.
+  const rank = Object.fromEntries(state.courses.map((c, i) => [c.id, i]));
+  const target = (s) => (plan.has(s.id) ? courseOf.get(nameKey(plan.get(s.id).area)) : s.courseId);
+  const stays = (s) => (target(s) === s.courseId ? 0 : 1);
+  const order = state.sections.filter(s => isArea.has(s.courseId))
+    .sort((a, b) => stays(a) - stays(b) || rank[a.courseId] - rank[b.courseId] || a.order - b.order);
+  const home = new Map(), into = new Map(), place = new Map(), count = {};
+  for (const s of order) {
+    const courseId = target(s), title = plan.get(s.id)?.topic || s.title, k = `${courseId}|${nameKey(title)}`;
+    if (home.has(k)) { into.set(s.id, home.get(k)); continue; }
+    home.set(k, s.id);
+    count[courseId] = (count[courseId] ?? -1) + 1;
+    place.set(s.id, { courseId, title, order: count[courseId] });
+  }
+  const sections = state.sections.filter(s => !into.has(s.id)).map(s => {
+    const p = place.get(s.id);
+    return p && (p.courseId !== s.courseId || p.title !== s.title || p.order !== s.order) ? { ...s, ...p } : s;
+  });
+
+  // 3. Concepts follow their topic; merged ones go after the topic's own.
+  const next = {};
+  const concepts = state.concepts.map(c => {
+    const sectionId = into.get(c.sectionId) ?? c.sectionId;
+    const p = place.get(sectionId);
+    if (!p || (sectionId === c.sectionId && p.courseId === c.courseId)) return c;
+    if (sectionId === c.sectionId) return { ...c, courseId: p.courseId };
+    next[sectionId] ??= Math.max(-1, ...(ix.conceptsBySection[sectionId] || []).map(k => k.order)) + 1;
+    return { ...c, sectionId, courseId: p.courseId, order: next[sectionId]++ };
+  });
+
+  const used = new Set(sections.map(s => s.courseId));
+  const courses = [...state.courses, ...added]
+    .filter(c => !isArea.has(c.id) || used.has(c.id))
+    .map(c => (names.has(c.id) && names.get(c.id) !== c.name ? { ...c, name: names.get(c.id) } : c));
+  return { ...state, courses, sections, concepts };
 }
 
 // ── Processing ─────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ import { mergeStates } from "../lib/sync.js";
 import { nextRecall } from "../lib/recall.js";
 import { updateShelfItem } from "../lib/shelf.js";
 import { implicitCredit } from "../lib/training.js";
-import { splitNotesSpace, deleteNotes } from "../lib/notes.js";
+import { splitNotesSpace, regroupAreas, deleteNotes } from "../lib/notes.js";
 
 const MAX_ATTEMPTS = 30000;
 
@@ -97,6 +97,8 @@ function apply(state, action) {
       return { ...state, notes: state.notes.map(n => (n.id === action.id ? { ...n, status: "inbox", force: Boolean(action.force), reason: "" } : n)) };
     case "notes/areas": // the old single Notes course, split into areas
       return splitNotesSpace(state);
+    case "notes/regroup": // topics moved into broader areas, as Claude grouped them
+      return regroupAreas(state, action.moves, action.now);
     case "notes/import": {
       const { courses = [], noteUpdates = [], ...payload } = action.payload;
       let next = courses.length ? { ...state, courses: [...state.courses, ...courses] } : state;

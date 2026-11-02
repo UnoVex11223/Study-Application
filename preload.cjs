@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("tenax", {
     link: (payload) => ipcRenderer.invoke("ai:link", payload),
     teachback: (payload) => ipcRenderer.invoke("ai:teachback", payload),
     notes: (payload) => ipcRenderer.invoke("ai:notes", payload),
+    areas: (payload) => ipcRenderer.invoke("ai:areas", payload),
     probe: (payload) => ipcRenderer.invoke("ai:probe", payload),
     variant: (payload) => ipcRenderer.invoke("ai:variant", payload),
     tests: (payload) => ipcRenderer.invoke("ai:tests", payload),

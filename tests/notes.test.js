@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { splitNotes, noteHash, newNotes, batchNotes, processNotes, buildNotesImport, noteAreas, hasNotesSpace } from "../src/lib/notes.js";
+import { splitNotes, noteHash, newNotes, batchNotes, processNotes, buildNotesImport, noteAreas, hasNotesSpace, planRegroup } from "../src/lib/notes.js";
 import { emptyState, makeCourse, makeSection, makeConcept, makeItem, index } from "../src/lib/model.js";
 import { reducer } from "../src/state/reducer.js";
-import { courseMastery } from "../src/lib/mastery.js";
+import { courseMastery, abilityBreakdown } from "../src/lib/mastery.js";
 import { buildPlan } from "../src/lib/planner.js";
 
 // ── Splitting ──────────────────────────────────────────────────────────────
@@ -235,6 +235,80 @@ test("the old single Notes course becomes one area per topic, keeping concepts a
   assert.equal(ix.section[git.id].courseId, gitArea.id);
   assert.equal(next.attempts.length, 1, "history stays");
   assert.equal(gitArea.updatedAt, 5, "stamped as an edit, so it syncs");
+});
+
+test("regrouping moves topics into broad areas, merging topics that are the same and removing emptied areas", async () => {
+  const s = emptyState();
+  const book = makeCourse({ name: "C book" });
+  const ch = makeSection({ courseId: book.id, title: "Ch 1" });
+  const area = (name, ...topics) => {
+    const c = makeCourse({ name, kind: "notes" }, s.courses.length);
+    s.courses.push(c);
+    return [c, ...topics.map(([title, ...concepts], order) => {
+      const sec = makeSection({ courseId: c.id, title, order });
+      s.sections.push(sec);
+      return [sec, ...concepts.map((name, i) => { const k = makeConcept({ courseId: c.id, sectionId: sec.id, name, order: i }); s.concepts.push(k); return k; })];
+    })];
+  };
+  s.courses.push(book); s.sections.push(ch);
+  const [auth, [authTopic, hashing, sessions], [oauthTopic]] = area("Authentication", ["Authentication", "Password hashing", "Session cookies"], ["OAuth"]);
+  const [git, [branching, branch], [rebasing, rebase]] = area("Git", ["Branching", "Feature branches"], ["Rebasing", "Rebase vs merge"]);
+  const [security, [xssTopic]] = area("Security", ["XSS", "Escaping output"]);
+  s.attempts.push({ ts: 9e12, itemId: "i1", conceptId: hashing.id, courseId: auth.id, ability: "explain", verdict: "correct" });
+
+  globalThis.window = { tenax: { ai: { areas: async ({ areas }) => {
+    assert.deepEqual(areas.map(a => a.name), ["Authentication", "Git", "Security"]);
+    assert.deepEqual(areas[0].topics[0].concepts, ["Password hashing", "Session cookies"], "Claude sees what each topic holds");
+    return { ok: true, data: { topics: [
+      { id: authTopic.id, area: "Security", topic: "Authentication" },
+      { id: oauthTopic.id, area: "Security", topic: "OAuth" },
+      { id: branching.id, area: "Software engineering", topic: "Git" },
+      { id: rebasing.id, area: "Software engineering", topic: "Git" },
+      { id: xssTopic.id, area: "Security", topic: "XSS" },
+      { id: ch.id, area: "Programming languages", topic: "C" },
+      { id: "gone", area: "Elsewhere", topic: "X" },
+    ] } };
+  } } } };
+  let plan;
+  try { plan = await planRegroup(s); } finally { delete globalThis.window; }
+  assert.equal(plan.ok, true, plan.error);
+
+  const next = reducer(s, { type: "notes/regroup", moves: plan.moves, now: 7 });
+  const ix = index(next);
+  assert.deepEqual(noteAreas(next).map(c => c.name), ["Software engineering", "Security"]);
+  assert.ok(!next.courses.some(c => c.id === auth.id), "an area left empty goes");
+  assert.ok(next.tombstones[auth.id], "and that carries over to your other computers");
+  assert.deepEqual(ix.sectionsByCourse[security.id].map(x => x.title), ["XSS", "Authentication", "OAuth"], "the area already called that keeps its topics first");
+  assert.equal(ix.concept[hashing.id].courseId, security.id);
+  assert.equal(ix.concept[sessions.id].sectionId, authTopic.id);
+
+  const eng = noteAreas(next)[0];
+  assert.equal(eng.id, git.id, "a narrow area is renamed rather than replaced, keeping its colour");
+  assert.equal(eng.updatedAt, 7);
+  assert.deepEqual(ix.sectionsByCourse[git.id].map(x => x.title), ["Git"], "two topics renamed alike become one");
+  assert.ok(!next.sections.some(x => x.id === rebasing.id));
+  assert.deepEqual([ix.concept[branch.id], ix.concept[rebase.id]].map(k => [k.sectionId, k.order]), [[branching.id, 0], [branching.id, 1]]);
+
+  assert.equal(ix.section[ch.id].courseId, book.id, "a book's chapters aren't notes and never move");
+  assert.equal(abilityBreakdown(next, { courseId: security.id, now: 9e12 }).explain.attempts, 1, "history moves with the concept");
+  assert.equal(reducer(next, { type: "notes/regroup", moves: [], now: 8 }), next, "nothing to move changes nothing");
+});
+
+test("an area split two ways keeps its course for the bigger part and makes one for the other", () => {
+  const s = emptyState();
+  const auth = makeCourse({ name: "Authentication", kind: "notes" });
+  const login = makeSection({ courseId: auth.id, title: "Login", order: 0 });
+  const rest = makeSection({ courseId: auth.id, title: "REST", order: 1 });
+  s.courses.push(auth); s.sections.push(login, rest);
+  s.concepts.push(
+    makeConcept({ courseId: auth.id, sectionId: login.id, name: "Password hashing" }),
+    makeConcept({ courseId: auth.id, sectionId: login.id, name: "Session cookies" }),
+    makeConcept({ courseId: auth.id, sectionId: rest.id, name: "Idempotent methods" }));
+  const moves = [{ sectionId: login.id, area: "Security", topic: "Authentication" }, { sectionId: rest.id, area: "Web development", topic: "REST APIs" }];
+  const next = reducer(s, { type: "notes/regroup", moves, now: 3 });
+  assert.deepEqual(noteAreas(next).map(c => [c.id, c.name]), [[auth.id, "Security"], [`c_${rest.id}`, "Web development"]]);
+  assert.deepEqual(index(next).sectionsByCourse[`c_${rest.id}`].map(x => [x.id, x.title, x.order]), [[rest.id, "REST APIs", 0]]);
+  assert.equal(next.concepts[2].courseId, `c_${rest.id}`);
 });
 
 test("deleting a note deletes what it made, and an area left empty goes too", async () => {

@@ -2,7 +2,7 @@
 // plus relation edges between concepts and an attempt log.
 //
 //   course   { id, name, color, status: active|maintain|paused, createdAt, kind? }
-//            kind "notes" = the Notes space: your own notes, organized by topic, not a curriculum.
+//            kind "notes" = an area made from your notes, its sections the topics (lib/notes.js).
 //   section  { id, courseId, title, summary, order, sourceLabel, locked, pages? }
 //            locked = a book chapter you haven't read yet: no new concepts from it.
 //   concept  { id, courseId, sectionId, name, summary, kind, importance: core|supporting|detail,

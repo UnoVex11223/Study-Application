@@ -1,7 +1,8 @@
 // Notes: capture things worth remembering from projects, docs and everyday
 // work, then have them turned into questions (see lib/notes.js). Claude files
-// each idea under an area, a course of its own, and leaves out what you
-// already study. A note can be deleted along with everything made from it.
+// each idea under a broad area, a course of its own, and leaves out what you
+// already study. Areas can be regrouped into broader ones, and a note can be
+// deleted along with everything made from it.
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -14,7 +15,7 @@ import { ConfirmDialog } from "../../ui/overlays.jsx";
 import { cx } from "../../ui/cx.js";
 import { index } from "../../lib/model.js";
 import { aiAvailable, aiBridge } from "../../lib/ai.js";
-import { splitNotes, newNotes, processNotes, buildNotesImport, noteAreas, madeFrom, nameKey } from "../../lib/notes.js";
+import { splitNotes, newNotes, processNotes, buildNotesImport, noteAreas, planRegroup, madeFrom, nameKey } from "../../lib/notes.js";
 import { plural, pluralWord } from "../../lib/format.js";
 import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import QuestionRow from "../concepts/QuestionRow.jsx";
@@ -184,6 +185,17 @@ export default function Notes() {
     setReview(null);
   };
 
+  const regroup = async () => {
+    setError(""); setMsg("");
+    setBusy({ label: "Regrouping your areas" });
+    const res = await planRegroup(state);
+    setBusy(null);
+    if (!res.ok) { setError(res.error); return; }
+    act("notes/regroup", { moves: res.moves });
+    const names = [...new Map(res.moves.map(m => [nameKey(m.area), m.area])).values()];
+    setMsg(`Your topics are now in ${plural(names.length, "area")}: ${names.join(", ")}.`);
+  };
+
   // Notes that made concepts ask first, since those concepts (and their history) go too.
   const remove = (notes) => {
     const ids = notes.map(n => n.id);
@@ -258,13 +270,14 @@ export default function Notes() {
         </Section>
       )}
 
-      <Section title="Areas" count={areas.length || undefined}>
-        {areas.length === 0 ? (
-          <p className="muted small">Processed notes are filed by area (Databases, Git…), each a course of its own on Today, Courses and the map.</p>
-        ) : (
+      {areas.length > 0 && (
+        <Section title="Areas" count={areas.length} actions={
+          <button className="btn btn-sm btn-quiet" disabled={!aiBridge() || hasKey === false || Boolean(busy || review)} onClick={regroup}
+            title="Have Claude group your topics into a few broad areas"><Icon name="sparkle"/>Regroup</button>
+        }>
           <div className="list">{areas.map(c => <CourseRow key={c.id} course={c}/>)}</div>
-        )}
-      </Section>
+        </Section>
+      )}
 
       {history.length > 0 && (
         <Section title="Processed" count={history.length} actions={skipped.length > 0 && (

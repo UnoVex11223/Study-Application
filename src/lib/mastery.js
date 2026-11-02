@@ -130,10 +130,12 @@ export function sectionMastery(state, sectionId, now = Date.now()) {
 /** Success rate per ability over recent unaided attempts. */
 export function abilityBreakdown(state, { courseId = null, days = 60, now = Date.now() } = {}) {
   const cutoff = now - days * 864e5;
+  const ix = index(state);
   const out = Object.fromEntries(ABILITY_KEYS.map(k => [k, { attempts: 0, correct: 0 }]));
   for (const a of state.attempts) {
     if (a.ts < cutoff || a.aided || a.verdict === "ungraded") continue;
-    if (courseId && a.courseId !== courseId) continue;
+    // The concept's course now, in case it has moved since (a regrouped note area).
+    if (courseId && (ix.concept[a.conceptId]?.courseId ?? a.courseId) !== courseId) continue;
     const o = out[a.ability];
     if (!o) continue;
     o.attempts++;
