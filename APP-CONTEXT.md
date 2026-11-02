@@ -192,7 +192,10 @@ Clicking a Tenax course's book flies it off the shelf into the course page's hea
 Covers are scaled down to 560px JPEGs (tens of KB) before they're saved, so they don't bloat your library or the sync folder. On the shelf (and in the book panel, recall and edit form) they're shaped as book covers:
 
 - A plain margin around the picture, like the paper around a scanned cover or a page background around a screenshot, is cropped off when it runs along two or more sides in the same colour and ends at a clear edge. A single band on one side is left alone, since it's usually part of the design.
-- A picture that's roughly book-shaped fills the cover. Anything else, like a course banner or a square thumbnail, sits on the cover as a plate over a blurred copy of itself instead of being cropped to a sliver.
+- Every picture fills the whole front. One of another shape (a square photo, a course banner, a tall poster) is made 2:3 one of two ways:
+  - **extended**, when the sides it's short of are plain (a background colour or a soft gradient, as on most covers): those edges are carried on outward, so the whole picture shows, title and all;
+  - **cut**, when they're busy: cut where the picture has the most detail (lettering, faces), not just its middle. In Add or Edit, drag the picture (or use the arrow keys) to choose what shows.
+  Covers are saved the way they're shown, already 2:3. Pictures added before this change are fixed the same way wherever they're shown, and saved that way the next time you edit them.
 - A book without a picture gets a plain cloth cover with its title and author, in one of the palette's deep tones or its paper white (always the same one for a title). A long title is set smaller so all of it fits.
 
 For a Tenax course, progress is the number of chapters read in Tenax (chapters of an imported book count once you mark them read) or the number you log yourself, whichever is higher, so chapters you read before you started using Tenax count too. An imported book knows how many chapters it has. A course you build a chapter at a time doesn't, so it shows "3 chapters done" with a Set total link rather than calling itself finished just because you've caught up. Hiding a course only takes it off the shelf (Hidden from the shelf at the bottom brings it back); deleting a course keeps its shelf card with the progress it had.

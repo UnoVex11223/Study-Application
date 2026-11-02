@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { findFrame, coverFit, stripColor, clothFor, CLOTH, bookThickness } from "../src/lib/cover.js";
+import { findFrame, bookShaped, coverWindow, coverPlan, edgeDetail, focusOf, stripColor, clothFor, CLOTH, bookThickness } from "../src/lib/cover.js";
 
 const WHITE = [252, 252, 250], BLACK = [4, 4, 6], RED = [150, 40, 30], BLUE = [70, 120, 220];
 
@@ -48,12 +48,40 @@ test("nothing is cropped from a picture that's all edge, or would lose more than
   assert.deepEqual(findFrame(tiny, 100, 100), { l: 0, t: 0, r: 100, b: 100 });
 });
 
-test("book-shaped pictures fill the cover; banners and squares are framed", () => {
-  assert.equal(coverFit(2 / 3), "fill");
-  assert.equal(coverFit(0.7), "fill");
-  assert.equal(coverFit(1), "framed");
-  assert.equal(coverFit(16 / 9), "framed");
-  assert.equal(coverFit(0.4), "framed");
+test("pictures of another shape are cut to a book's shape, along the side with room to spare", () => {
+  assert.ok(bookShaped(2 / 3) && bookShaped(0.68), "a book's shape, give or take a little");
+  assert.ok(!bookShaped(0.75) && !bookShaped(1) && !bookShaped(16 / 9));
+  assert.deepEqual(coverWindow(300, 300, 0), { x: 0, y: 0, w: 200, h: 300 }, "a square loses a third of its width");
+  assert.deepEqual(coverWindow(300, 300, 1), { x: 100, y: 0, w: 200, h: 300 });
+  assert.deepEqual(coverWindow(100, 300, 0.5), { x: 0, y: 75, w: 100, h: 150 }, "a tall picture is cut top and bottom");
+});
+
+test("a picture with plain sides is extended to fit; one with busy sides is cut", () => {
+  // A square cover: a title right across it, on a plain background above and below.
+  const title = [[4, 40, 96, 48, WHITE], [10, 55, 90, 60, RED]];
+  assert.deepEqual(coverPlan(picture(100, 100, BLACK, title), 100, 100), { fit: "extend", before: 0.5 }, "the whole title stays");
+  // Lettering touching the top: only the bottom is carried on.
+  const top = [...title, ...Array.from({ length: 12 }, (_, i) => [4 + i * 8, 0, 8 + i * 8, 6, WHITE])];
+  assert.ok(edgeDetail(picture(100, 100, BLACK, top), 100, { l: 0, t: 0, r: 100, b: 100 }, "t") > 6);
+  assert.deepEqual(coverPlan(picture(100, 100, BLACK, top), 100, 100), { fit: "extend", before: 0 });
+  // A tall poster with plain sides gets room left and right.
+  assert.deepEqual(coverPlan(picture(60, 150, BLUE, [[20, 30, 40, 120, RED]]), 60, 150), { fit: "extend", before: 0.5 });
+  // Busy right to the edges: cut, where the detail is.
+  const busy = Array.from({ length: 50 }, (_, i) => [i * 2, 0, i * 2 + 1, 100, WHITE]);
+  assert.equal(coverPlan(picture(100, 100, BLACK, busy), 100, 100).fit, "cut");
+  assert.deepEqual(coverPlan(picture(100, 150, BLACK, busy), 100, 150), { fit: "fill" });
+});
+
+test("the cut keeps the part of a picture with the most going on", () => {
+  // A wide banner: plain blue, with the title lettering (stripes) at the right.
+  const stripes = Array.from({ length: 10 }, (_, i) => [200 + i * 8, 30, 204 + i * 8, 70, WHITE]);
+  const cut = coverWindow(300, 100, focusOf(picture(300, 100, BLUE, stripes), 300, 100));
+  assert.ok(Math.abs(cut.x - 200) < 8, "the cut starts where the lettering does");
+  // A tall poster with a face (detail) near the top.
+  const face = [[30, 20, 70, 60, WHITE], [40, 30, 45, 35, BLACK], [55, 30, 60, 35, BLACK], [45, 45, 55, 50, RED]];
+  assert.ok(focusOf(picture(100, 300, BLUE, face), 100, 300) < 0.15);
+  assert.equal(focusOf(picture(300, 100, BLUE), 300, 100), 0.5, "a plain picture is cut in the middle");
+  assert.equal(focusOf(picture(100, 150, BLUE, stripes), 100, 150), 0.5, "a book-shaped one isn't cut");
 });
 
 test("the spine takes the colour of the cover's left edge", () => {

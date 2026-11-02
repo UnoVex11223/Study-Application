@@ -1,15 +1,13 @@
 /* Book covers (ui/Cover.jsx), 2:3: on the shelf, in a course's header, the
-   book panel, the recall and the edit form. A picture fills the cover, an odd
-   shape sits on it as a plate over a blurred copy of itself, and a book
-   without a picture gets a plain cloth cover with its title. */
+   book panel, the recall and the edit form. A picture fills the cover (one
+   of another shape is extended or cut to fit), and a book without a picture
+   gets a plain cloth cover with its title. */
 
 .cover-art { position: relative; overflow: hidden; background: var(--surface-3); container-type: inline-size; }
 .cover-art.loading { background: linear-gradient(110deg, var(--surface-2) 30%, var(--surface-3) 50%, var(--surface-2) 70%) 0 0 / 300% 100%; animation: cover-wait 1.4s linear infinite; }
 @keyframes cover-wait { to { background-position: -150% 0; } }
-.cover-fill { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-.cover-art.framed { display: grid; place-items: center; background: #0B0C0E; }
-.cover-haze { position: absolute; inset: -20%; width: 140%; height: 140%; object-fit: cover; filter: blur(16px) saturate(1.4) brightness(.68); }
-.cover-plate { position: relative; display: block; max-width: 90%; max-height: 84%; border-radius: 2px; box-shadow: 0 10px 24px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .08); }
+/* --pos is where a picture of another shape is cut (lib/cover.js, coverWindow): only the side with room to spare moves. */
+.cover-fill { display: block; width: 100%; height: 100%; object-fit: cover; object-position: var(--pos, 50%) var(--pos, 50%); }
 
 /* Cloth: its spacing is in cqw (a share of the cover's own width), so it's right at any size. */
 .cover-art.cloth {

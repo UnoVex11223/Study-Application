@@ -2,6 +2,8 @@
 // they stay small in your library (and in the sync folder). Covers show at
 // about 280px wide, so 560px covers high-density screens.
 
+import { coverInfo, coverWindow, bookShaped } from "./cover.js";
+
 const MAX_W = 560;
 const QUALITY = 0.8;
 
@@ -38,4 +40,23 @@ export async function shrinkImage(src, { maxW = MAX_W, quality = QUALITY } = {})
   const out = canvas.toDataURL("image/jpeg", quality);
   // Already small and not worth re-encoding? Keep the original.
   return typeof src === "string" && src.length <= out.length ? src : out;
+}
+
+/**
+ * A cover made a book's shape (2:3), as a JPEG data URL, the way it's shown
+ * (lib/cover.js): plain margins trimmed, plain sides extended, or else cut at
+ * `pos` (0–1 along the side with room to spare; where it has the most detail
+ * if left out). A picture that's a book's shape already comes back as it is.
+ */
+export async function cutToBook(src, pos = null) {
+  const info = await coverInfo(src);
+  if (bookShaped(info.aspect)) return info.src;
+  const img = await load(info.src);
+  const win = coverWindow(img.width, img.height, pos ?? info.pos);
+  const scale = Math.min(1, MAX_W / win.w);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(win.w * scale));
+  canvas.height = Math.max(1, Math.round(win.h * scale));
+  canvas.getContext("2d").drawImage(img, win.x, win.y, win.w, win.h, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", QUALITY);
 }
