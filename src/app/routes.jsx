@@ -17,15 +17,10 @@ import KnowledgeMap from "../views/map/KnowledgeMap.jsx";
 import Progress from "../views/progress/Progress.jsx";
 import Settings from "../views/settings/Settings.jsx";
 
-/** The Notes space is stored as a course, but it has its own page. */
-const isNotesCourse = (state, courseId) => state.courses.find(c => c.id === courseId)?.kind === "notes";
-
-export function pageFor(route, { state, plan }) {
+export function pageFor(route, { plan }) {
   switch (route.view) {
     case "courses": return <Courses key={route.at ?? "courses"}/>;
-    case "course": return isNotesCourse(state, route.courseId)
-      ? <Notes key={route.at ?? "notes"}/>
-      : <Course key={`${route.courseId}-${route.at ?? ""}`} courseId={route.courseId}/>;
+    case "course": return <Course key={`${route.courseId}-${route.at ?? ""}`} courseId={route.courseId}/>;
     case "notes": return <Notes/>;
     case "shelf": return (
       <Shelf key={`${route.recall ? "recall" : "shelf"}-${route.at ?? route.open ?? route.add ?? route.n ?? ""}`}
@@ -42,8 +37,7 @@ export function pageFor(route, { state, plan }) {
 }
 
 /** The sidebar item for a route: pages inside a course light up Courses. */
-export function navItemFor(route, state) {
-  if (route.courseId && isNotesCourse(state, route.courseId)) return "notes";
+export function navItemFor(route) {
   if (["course", "import", "teach", "book"].includes(route.view)) return "courses";
   return route.view;
 }

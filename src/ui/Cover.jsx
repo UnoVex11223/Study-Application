@@ -1,5 +1,5 @@
 // A book cover, 2:3, shaped by lib/cover.js: the picture (margins cropped,
-// odd shapes set on a plate over a blurred copy), or plain cloth with the
+// other shapes extended or cut to fit), or plain cloth with the
 // title when there's no picture. Used on the shelf, in the course header, the
 // book panel, the recall and the edit form.
 
@@ -22,8 +22,12 @@ function clothTitleSize(title) {
   return Math.max(6, Math.min(12.5, 90 / Math.sqrt(t.length), 116 / longest)).toFixed(2);
 }
 
-/** A book cover, 2:3: the picture (margins cropped, odd shapes set on a plate), or plain cloth with the title. */
-export function CoverArt({ src, title, author, className = "" }) {
+/**
+ * A book cover, 2:3: the picture filling it, or plain cloth with the title.
+ * `pos` moves a picture of another shape within the cover (0–1, see
+ * coverWindow); left out, it's cut where it has the most detail.
+ */
+export function CoverArt({ src, title, author, className = "", pos = null }) {
   const info = useCoverInfo(src);
   if (!src) {
     const cloth = clothFor(title);
@@ -37,11 +41,9 @@ export function CoverArt({ src, title, author, className = "" }) {
     );
   }
   if (!info) return <div className={`cover-art loading ${className}`}/>;
-  if (info.fit === "fill") return <div className={`cover-art ${className}`}><img className="cover-fill" src={info.src} alt="" draggable={false}/></div>;
   return (
-    <div className={`cover-art framed ${className}`}>
-      <img className="cover-haze" src={info.src} alt="" draggable={false}/>
-      <img className="cover-plate" src={info.src} alt="" draggable={false}/>
+    <div className={`cover-art ${className}`}>
+      <img className="cover-fill" src={info.src} alt="" draggable={false} style={{ "--pos": `${(pos ?? info.pos) * 100}%` }}/>
     </div>
   );
 }

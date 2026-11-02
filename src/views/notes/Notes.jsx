@@ -1,6 +1,8 @@
 // Notes: capture things worth remembering from projects, docs and everyday
-// work, then have them turned into questions (see lib/notes.js). They live in
-// their own space, organized by topic, and never count toward a course.
+// work, then have them turned into questions (see lib/notes.js). Claude files
+// each idea under a broad area, a course of its own, and leaves out what you
+// already study. Areas can be regrouped into broader ones, and a note can be
+// deleted along with everything made from it.
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -8,16 +10,16 @@ import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
 import { Page, PageHeader, Section } from "../../ui/layout.jsx";
-import { Notice, Spinner, ImportanceTag } from "../../ui/display.jsx";
+import { Notice, Spinner } from "../../ui/display.jsx";
+import { ConfirmDialog } from "../../ui/overlays.jsx";
 import { cx } from "../../ui/cx.js";
 import { index } from "../../lib/model.js";
-import { sectionMastery } from "../../lib/mastery.js";
 import { aiAvailable, aiBridge } from "../../lib/ai.js";
-import { splitNotes, newNotes, processNotes, buildNotesImport, notesCourse } from "../../lib/notes.js";
-import { plural, pluralWord, pct } from "../../lib/format.js";
-import { Outline, OutlineItem, ConceptRow } from "../concepts/Outline.jsx";
+import { splitNotes, newNotes, processNotes, buildNotesImport, noteAreas, planRegroup, madeFrom, nameKey } from "../../lib/notes.js";
+import { plural, pluralWord } from "../../lib/format.js";
 import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import QuestionRow from "../concepts/QuestionRow.jsx";
+import CourseRow from "../courses/CourseRow.jsx";
 
 const PER_RUN = 40; // notes processed per run, so a big upload stays reviewable
 const INBOX_SHOWN = 12;
@@ -29,8 +31,9 @@ const preview = (text, max) => {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 };
 
-/** What processing found for one note: new concepts or extra questions, each with its questions to keep. */
-function NoteResult({ entry: e, ix, onToggle, onKeep }) {
+/** What processing found for one note: new concepts with their questions to keep, and what was already covered. */
+function NoteResult({ entry: e, ix, areaNames, onToggle, onKeep }) {
+  const covered = e.covered.map(c => (c.course ? `${c.name} (${c.course})` : `${c.name} (another note)`)).join(", ");
   return (
     <div className="panel panel-pad stack gap-4">
       <div className="note-source">
@@ -39,35 +42,50 @@ function NoteResult({ entry: e, ix, onToggle, onKeep }) {
       </div>
       {e.outcome !== "keep" && (
         <div className="row small">
-          <span className="grow error-text">{e.outcome === "error" ? e.reason : `Skipped: ${e.reason}`}</span>
+          <span className={cx("grow", e.outcome === "error" ? "error-text" : "muted")}>{e.outcome === "error" ? e.reason : `Skipped. ${e.reason}`}</span>
           {e.outcome === "skip" && <button className="btn btn-sm" onClick={onKeep}>Keep anyway</button>}
         </div>
       )}
-      {e.concepts.map((c, ci) => {
-        const target = c.sameAs ? ix.concept[c.sameAs] : null;
-        return (
-          <div key={c.key} className="note-concept stack gap-3">
-            <div className="row wrap small">
-              {target
-                ? <span><Icon name="link" size={12}/> Adds questions to <strong>{target.name}</strong> <span className="muted">in {ix.course[target.courseId]?.name}</span></span>
-                : <span>New in <strong>{c.topic}</strong>: <strong>{c.name}</strong></span>}
-              {c.filledIn && <span className="tag">Filled in by Claude, check it</span>}
-              {c.related.map(l => ix.concept[l.id] && <span key={l.id} className="tag" title={l.why}>Linked to {ix.concept[l.id].name}</span>)}
-            </div>
-            {!target && <Markdown className="small muted">{c.summary}</Markdown>}
-            {c.corrected && <Notice tone="warn" icon="alert">Your note needed a correction: {c.corrected}</Notice>}
-            {!c.group && <p className="small muted">Questions for this one couldn't be written. It stays in your inbox if you discard.</p>}
-            {c.group && c.group.kept.length === 0 && <p className="small muted">No question passed the quality check. Tick a filtered one below to keep it; otherwise this is skipped.</p>}
-            {c.group?.kept.map((q, qi) => <QuestionRow key={q.id} q={q} onToggle={() => onToggle(ci, "kept", qi)}/>)}
-            {c.group?.dropped.length > 0 && (
-              <details className="disclosure">
-                <summary>Filtered out ({c.group.dropped.length})</summary>
-                <div className="stack gap-2">{c.group.dropped.map((q, qi) => <QuestionRow key={q.id} q={q} dropped onToggle={() => onToggle(ci, "dropped", qi)}/>)}</div>
-              </details>
-            )}
+      {e.outcome === "keep" && covered && <p className="small muted">Left out, already covered: {covered}.</p>}
+      {e.concepts.map((c, ci) => (
+        <div key={c.key} className="note-concept stack gap-3">
+          <div className="row wrap small">
+            <span><span className="muted">{c.area} › {c.topic}:</span> <strong>{c.name}</strong></span>
+            {!areaNames.has(nameKey(c.area)) && <span className="tag">New area</span>}
+            {c.filledIn && <span className="tag">Filled in by Claude, check it</span>}
+            {c.related.map(l => ix.concept[l.id] && <span key={l.id} className="tag" title={l.why}>Linked to {ix.concept[l.id].name}</span>)}
           </div>
-        );
-      })}
+          <Markdown className="small muted">{c.summary}</Markdown>
+          {c.corrected && <Notice tone="warn" icon="alert">Your note needed a correction: {c.corrected}</Notice>}
+          {!c.group && <p className="small muted">Questions for this one couldn't be written. It stays in your inbox if you discard.</p>}
+          {c.group && c.group.kept.length === 0 && <p className="small muted">No question passed the quality check. Tick a filtered one below to keep it; otherwise this is skipped.</p>}
+          {c.group?.kept.map((q, qi) => <QuestionRow key={q.id} q={q} onToggle={() => onToggle(ci, "kept", qi)}/>)}
+          {c.group?.dropped.length > 0 && (
+            <details className="disclosure">
+              <summary>Filtered out ({c.group.dropped.length})</summary>
+              <div className="stack gap-2">{c.group.dropped.map((q, qi) => <QuestionRow key={q.id} q={q} dropped onToggle={() => onToggle(ci, "dropped", qi)}/>)}</div>
+            </details>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Where a processed note went: its concepts (by area), what it found already covered, or why it was skipped. */
+function NoteOutcome({ note: n, ix, onOpen }) {
+  const exists = (id) => Boolean(ix.concept[id]);
+  const link = (id) => <button key={id} className="link" onClick={() => onOpen(id)}>{ix.concept[id].name}</button>;
+  const made = (n.result?.conceptIds || []).filter(exists);
+  const covered = (n.result?.covered || []).filter(exists);
+  const merged = (n.result?.merged || []).filter(exists); // from versions that added questions to a matching concept
+  return (
+    <div className="note-outcome small">
+      {made.map(id => <span key={id}>{ix.course[ix.concept[id].courseId]?.name} › {link(id)}</span>)}
+      {merged.map(id => <span key={id}>More questions on {link(id)}</span>)}
+      {covered.length > 0 && <span>Already covered: {covered.map(link)}</span>}
+      {n.status === "skipped" && !covered.length && <span>Skipped. {n.reason}</span>}
+      {n.status === "done" && !made.length && !merged.length && <span>What it made has since been deleted.</span>}
     </div>
   );
 }
@@ -76,9 +94,10 @@ export default function Notes() {
   const { state, act } = useStore();
   const nav = useNav();
   const ix = index(state);
-  const space = notesCourse(state);
+  const areas = noteAreas(state);
   const inbox = state.notes.filter(n => n.status === "inbox");
   const history = state.notes.filter(n => n.status !== "inbox").sort((a, b) => (b.processedAt || 0) - (a.processedAt || 0));
+  const skipped = history.filter(n => n.status === "skipped");
 
   const [text, setText] = useState("");
   const [context, setContext] = useState("");
@@ -87,10 +106,10 @@ export default function Notes() {
   const [busy, setBusy] = useState(null);
   const [review, setReview] = useState(null); // { entries, partial }
   const [hasKey, setHasKey] = useState(null);
-  const [open, setOpen] = useState(() => new Set());
   const [conceptId, setConceptId] = useState(nav.route.conceptId ?? null);
   const [showAll, setShowAll] = useState(false);
   const [drag, setDrag] = useState(false);
+  const [deleting, setDeleting] = useState(null); // { notes, made }: waiting for you to confirm
   const taRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -156,15 +175,37 @@ export default function Notes() {
     const payload = buildNotesImport({ state, entries: review.entries });
     act("notes/import", { payload });
     const fresh = payload.concepts.length;
-    const merged = new Set(payload.items.filter(i => !payload.concepts.some(c => c.id === i.conceptId)).map(i => i.conceptId)).size;
-    const skipped = payload.noteUpdates.filter(u => u.patch.status === "skipped").length;
-    setMsg([fresh && `${plural(fresh, "new concept")} in Notes`, merged && `more questions on ${plural(merged, "concept")} you already study`, skipped && `${skipped} skipped`].filter(Boolean).join(", ") + ".");
+    const inAreas = new Set(payload.concepts.map(c => c.courseId)).size;
+    const skippedNow = payload.noteUpdates.filter(u => u.patch.status === "skipped").length;
+    setMsg([
+      fresh && `${plural(fresh, "new concept")} in ${plural(inAreas, "area")}`,
+      payload.courses.length && `${plural(payload.courses.length, "new area")}`,
+      skippedNow && `${skippedNow} skipped`,
+    ].filter(Boolean).join(", ") + ".");
     setReview(null);
   };
 
-  const topics = space ? ix.sectionsByCourse[space.id] || [] : [];
+  const regroup = async () => {
+    setError(""); setMsg("");
+    setBusy({ label: "Regrouping your areas" });
+    const res = await planRegroup(state);
+    setBusy(null);
+    if (!res.ok) { setError(res.error); return; }
+    act("notes/regroup", { moves: res.moves });
+    const names = [...new Map(res.moves.map(m => [nameKey(m.area), m.area])).values()];
+    setMsg(`Your topics are now in ${plural(names.length, "area")}: ${names.join(", ")}.`);
+  };
+
+  // Notes that made concepts ask first, since those concepts (and their history) go too.
+  const remove = (notes) => {
+    const ids = notes.map(n => n.id);
+    const made = madeFrom(state, ids).length;
+    if (made) setDeleting({ notes, made });
+    else act("notes/delete", { ids });
+  };
+
+  const areaNames = new Set(areas.map(c => nameKey(c.name)));
   const chosen = review ? review.entries.reduce((n, e) => n + e.concepts.reduce((m, c) => m + (c.group ? [...c.group.kept, ...c.group.dropped].filter(q => q.selected).length : 0), 0), 0) : 0;
-  const toggleTopic = (id) => setOpen(o => { const x = new Set(o); if (x.has(id)) x.delete(id); else x.add(id); return x; });
 
   return (
     <Page>
@@ -202,7 +243,8 @@ export default function Notes() {
         </>}>
           {review.partial && <Notice tone="warn" icon="alert">Part of this didn't go through: {review.partial}. Those notes stay in your inbox.</Notice>}
           {review.entries.map((e, ei) => (
-            <NoteResult key={e.note.id} entry={e} ix={ix} onKeep={() => keepAnyway(e.note.id)} onToggle={(ci, list, qi) => toggleQuestion(ei, ci, list, qi)}/>
+            <NoteResult key={e.note.id} entry={e} ix={ix} areaNames={areaNames}
+              onKeep={() => keepAnyway(e.note.id)} onToggle={(ci, list, qi) => toggleQuestion(ei, ci, list, qi)}/>
           ))}
         </Section>
       )}
@@ -220,7 +262,7 @@ export default function Notes() {
                   <div className="ell">{preview(n.text, 180)}</div>
                   <div className="meta"><span>{n.source}</span>{n.context && <span>{n.context}</span>}{n.force && <span>keep anyway</span>}</div>
                 </div>
-                <button className="btn btn-quiet btn-sm btn-icon" title="Remove from inbox" aria-label="Remove from inbox" onClick={() => act("notes/remove", { id: n.id })}><Icon name="x"/></button>
+                <button className="btn btn-quiet btn-sm btn-icon" title="Delete note" aria-label="Delete note" onClick={() => remove([n])}><Icon name="trash"/></button>
               </div>
             ))}
             {inbox.length > INBOX_SHOWN && <div className="list-row muted small">and {inbox.length - INBOX_SHOWN} more</div>}
@@ -228,50 +270,28 @@ export default function Notes() {
         </Section>
       )}
 
-      <Section title="Topics">
-        {topics.length === 0 ? (
-          <p className="muted small">Processed notes are filed here by topic.</p>
-        ) : (
-          <Outline>
-            {topics.map(s => {
-              const sm = sectionMastery(state, s.id, nav.now);
-              const concepts = ix.conceptsBySection[s.id] || [];
-              const questions = concepts.reduce((n, c) => n + (ix.itemsByConcept[c.id] || []).filter(i => !i.flag).length, 0);
-              return (
-                <OutlineItem key={s.id} title={s.title} open={open.has(s.id)} onToggle={() => toggleTopic(s.id)}
-                  meta={<>
-                    <span>{plural(sm.total, "concept")}</span>
-                    <span>{plural(questions, "question")}</span>
-                    <span>{sm.introduced} of {sm.total} started</span>
-                    {sm.memory != null && <span>recall {pct(sm.memory)}</span>}
-                  </>}>
-                  {concepts.map(c => (
-                    <ConceptRow key={c.id} concept={c} status={sm.per[c.id]?.status ?? "new"} onOpen={setConceptId}
-                      tags={<>{c.filledIn && <span className="tag">filled in</span>}<ImportanceTag importance={c.importance}/></>}/>
-                  ))}
-                </OutlineItem>
-              );
-            })}
-          </Outline>
-        )}
-      </Section>
+      {areas.length > 0 && (
+        <Section title="Areas" count={areas.length} actions={
+          <button className="btn btn-sm btn-quiet" disabled={!aiBridge() || hasKey === false || Boolean(busy || review)} onClick={regroup}
+            title="Have Claude group your topics into a few broad areas"><Icon name="sparkle"/>Regroup</button>
+        }>
+          <div className="list">{areas.map(c => <CourseRow key={c.id} course={c}/>)}</div>
+        </Section>
+      )}
 
       {history.length > 0 && (
-        <Section title="Processed notes">
+        <Section title="Processed" count={history.length} actions={skipped.length > 0 && (
+          <button className="btn btn-sm btn-quiet" onClick={() => remove(skipped)}>Clear {plural(skipped.length, "skipped note")}</button>
+        )}>
           <div className="list">
             {(showAll ? history : history.slice(0, HISTORY_SHOWN)).map(n => (
               <div key={n.id} className="list-row">
                 <div className="grow stack gap-1">
                   <div className="ell">{preview(n.text, 160)}</div>
-                  <div className="note-outcome small">
-                    {n.status === "skipped" ? <span className="muted">Skipped: {n.reason}</span> : <>
-                      {(n.result?.conceptIds || []).map(id => ix.concept[id] && <button key={id} className="link" onClick={() => setConceptId(id)}>{ix.concept[id].name}</button>)}
-                      {(n.result?.merged || []).map(id => ix.concept[id] && <span key={id}>more questions on <button className="link" onClick={() => setConceptId(id)}>{ix.concept[id].name}</button></span>)}
-                    </>}
-                  </div>
+                  <NoteOutcome note={n} ix={ix} onOpen={setConceptId}/>
                 </div>
                 {n.status === "skipped" && <button className="btn btn-sm" onClick={() => keepAnyway(n.id)}>Keep anyway</button>}
-                <button className="btn btn-quiet btn-sm btn-icon" title="Forget this note (anything made from it stays)" aria-label="Forget this note" onClick={() => act("notes/remove", { id: n.id })}><Icon name="x"/></button>
+                <button className="btn btn-quiet btn-sm btn-icon" title="Delete note and what it made" aria-label="Delete note" onClick={() => remove([n])}><Icon name="trash"/></button>
               </div>
             ))}
             {history.length > HISTORY_SHOWN && !showAll && <button className="list-row muted small" onClick={() => setShowAll(true)}>Show all {history.length}</button>}
@@ -280,6 +300,13 @@ export default function Notes() {
       )}
 
       {conceptId && <ConceptPanel conceptId={conceptId} onOpen={setConceptId} onClose={() => setConceptId(null)}/>}
+      {deleting && (
+        <ConfirmDialog title={deleting.notes.length > 1 ? `Delete ${plural(deleting.notes.length, "note")}?` : "Delete this note?"} action="Delete"
+          onConfirm={() => act("notes/delete", { ids: deleting.notes.map(n => n.id) })} onClose={() => setDeleting(null)}>
+          The {plural(deleting.made, "concept")} made from {pluralWord(deleting.notes.length, "it", "them")} {pluralWord(deleting.made, "goes", "go")} too,
+          with {pluralWord(deleting.made, "its", "their")} questions and review history. An area left empty is removed.
+        </ConfirmDialog>
+      )}
     </Page>
   );
 }

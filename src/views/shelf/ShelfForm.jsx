@@ -8,27 +8,57 @@ import Icon from "../../ui/Icon.jsx";
 import { Modal } from "../../ui/overlays.jsx";
 import { Field, Segmented } from "../../ui/controls.jsx";
 import { Spinner } from "../../ui/display.jsx";
-import { CoverArt } from "../../ui/Cover.jsx";
+import { CoverArt, useCoverInfo } from "../../ui/Cover.jsx";
 import { cx } from "../../ui/cx.js";
 import { SHELF_KINDS, SHELF_STATUS, categoryOf, makeShelfItem } from "../../lib/shelf.js";
-import { shrinkImage } from "../../lib/image.js";
+import { shrinkImage, cutToBook } from "../../lib/image.js";
+import { bookShaped } from "../../lib/cover.js";
 
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const coverApi = () => (typeof window !== "undefined" ? window.tenax?.covers : null);
 
-/** The cover: a preview you can drop a picture on, with ways to choose one. `busy` is true while a picture is being shrunk. */
-function CoverField({ cover, setCover, title, author, setError, busy, setBusy }) {
+/**
+ * The cover: a preview you can drop a picture on, with ways to choose one. A
+ * picture that isn't a book's shape is cut to fit, and can be dragged to
+ * choose what shows (`pos`). `busy` is true while a picture is being shrunk.
+ */
+function CoverField({ cover, setCover, pos, setPos, title, author, setError, busy, setBusy }) {
   const [over, setOver] = useState(false);
   const [found, setFound] = useState(null); // null | { query, covers, error }
   const [finding, setFinding] = useState(false);
   const [picking, setPicking] = useState(null);
   const fileRef = useRef(null);
+  const drag = useRef(null);
+  const info = useCoverInfo(cover);
+  const movable = Boolean(info && !bookShaped(info.aspect));
+  const wide = info?.aspect > 2 / 3;
+  const at = pos ?? info?.pos ?? 0.5;
 
+  const choose = (src) => { setCover(src); setPos(null); setError(""); };
   const takeFile = async (file) => {
     if (!file) return;
     setBusy(true);
-    try { setCover(await shrinkImage(file)); setError(""); } catch (err) { setError(err.message); }
+    try { choose(await shrinkImage(file)); } catch (err) { setError(err.message); }
     setBusy(false);
+  };
+  // Dragging moves the picture under the cover: the part that shows follows the pointer.
+  const startDrag = (e) => {
+    if (!movable) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const r = e.currentTarget.getBoundingClientRect();
+    const room = wide ? r.height * info.aspect - r.width : r.width / info.aspect - r.height;
+    drag.current = { from: wide ? e.clientX : e.clientY, at, room };
+  };
+  const moveDrag = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    setPos(Math.min(1, Math.max(0, d.at - ((wide ? e.clientX : e.clientY) - d.from) / d.room)));
+  };
+  const nudge = (e) => {
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (!movable || !step) return;
+    e.preventDefault();
+    setPos(p => Math.min(1, Math.max(0, (p ?? info.pos) + step * 0.05)));
   };
   // Covers from Open Library: searched by the title (or an ISBN typed as the title) and author.
   const findCovers = async () => {
@@ -43,7 +73,7 @@ function CoverField({ cover, setCover, title, author, setError, busy, setBusy })
     setPicking(c.id);
     const res = await coverApi().fetch(c.id).catch(() => ({ ok: false, error: "Couldn't download the cover" }));
     if (res.ok) {
-      try { setCover(await shrinkImage(res.dataUrl)); setFound(null); setError(""); } catch (err) { setError(err.message); }
+      try { choose(await shrinkImage(res.dataUrl)); setFound(null); } catch (err) { setError(err.message); }
     } else setError(res.error);
     setPicking(null);
   };
@@ -53,11 +83,18 @@ function CoverField({ cover, setCover, title, author, setError, busy, setBusy })
       <div className={cx("cover-field", over && "over")}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); takeFile(e.dataTransfer.files?.[0]); }}>
-        <CoverArt src={cover} title={title} author={author} className="edit-cover"/>
-        <div className="row wrap">
-          {coverApi() && <button type="button" className="btn btn-sm" onClick={findCovers} disabled={finding}>{finding ? <Spinner/> : <Icon name="search"/>}Find a cover</button>}
-          <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? <Spinner/> : <Icon name="upload"/>}Choose an image</button>
-          {cover && <button type="button" className="btn btn-sm btn-quiet" onClick={() => setCover(null)}><Icon name="x"/>Remove</button>}
+        <div className={cx("cover-adjust", movable && "movable")} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { drag.current = null; }}
+          {...(movable && { tabIndex: 0, role: "slider", "aria-label": "What part of the picture shows", "aria-orientation": wide ? "horizontal" : "vertical",
+            "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(at * 100), onKeyDown: nudge })}>
+          <CoverArt src={cover} title={title} author={author} className="edit-cover" pos={pos}/>
+        </div>
+        <div className="stack gap-3">
+          <div className="row wrap">
+            {coverApi() && <button type="button" className="btn btn-sm" onClick={findCovers} disabled={finding}>{finding ? <Spinner/> : <Icon name="search"/>}Find a cover</button>}
+            <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? <Spinner/> : <Icon name="upload"/>}Choose an image</button>
+            {cover && <button type="button" className="btn btn-sm btn-quiet" onClick={() => choose(null)}><Icon name="x"/>Remove</button>}
+          </div>
+          {movable && <p className="small muted">Cut to fit the cover. Drag the picture to choose what shows.</p>}
         </div>
       </div>
       {found && (found.covers.length > 0 ? (
@@ -88,6 +125,7 @@ export default function ShelfForm({ entry, startKind, onClose, onSaved }) {
   const [title, setTitle] = useState(entry?.title || "");
   const [author, setAuthor] = useState(entry?.author || "");
   const [cover, setCover] = useState(entry?.cover || null);
+  const [coverPos, setCoverPos] = useState(null); // where you dragged the picture to, or null: where it has the most detail
   const [status, setStatus] = useState(entry ? (entry.want ? "want" : entry.finished ? "finished" : "active") : "active");
   const [unitLabel, setUnitLabel] = useState(capitalize(entry && entry.category === "study" ? entry.unit : SHELF_KINDS[kind].unit));
   const [unitTouched, setUnitTouched] = useState(Boolean(entry && entry.category === "study"));
@@ -109,14 +147,18 @@ export default function ShelfForm({ entry, startKind, onClose, onSaved }) {
     if (k !== "reading" && !unitTouched) setUnitLabel(capitalize(SHELF_KINDS[k].unit));
   };
 
-  const save = () => {
+  const save = async () => {
     const t = title.trim() || course?.name || "";
     if (!t) return setError("Give it a title.");
     const tot = Math.max(0, parseInt(total, 10) || 0);
     const doneCount = parseInt(done, 10) || 0;
     const unit = unitLabel.trim();
+    // Saved as it looks here: cut to a book's shape.
+    setBusy(true);
+    const fitted = cover ? await cutToBook(cover, coverPos).catch(() => cover) : null;
+    setBusy(false);
     const fields = {
-      kind, cover, author: reading ? author.trim() : "",
+      kind, cover: fitted, author: reading ? author.trim() : "",
       title: course && t === course.name ? "" : t, // follows the course's name unless you changed it
       // Shown capitalized here; cards read "4 / 12 chapters".
       unitLabel: reading ? readingUnit : /^(chapters|modules)$/i.test(unit) ? unit.toLowerCase() : unit || SHELF_KINDS[kind].unit,
@@ -152,7 +194,7 @@ export default function ShelfForm({ entry, startKind, onClose, onSaved }) {
           </Field>
         )}
       </div>
-      <CoverField cover={cover} setCover={setCover} title={title.trim() || course?.name || ""} author={reading ? author.trim() : ""}
+      <CoverField cover={cover} setCover={setCover} pos={coverPos} setPos={setCoverPos} title={title.trim() || course?.name || ""} author={reading ? author.trim() : ""}
         setError={setError} busy={busy} setBusy={setBusy}/>
       {!course && (
         <Field label="Status">

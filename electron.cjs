@@ -703,10 +703,11 @@ const NOTES_SCHEMA = obj({
           summary: str("1–3 sentences stating the idea precisely and correctly"),
           kind: { type: "string", enum: ["definition", "mechanism", "distinction", "procedure", "principle", "fact"] },
           importance: { type: "string", enum: ["core", "supporting", "detail"] },
-          topic: str("General subject to file it under, e.g. 'SQLite', 'Git', 'HTTP', 'C'"),
+          area: str("The broad field, like a university course: 'Web development', 'Security', 'Databases'"),
+          topic: str("The subject within the area, the size of a chapter: 'Authentication', 'REST APIs', 'Indexes'"),
           filled_in: { type: "boolean", description: "True if the summary adds facts the note didn't state" },
           corrected: str("If the note is wrong or misleading, what was wrong; otherwise empty"),
-          same_as: str("Id of a known concept that is the SAME idea, or empty"),
+          same_as: str("Id of a known concept that already covers this SAME idea, or empty"),
           related: {
             type: "array",
             items: obj({
@@ -721,6 +722,9 @@ const NOTES_SCHEMA = obj({
   },
 });
 
+// What an area is, for filing notes and for regrouping them.
+const BROAD_AREAS = `An area is a broad field, the size of a whole subject or a university course: "Web development", "Security", "Databases", "Networking", "Operating systems", "Programming languages", "Software engineering", "Machine learning". A handful of areas should hold everything the learner writes down, so think wide: authentication and OAuth belong in "Security", REST APIs and HTTP caching in "Web development", Git and testing in "Software engineering". Never name an area after one tool, library or technique (that's a topic), and never use a catch-all ("Notes", "General", "Misc").`;
+
 const NOTES_SYSTEM = `You turn a learner's own notes (jotted while building projects, reading documentation or working) into ideas worth keeping in long-term memory, and you match them against what the learner already studies.
 
 For each note, decide:
@@ -731,21 +735,25 @@ If a note has force="true", keep it and extract the best idea you can.
 For a kept note, extract its concepts: usually one; split only when the note holds genuinely separate ideas (at most 3).
 - summary: state the idea precisely and correctly, faithful to the note. If the note is terse, complete it with well-established facts so it stands on its own, and set filled_in to true. If the note is wrong or misleading, write the correct idea and say what was wrong in corrected.
 - importance: core = broadly useful fundamentals; supporting = useful specifics; detail = narrow facts.
-- topic: the general subject, as a short name (a technology, tool or field). Reuse an existing topic when one fits. The note's context is a hint; a project name is rarely a good topic.
-- same_as: if a known concept is the SAME idea (not merely related), give its id. The note will then add practice to that concept instead of creating a duplicate.
+- area: ${BROAD_AREAS} Reuse an existing area whenever the idea fits it, even loosely, unless that area is itself a single tool or technique; start a new one only for a genuinely different field. The note's context is a hint; a project name is rarely a good area.
+- topic: the subject within the area, the size of a chapter ("Authentication", "REST APIs", "Indexes", "Git"). Reuse one of that area's topics when it fits, so each topic collects several ideas.
+- same_as: if a known concept already covers the SAME idea (not merely a related one), give its id. The learner already studies it, so the note adds nothing new and is left out. Unless the note has force="true": then leave same_as empty.
 - related: up to 2 known concepts that are genuinely connected (not the same_as one), each with a sentence on why.
+If a note repeats an idea from an earlier note in this batch, skip it with the reason "Same idea as another note".
 Match on meaning, never on shared words alone.`;
 
-ipcMain.handle("ai:notes", async (_e, { notes, topics = [], known = [] }) => {
+ipcMain.handle("ai:notes", async (_e, { notes, areas = [], known = [] }) => {
   const knownList = known.map((k) => `${k.id} | ${k.name} | ${k.course}${k.summary ? ` | ${k.summary}` : ""}`).join("\n");
   const noteList = notes.map((n) => `<note id="${n.id}" force="${n.force ? "true" : "false"}"${n.context ? ` context="${String(n.context).replace(/"/g, "'")}"` : ""}>
 ${escapeTag(n.text)}
 </note>`).join("\n");
-  // Topics and known concepts are the same for every batch of a run: cached.
+  const areaList = areas.map((a) => `${a.name}${a.topics?.length ? `: ${a.topics.join(", ")}` : ""}`).join("\n");
+  // Areas and known concepts are the same for every batch of a run: cached.
   const prompt = [
-    { type: "text", cache_control: { type: "ephemeral" }, text: `<existing_topics>
-${topics.join("\n") || "(none yet)"}
-</existing_topics>
+    { type: "text", cache_control: { type: "ephemeral" }, text: `<existing_areas>
+area: its topics
+${areaList || "(none yet)"}
+</existing_areas>
 
 <known_concepts>
 id | name | course | summary (summaries only for the likeliest matches)
@@ -754,6 +762,37 @@ ${knownList || "(none yet)"}
     { type: "text", text: noteList },
   ];
   return structured({ tier: "deep", system: NOTES_SYSTEM, prompt, schema: NOTES_SCHEMA, maxTokens: 16000 });
+});
+
+// ── 4c. Regrouping note areas ────────────────────────────────────────────────
+const AREAS_SCHEMA = obj({
+  topics: {
+    type: "array",
+    items: obj({
+      id: str("The topic's id"),
+      area: str("The broad area it belongs in"),
+      topic: str("Its name in that area"),
+    }),
+  },
+});
+
+const AREAS_SYSTEM = `You organize the areas a learner's notes are filed under. Each area is a course of its own, and its topics are the chapters. Narrow areas (one per tool or technique) scatter the notes, so put every topic in a broad area.
+
+${BROAD_AREAS}
+
+For each topic, by id:
+- area: the broad area it belongs in. Keep an existing area's name when it is already broad; otherwise name the broad field it's part of. Group as much as you can: a few areas holding several topics each, not one each.
+- topic: its name in that area, the size of a chapter. When its old area was narrow (one tool or technique) and is joining a broader one, the old area's name is usually the right topic, so "Git › Branching" and "Git › Rebasing" become one topic, "Git". Otherwise keep the topic's name, unless another topic in the same new area is the same subject: then use that one's name, and the two merge.
+Return every topic exactly once.`;
+
+ipcMain.handle("ai:areas", async (_e, { areas }) => {
+  const list = areas.map((a) => `${a.name}\n${a.topics.map((t) => `  ${t.id} | ${t.name} | ${t.concepts.join("; ")}`).join("\n")}`).join("\n");
+  const prompt = `<areas>
+area
+  topic id | topic | some of its concepts
+${escapeTag(list)}
+</areas>`;
+  return structured({ tier: "deep", system: AREAS_SYSTEM, prompt, schema: AREAS_SCHEMA, maxTokens: 4000 });
 });
 
 // ── 5. Teach-back ────────────────────────────────────────────────────────────

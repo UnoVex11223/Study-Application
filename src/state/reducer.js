@@ -1,5 +1,5 @@
 // All state changes, as a pure reducer (unit-tested in tests/).
-import { emptyState, normalizeState, index, RECORD_COLLECTIONS } from "../lib/model.js";
+import { emptyState, normalizeState, index, removeConcepts, RECORD_COLLECTIONS } from "../lib/model.js";
 import { rate, newSrs, RATING } from "../lib/fsrs.js";
 import { makeLoadAt } from "../lib/planner.js";
 import { mergeEdges } from "../lib/graph.js";
@@ -9,20 +9,9 @@ import { mergeStates } from "../lib/sync.js";
 import { nextRecall } from "../lib/recall.js";
 import { updateShelfItem } from "../lib/shelf.js";
 import { implicitCredit } from "../lib/training.js";
+import { splitNotesSpace, regroupAreas, deleteNotes } from "../lib/notes.js";
 
 const MAX_ATTEMPTS = 30000;
-
-function removeConcepts(state, ids) {
-  const gone = new Set(ids);
-  const itemIds = new Set(state.items.filter(i => gone.has(i.conceptId)).map(i => i.id));
-  return {
-    ...state,
-    concepts: state.concepts.filter(c => !gone.has(c.id)),
-    items: state.items.filter(i => !itemIds.has(i.id)),
-    edges: state.edges.filter(e => !gone.has(e.from) && !gone.has(e.to)),
-    attempts: state.attempts.filter(a => !gone.has(a.conceptId)),
-  };
-}
 
 function apply(state, action) {
   if (action.type === "load") return action.state;
@@ -102,13 +91,17 @@ function apply(state, action) {
     // Notes.
     case "notes/add":
       return { ...state, notes: [...state.notes, ...action.notes] };
-    case "notes/remove":
-      return { ...state, notes: state.notes.filter(n => n.id !== action.id) };
+    case "notes/delete": // with everything made from them (lib/notes.js)
+      return deleteNotes(state, action.ids);
     case "notes/requeue": // "Keep anyway" on a skipped note, or retry
       return { ...state, notes: state.notes.map(n => (n.id === action.id ? { ...n, status: "inbox", force: Boolean(action.force), reason: "" } : n)) };
+    case "notes/areas": // the old single Notes course, split into areas
+      return splitNotesSpace(state);
+    case "notes/regroup": // topics moved into broader areas, as Claude grouped them
+      return regroupAreas(state, action.moves, action.now);
     case "notes/import": {
-      const { course, noteUpdates = [], ...payload } = action.payload;
-      let next = course ? { ...state, courses: [...state.courses, course] } : state;
+      const { courses = [], noteUpdates = [], ...payload } = action.payload;
+      let next = courses.length ? { ...state, courses: [...state.courses, ...courses] } : state;
       next = apply(next, { type: "import", payload });
       const patches = new Map(noteUpdates.map(u => [u.id, u.patch]));
       return { ...next, notes: next.notes.map(n => (patches.has(n.id) ? { ...n, ...patches.get(n.id) } : n)) };

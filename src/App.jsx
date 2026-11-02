@@ -78,8 +78,8 @@ function Shell() {
       <div className="window">
         <TitleBar onSearch={() => setPalette(true)}/>
         <div className="app">
-          <Sidebar active={navItemFor(route, state)} counts={counts}/>
-          <main className="main">{pageFor(route, { state, plan })}</main>
+          <Sidebar active={navItemFor(route)} counts={counts}/>
+          <main className="main">{pageFor(route, { plan })}</main>
         </div>
       </div>
       {session && <Session key={session.key} tasks={session.tasks} mode={session.mode} title={session.title} daily={session.daily}/>}

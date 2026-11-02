@@ -2,7 +2,7 @@
 // plus relation edges between concepts and an attempt log.
 //
 //   course   { id, name, color, status: active|maintain|paused, createdAt, kind? }
-//            kind "notes" = the Notes space: your own notes, organized by topic, not a curriculum.
+//            kind "notes" = an area made from your notes, its sections the topics (lib/notes.js).
 //   section  { id, courseId, title, summary, order, sourceLabel, locked, pages? }
 //            locked = a book chapter you haven't read yet: no new concepts from it.
 //   concept  { id, courseId, sectionId, name, summary, kind, importance: core|supporting|detail,
@@ -194,6 +194,19 @@ export const makeItem = (fields) => ({
 });
 
 export const makeEdge = (fields) => ({ id: uid("e"), type: "related", why: "", confidence: 0.8, origin: "ai", ...fields });
+
+/** The state without these concepts, their questions, their links and their review history. */
+export function removeConcepts(state, ids) {
+  const gone = new Set(ids);
+  if (!gone.size) return state;
+  return {
+    ...state,
+    concepts: state.concepts.filter(c => !gone.has(c.id)),
+    items: state.items.filter(i => !gone.has(i.conceptId)),
+    edges: state.edges.filter(e => !gone.has(e.from) && !gone.has(e.to)),
+    attempts: state.attempts.filter(a => !gone.has(a.conceptId)),
+  };
+}
 
 // ── Indexing ────────────────────────────────────────────────────────────────
 // Views and the planner need lots of lookups; build them once per state object.

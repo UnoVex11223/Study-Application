@@ -1,28 +1,17 @@
 // Courses: every course you study, active ones first, with how much is
-// mastered, started and remembered.
+// mastered, started and remembered. The areas made from your notes come
+// after the courses you added yourself.
 import { useState } from "react";
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import { Page, PageHeader, EmptyState } from "../../ui/layout.jsx";
-import { Bar } from "../../ui/display.jsx";
-import { cx } from "../../ui/cx.js";
-import { makeCourse, COURSE_STATUS, courseInk } from "../../lib/model.js";
-import { courseMastery } from "../../lib/mastery.js";
-import { plural, pct } from "../../lib/format.js";
+import { makeCourse } from "../../lib/model.js";
 import CourseForm from "./CourseForm.jsx";
+import CourseRow from "./CourseRow.jsx";
 
 const STATUS_ORDER = { active: 0, maintain: 1, paused: 2 };
-
-/** A labelled share with a bar under it. */
-function Metric({ label, value, tone }) {
-  return (
-    <div className="course-metric">
-      <div className="course-metric-label"><span>{label}</span><span className="num">{value == null ? "–" : pct(value)}</span></div>
-      <Bar value={value ?? 0} tone={tone} thin/>
-    </div>
-  );
-}
+const fromNotes = (c) => (c.kind === "notes" ? 1 : 0);
 
 export default function Courses() {
   const { state, act } = useStore();
@@ -36,9 +25,8 @@ export default function Courses() {
     nav.go("course", { courseId: course.id, fresh: true });
   };
 
-  const courses = state.courses
-    .filter(c => c.kind !== "notes")
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.createdAt - b.createdAt);
+  const courses = [...state.courses]
+    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || fromNotes(a) - fromNotes(b) || a.createdAt - b.createdAt);
   const importBook = <button className="btn" onClick={() => nav.go("book")}><Icon name="book"/>Import a book</button>;
   const newCourse = <button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus"/>New course</button>;
 
@@ -52,27 +40,7 @@ export default function Courses() {
         </EmptyState>
       ) : (
         <div className="list">
-          {courses.map(c => {
-            const m = courseMastery(state, c.id, nav.now);
-            return (
-              <button key={c.id} className={cx("list-row course-row", c.status === "paused" && "paused")} onClick={() => nav.go("course", { courseId: c.id })}>
-                <span className="course-swatch" style={{ "--c": courseInk(c.color) }}/>
-                <span className="course-main">
-                  <span className="course-name">{c.name}</span>
-                  <span className="meta">
-                    {c.status !== "active" && <span>{COURSE_STATUS[c.status].label}</span>}
-                    <span>{plural(m.total, "concept")}</span>
-                    {m.locked > 0 && <span>{m.locked} in unread chapters</span>}
-                    {m.due > 0 && <span>{m.due} due</span>}
-                    {m.slipping > 0 && <span className="warn">{m.slipping} slipping</span>}
-                  </span>
-                </span>
-                <Metric label="Mastered" value={m.masteryPct} tone="good"/>
-                <Metric label="Started" value={m.coveragePct}/>
-                <Metric label="Recall" value={m.memory}/>
-              </button>
-            );
-          })}
+          {courses.map(c => <CourseRow key={c.id} course={c} note={c.kind === "notes" ? "From your notes" : null}/>)}
         </div>
       )}
       {creating && <CourseForm onSave={create} onClose={() => setCreating(false)}/>}

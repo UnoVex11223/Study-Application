@@ -7,6 +7,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { loadState, saveState, flush, onSaveStatus } from "../lib/persist.js";
 import { setRolloverHour } from "../lib/time.js";
+import { hasNotesSpace } from "../lib/notes.js";
 import { reducer } from "./reducer.js";
 
 const StoreCtx = createContext(null);
@@ -22,6 +23,8 @@ export function StoreProvider({ children }) {
     loadState()
       .then(({ state: loaded, recovered }) => {
         dispatch({ type: "load", state: loaded });
+        // A library from before notes had areas: as an edit, so it carries over to your other computers.
+        if (hasNotesSpace(loaded)) dispatch({ type: "notes/areas", now: Date.now() });
         setStorage(s => ({ ...s, loadError: "", recovered: recovered ?? s.recovered }));
       })
       .catch(err => setStorage(s => ({ ...s, loadError: err?.message || "Tenax couldn't open its library." })));

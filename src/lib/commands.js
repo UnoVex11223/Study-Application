@@ -56,23 +56,20 @@ export function commandEntries(state, { plan = null, now = Date.now(), syncing =
   for (const p of PAGES) add({ kind: "page", id: `p:${p.id}`, title: p.label, icon: p.icon, to: { view: p.id }, suggest: true, boost: 1 });
 
   for (const c of state.courses) {
-    if (c.kind === "notes") continue;
     const n = (ix.sectionsByCourse[c.id] || []).length;
-    add({ kind: "course", id: `c:${c.id}`, title: c.name, sub: plural(n, "chapter"), color: c.color, to: { view: "course", params: { courseId: c.id } }, boost: 3 });
+    const sub = c.kind === "notes" ? `From your notes · ${plural(n, "topic")}` : plural(n, "chapter");
+    add({ kind: "course", id: `c:${c.id}`, title: c.name, sub, color: c.color, to: { view: "course", params: { courseId: c.id } }, boost: 3 });
   }
   for (const s of state.sections) {
     const c = ix.course[s.courseId];
-    if (!c || c.kind === "notes") continue;
+    if (!c) continue;
     add({ kind: "chapter", id: `s:${s.id}`, title: s.title, sub: c.name, color: c.color, to: { view: "course", params: { courseId: c.id, sectionId: s.id, at } } });
   }
   for (const k of state.concepts) {
     const c = ix.course[k.courseId];
     if (!c) continue;
-    const notes = c.kind === "notes";
-    const topic = ix.section[k.sectionId]?.title;
     add({
-      kind: notes ? "note" : "concept", id: `k:${k.id}`, title: k.name,
-      sub: notes ? `Notes${topic ? ` · ${topic}` : ""}` : c.name, color: c.color,
+      kind: "concept", id: `k:${k.id}`, title: k.name, sub: c.name, color: c.color,
       to: { view: "course", params: { courseId: c.id, conceptId: k.id, at } }, boost: k.suspended ? -3 : 0,
     });
   }
