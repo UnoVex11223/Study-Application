@@ -27,8 +27,8 @@
 ## What it does
 
 - **The same number of questions every day, from every subject.** You pick how many (20 by default). Reviews are scheduled per concept with FSRS-6; anything starting to slip comes first, and the rest of the day is shared out so each course you're studying gets its turn, instead of the biggest one filling the day. Ideas that are easy to confuse across subjects are asked back to back. New material is let in only as fast as the days ahead allow, so the load stays level instead of spiking.
-- **Questions worth answering.** Add a chapter as text or PDF. Claude pulls out the concepts that matter, writes recall, explain, distinguish and apply questions, and a second pass reviews every question and throws out weak ones before you see them.
-- **Written answers, graded.** You answer in your own words. Claude checks each key point, quotes what you wrote, and shows the model answer and the passage from your source. Code questions can carry tests in Python, C or JavaScript that run against your answer instead.
+- **Questions that build up, one step at a time.** Add a chapter as text or PDF. Claude pulls out the concepts that matter and breaks each one into a ladder of small questions, each asking for exactly one thing: its term, one rule, a small problem, a twist, and using it with what it builds on. A second pass reviews every question and throws out weak ones before you see them. A new concept is taught first (its terms and a worked example), then asked its first steps; each review climbs to the next step you haven't got right yet. Circuits, pointers, bit layouts and trees come with diagrams Tenax draws itself, and a circuit's answer is checked by simulating it. **Drill terms** runs through the vocabulary of everything you've started.
+- **Written answers, graded.** You answer in your own words. A term, a value or a line of code is checked instantly against its accepted answers; anything longer is graded by Claude point by point, quoting what you wrote, with the model answer and the passage from your source. Code questions can carry tests in Python, C or JavaScript that run against your answer instead.
 - **Practice that pushes.** Right answers on advanced ideas partly review the basics under them. Say you're sure before checking and confident misses get flagged; right-but-slow answers count as Hard; misses can be tagged by why. **Go deeper** asks interviewer-style follow-ups until an answer breaks and saves the gap as a note, apply questions come back with fresh examples, and you can pretest a chapter before reading it.
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
 - **Notes.** Jot down things you learn outside a course. Claude files each new idea under a broad area (Web development, Security…) that becomes a course of its own, leaves out what you already study, and skips what isn't worth remembering. Delete a note and what it made goes with it.
@@ -56,7 +56,7 @@ On each computer, go to **Settings → Sync across computers** and choose the sa
 
 ### What it costs
 
-Tenax is free; the AI calls are billed to your API key. Book imports go through Anthropic's Batch API at half price by default, prompts are cached, and grading uses a faster, cheaper model than question writing.
+Tenax is free; the AI calls are billed to your API key. Book imports and question rebuilds go through Anthropic's Batch API at half price by default, prompts are cached, short answers are checked without calling the AI, and grading uses a faster, cheaper model than question writing. Settings shows what the AI has cost over the last 30 days, and lets you trade how carefully questions are written for cost.
 
 ## Your data
 

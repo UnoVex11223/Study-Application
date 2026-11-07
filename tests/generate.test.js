@@ -98,7 +98,7 @@ test("a group that fails is retried once, and the rest are kept if it fails agai
   assert.deepEqual(res2.groups.map(g => g.conceptKey), ["B0", "B1", "B2", "B3"]);
 });
 
-test("topping up adds new variants only where a concept is below its target", async () => {
+test("topping up fills in the missing steps of a ladder, only where a concept has room", async () => {
   const { moreQuestions } = await import("../src/lib/ai.js");
   const { makeSection, makeConcept, makeItem } = await import("../src/lib/model.js");
   const { reducer } = await import("../src/state/reducer.js");
@@ -109,17 +109,18 @@ test("topping up adds new variants only where a concept is below its target", as
   s.sections.push(sec); s.concepts.push(core, full);
   s.items.push(makeItem({ conceptId: core.id, ability: "explain", prompt: "Why does Pointer matter when designing a program's memory layout?", answer: "a", points: ["a"] }));
   s.items.push(makeItem({ conceptId: full.id, ability: "recall", prompt: "Name it", answer: "Full", accept: ["Full"] }));
+  s.items.push(makeItem({ conceptId: full.id, ability: "explain", prompt: "What does a full buffer do to the next write?", answer: "It blocks", points: ["It blocks"] }));
 
   const seen = [];
   const ai = {
     items: async ({ concepts }) => {
       seen.push(...concepts);
       return { ok: true, data: { tasks: concepts.flatMap(c => [
-        { concept_key: c.key, ability: "explain", prompt: "Why does Pointer matter when designing a program's memory layout?", model_answer: "dup", accept: [], required_points: ["dup"], misconceptions: [], hint: "" },
-        { concept_key: c.key, ability: "apply", prompt: "What does `*p = 7;` change when `p` holds the address of `x`?", model_answer: "x becomes 7", accept: [], required_points: ["x becomes 7"], misconceptions: [], hint: "" },
-        { concept_key: c.key, ability: "distinguish", prompt: "How does declaring `int *p` differ from writing `*p` in an expression?", model_answer: "declaration vs dereference", accept: [], required_points: ["Declaration makes a pointer; expression dereferences"], misconceptions: [], hint: "" },
-        { concept_key: c.key, ability: "recall", prompt: "Which operator gives the address of a variable in C?", model_answer: "&", accept: ["&", "address-of operator"], required_points: ["&"], misconceptions: [], hint: "" },
-        { concept_key: c.key, ability: "explain", prompt: "Why must a pointer be initialized before it is dereferenced?", model_answer: "undefined behavior", accept: [], required_points: ["Uninitialized pointers point anywhere"], misconceptions: [], hint: "" },
+        { concept_key: c.key, level: 2, ability: "explain", shape: "one sentence", prompt: "Why does Pointer matter when designing a program's memory layout?", model_answer: "dup", accept: [], required_points: ["dup"], misconceptions: [], hint: "" },
+        { concept_key: c.key, level: 3, ability: "apply", shape: "a variable and its value", prompt: "What does `*p = 7;` change when `p` holds the address of `x`?", model_answer: "x becomes 7", accept: [], required_points: ["x becomes 7"], misconceptions: [], hint: "" },
+        { concept_key: c.key, level: 4, ability: "distinguish", shape: "one sentence", prompt: "How does declaring `int *p` differ from writing `*p` in an expression?", model_answer: "declaration vs dereference", accept: [], required_points: ["Declaration makes a pointer; expression dereferences"], misconceptions: [], hint: "" },
+        { concept_key: c.key, level: 1, ability: "recall", shape: "one symbol", prompt: "Which operator gives the address of a variable in C?", model_answer: "&", accept: ["&", "address-of operator"], required_points: ["&"], misconceptions: [], hint: "" },
+        { concept_key: c.key, level: 2, ability: "explain", shape: "one sentence", prompt: "Why must a pointer be initialized before it is dereferenced?", model_answer: "undefined behavior", accept: [], required_points: ["Uninitialized pointers point anywhere"], misconceptions: [], hint: "" },
       ]) } };
     },
     critique: async ({ questions }) => ({ ok: true, data: { reviews: questions.map(q => ({
@@ -133,13 +134,14 @@ test("topping up adds new variants only where a concept is below its target", as
   delete globalThis.window;
 
   assert.equal(res.ok, true);
-  assert.equal(res.added, 1, "core target is 2; it had 1");
-  assert.deepEqual(seen.map(c => c.key), [core.id], "a concept at its target isn't sent");
+  assert.equal(res.added, 3, "steps 1, 3 and 4; it already had step 2");
+  assert.deepEqual(seen.map(c => c.key), [core.id], "a concept with a full ladder isn't sent");
   assert.equal(seen[0].existing.length, 1);
-  const prompts = state.items.filter(i => i.conceptId === core.id).map(i => i.prompt);
-  assert.equal(prompts.length, 2);
-  assert.equal(new Set(prompts).size, 2, "the repeated question was dropped");
-  assert.ok(state.items.filter(i => i.conceptId === core.id).slice(1).every(i => i.topUp));
+  assert.deepEqual(seen[0].steps, [2], "the writer is told which steps it has");
+  const items = state.items.filter(i => i.conceptId === core.id);
+  assert.deepEqual(items.map(i => i.level ?? null).sort(), [1, 3, 4, null]);
+  assert.equal(new Set(items.map(i => i.prompt)).size, 4, "the repeated question was dropped");
+  assert.ok(items.filter(i => i.topUp).length === 3);
 });
 
 test("the critic's separate revisions list is attached to its verdicts", async () => {

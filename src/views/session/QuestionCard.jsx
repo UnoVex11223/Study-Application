@@ -1,13 +1,15 @@
-// The question being asked: what kind of task it is, the question itself, and
-// the flag for reporting a bad question (or, on a fresh version, going back to
-// the original).
+// The question being asked: what kind of task it is, which step of the
+// concept's ladder it is, the question itself (with its diagram, and what form
+// the answer takes), and the flag for reporting a bad question (or, on a fresh
+// version, going back to the original).
 
 import { useState } from "react";
 import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
+import Diagram from "../../ui/Diagram.jsx";
 import { CourseDot } from "../../ui/display.jsx";
 import { cx } from "../../ui/cx.js";
-import { abilityLabel } from "../../lib/model.js";
+import { abilityLabel, levelLabel } from "../../lib/model.js";
 import { FLAG_REASONS } from "../../lib/quality.js";
 import { CODE_LANGS } from "../../lib/code.js";
 
@@ -19,10 +21,12 @@ const KIND_LABEL = {
   practice: "Practice",
   requeue: "One more try",
   pretest: "Pretest",
+  climb: "Next step",
+  drill: "Terms",
 };
 const REPORT_REASONS = ["unclear", "wrong", "trivial", "other"];
 
-export default function QuestionCard({ task, item, concept, course, section, fresh, code, canUseOriginal, onUseOriginal, onReport }) {
+export default function QuestionCard({ task, item, concept, course, section, fresh, code, step = null, canUseOriginal, onUseOriginal, onReport }) {
   const [reporting, setReporting] = useState(false);
   return (
     <div className="stack gap-3">
@@ -34,7 +38,8 @@ export default function QuestionCard({ task, item, concept, course, section, fre
 
       <article className="q-card">
         <div className="q-head">
-          <span className="tag sky">{abilityLabel(item.ability)}</span>
+          <span className="tag sky" title={abilityLabel(item.ability)}>{levelLabel(item)}</span>
+          {step && step.total > 1 && <span className="q-step" title="Steps on this concept's ladder, simplest first">Step {step.at} of {step.total}</span>}
           <CourseDot color={course?.color}/>
           <span className="grow ell">{course?.name}{section ? ` / ${section.title}` : ""}</span>
           <button className={cx("btn btn-quiet btn-sm btn-icon", reporting && "on")} onClick={() => setReporting(r => !r)}
@@ -43,6 +48,8 @@ export default function QuestionCard({ task, item, concept, course, section, fre
           </button>
         </div>
         <div className="q-prompt"><Markdown>{item.prompt}</Markdown></div>
+        {item.diagram && <Diagram spec={item.diagram}/>}
+        {item.shape && !code && <div className="q-shape">Answer: {item.shape}</div>}
         {code && <div className="small muted">{CODE_LANGS[code.lang].label}, checked by running its tests</div>}
         {reporting && (
           <div className="report-box stack gap-2 enter">

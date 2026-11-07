@@ -1,4 +1,4 @@
-// Grading helpers that don't need AI: exact-answer matching for recall tasks,
+// Grading helpers that don't need AI: exact-answer matching for short answers,
 // turning rubric checks into a verdict, and verdict → FSRS rating.
 
 import { RATING } from "./fsrs.js";
@@ -30,24 +30,64 @@ export function levenshtein(a, b) {
   return prev[b.length];
 }
 
+// Code, expressions and printed output: punctuation is the answer, so it's
+// compared exactly (only spaces, backticks and a trailing semicolon are
+// ignored). "*(ip++)" must never match "(*ip)++".
+const CODE_CHARS = /[*&()[\]{}<>=+/%;|^~!#\\]|->|\w\.\w|\w-\w*\d/;
+const squash = (s) => String(s || "").trim().replace(/^```\w*\n?|```$/g, "").replace(/`/g, "").replace(/\s+/g, "").replace(/;+$/, "");
+const DECIMAL = /^-?\d+(\.\d+)?$/;
+const asDecimal = (s) => {
+  const t = String(s ?? "").trim().replace(/^`|`$/g, "").replace(/,(?=\d{3}\b)/g, "");
+  return DECIMAL.test(t) ? Number(t) : null;
+};
+
 /**
  * Does a short answer match one of the accepted answers?
- * Exact after normalization, or a small typo on longer answers.
- * Only used as a fast path for short recall answers; anything longer goes to
- * the rubric (AI or self-check).
+ * Code-like answers must match exactly (ignoring spacing); words match after
+ * normalization, with a small typo allowed on longer ones. A fast path: an
+ * answer that doesn't match goes to the rubric (AI or self-check).
  */
 export function matchesAccepted(answer, accepted = []) {
   const a = normalize(answer);
   if (!a) return false;
   for (const acc of accepted) {
+    if (!String(acc ?? "").trim()) continue;
+    if (CODE_CHARS.test(acc)) {
+      if (squash(answer) === squash(acc)) return true;
+      continue;
+    }
     const b = normalize(acc);
     if (!b) continue;
     if (a === b) return true;
+    if (asDecimal(acc) != null) continue; // a number has no typos
     const tolerance = b.length >= 12 ? 2 : b.length >= 6 ? 1 : 0;
     if (tolerance && levenshtein(a, b) <= tolerance) return true;
   }
   return false;
 }
+
+/**
+ * A plainly wrong short answer, known without a grader: every accepted
+ * answer is a number and yours is a different number. ("0.0" for "0" isn't
+ * counted as wrong here; the grader decides.)
+ */
+export function plainlyWrong(answer, accepted = []) {
+  if (!accepted.length) return false;
+  // A logic value: 0/1, true/false, high/low all mean the same bit.
+  const bit = asBit(answer), bits = accepted.map(asBit);
+  if (bit != null && bits.every(b => b != null)) return !bits.includes(bit);
+  const mine = asDecimal(answer);
+  if (mine == null) return false;
+  const nums = accepted.map(asDecimal);
+  if (nums.some(n => n == null)) return false;
+  return !nums.includes(mine);
+}
+
+const BITS = { 0: ["0", "false", "low"], 1: ["1", "true", "high"] };
+const asBit = (s) => {
+  const t = String(s ?? "").trim().toLowerCase().replace(/^`|`$/g, "");
+  return BITS[0].includes(t) ? 0 : BITS[1].includes(t) ? 1 : null;
+};
 
 /**
  * Verdict from rubric checks. All required points met and no misconception →

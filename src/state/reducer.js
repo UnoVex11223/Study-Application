@@ -1,5 +1,5 @@
 // All state changes, as a pure reducer (unit-tested in tests/).
-import { emptyState, normalizeState, index, removeConcepts, RECORD_COLLECTIONS } from "../lib/model.js";
+import { emptyState, normalizeState, index, removeConcepts, levelOf, RECORD_COLLECTIONS } from "../lib/model.js";
 import { rate, newSrs, RATING } from "../lib/fsrs.js";
 import { makeLoadAt } from "../lib/planner.js";
 import { mergeEdges } from "../lib/graph.js";
@@ -158,6 +158,26 @@ function apply(state, action) {
     case "item/delete":
       return { ...state, items: state.items.filter(i => i.id !== action.id) };
 
+    // A concept's questions rebuilt as a ladder (lib/ai.js rebuildLadders): old
+    // questions it repeats are kept and moved to their step (with their history),
+    // the rest are replaced. The concept's memory schedule is unchanged.
+    case "concept/ladder": {
+      const { conceptId, add = [], keep = [], remove = [], lesson = null } = action;
+      if (!state.concepts.some(c => c.id === conceptId)) return state;
+      const gone = new Set(remove);
+      const patches = new Map(keep.map(k => [k.id, k.patch]));
+      return {
+        ...state,
+        concepts: state.concepts.map(c => (c.id === conceptId ? { ...c, ladderAt: action.now, ...(lesson ? { lesson } : {}) } : c)),
+        items: [
+          ...state.items
+            .filter(i => !(i.conceptId === conceptId && gone.has(i.id)))
+            .map(i => (i.conceptId === conceptId && patches.has(i.id) ? { ...i, ...patches.get(i.id) } : i)),
+          ...add.filter(i => i.conceptId === conceptId),
+        ],
+      };
+    }
+
     // Reported or automatically flagged questions leave sessions until fixed.
     case "item/flag":
       return { ...state, items: state.items.map(i => (i.id === action.id ? { ...i, flag: { reason: action.reason, note: action.note || "", at: action.now } } : i)) };
@@ -185,7 +205,7 @@ function apply(state, action) {
     case "attempt": {
       const {
         itemId, verdict, rating, aided = false, ms = 0, mode = "session", misconceptions = [], overridden = false, requeue = false, now,
-        answerMs = 0, sure = false, slow = false, reason = null, variant = false, tests = null, probe = null,
+        answerMs = 0, sure = false, slow = false, reason = null, variant = false, tests = null, probe = null, climb = false,
       } = action;
       // Pretests are asked before you study the material: they never touch the schedule or the log.
       if (mode === "pretest") return state;
@@ -201,12 +221,13 @@ function apply(state, action) {
       const credit = rating >= RATING.GOOD && verdict === "correct" && !aided ? implicitCredit(state, concept.id, now) : {};
       const attempt = {
         ts: now, day: dayKey(now, state.settings.rolloverHour),
-        itemId, conceptId: item.conceptId, courseId: concept?.courseId ?? null, ability: item.ability,
+        itemId, conceptId: item.conceptId, courseId: concept?.courseId ?? null, ability: item.ability, level: levelOf(item),
         verdict, rating: rating ?? null, aided, mode, ms: Math.round(ms),
         ...(answerMs > 0 ? { answerMs: Math.round(answerMs) } : {}), // time to your answer, before grading
         ...(misconceptions.length ? { misconceptions } : {}),
         ...(overridden ? { overridden: true } : {}),
         ...(requeue ? { requeue: true } : {}), // a missed question asked again in the same session
+        ...(climb ? { climb: true } : {}), // the next step of a concept being introduced (lib/ladder.js)
         ...(sure ? { sure: true } : {}), // you said you were sure before seeing the answer
         ...(slow ? { slow: true } : {}),
         ...(reason ? { reason } : {}), // why you missed it (training.js MISS_REASONS)

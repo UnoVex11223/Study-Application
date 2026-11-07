@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { shelfEntries, shelfStats, makeShelfItem, updateShelfItem, courseChapters, SHELF_FILTERS } from "../src/lib/shelf.js";
-import { emptyState, makeCourse, makeSection, normalizeState } from "../src/lib/model.js";
+import { emptyState, makeCourse, makeSection, normalizeState, SCHEMA_VERSION } from "../src/lib/model.js";
 import { reducer } from "../src/state/reducer.js";
 import { mergeStates } from "../src/lib/sync.js";
 
@@ -103,7 +103,7 @@ test("books from before the split land in the right category", () => {
   ] };
   const s = normalizeState(old);
   assert.deepEqual(s.shelf.map(x => x.kind), ["textbook", "reading", "reading", "textbook", "course"]);
-  assert.equal(s.version, 8);
+  assert.equal(s.version, SCHEMA_VERSION);
 });
 
 test("the shelf syncs like everything else", () => {

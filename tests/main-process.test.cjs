@@ -323,3 +323,38 @@ test("go deeper, fresh versions and test writing: fast or deep tier, the answer 
   assert.equal(run.ok, true);
   assert.equal(run.passed, true);
 });
+
+test("question writing follows Settings (model and effort), and every call's cost is noted", async () => {
+  const assert = require("assert/strict");
+  storeData.af_api_key = "sk-ant-test";
+  const stream = (b) => {
+    const text = JSON.stringify({ lessons: [], tasks: [] });
+    const events = [
+      ["message_start", { type: "message_start", message: { id: "m", type: "message", role: "assistant", model: b.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1000, cache_read_input_tokens: 3000, output_tokens: 1 } } }],
+      ["content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } }],
+      ["content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } }],
+      ["content_block_stop", { type: "content_block_stop", index: 0 }],
+      ["message_delta", { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 5000 } }],
+      ["message_stop", { type: "message_stop" }],
+    ].map(([e, d]) => `event: ${e}\ndata: ${JSON.stringify(d)}\n\n`).join("");
+    return new Response(events, { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+  respond = stream;
+  requests.length = 0;
+  const before = (await handlers["ai:usage"]({}, { days: 30 })).byActivity.find(a => a.kind === "items") ?? { calls: 0, cost: 0 };
+  for (const writer of ["economy", "thorough", "standard"]) {
+    const r = await handlers["ai:items"]({}, { courseName: "C", sectionTitle: "S", concepts: [], writer });
+    assert.equal(r.ok, true, JSON.stringify(r));
+  }
+  const sent = requests.map(r => r.body);
+  assert.deepEqual(sent.map(b => [b.model, b.output_config.effort ?? null]), [
+    ["claude-sonnet-5-5", null], ["claude-opus-5-5", "high"], ["claude-opus-5-5", null],
+  ]);
+  const u = await handlers["ai:usage"]({}, { days: 30 });
+  const items = u.byActivity.find(a => a.kind === "items");
+  assert.equal(items.calls - before.calls, 3);
+  assert.equal(items.label, "Writing questions");
+  // Sonnet: 1000×2 + 3000×0.1 + 5000×10; Opus twice: 1000×4 + 3000×0.2 + 5000×20 (per million).
+  assert.ok(Math.abs(items.cost - before.cost - (0.0523 + 2 * 0.1046)) < 1e-6, String(items.cost));
+  assert.ok(u.cacheShare > 0.7, "most input came from the cache");
+});

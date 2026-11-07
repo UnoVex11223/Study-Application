@@ -9,9 +9,9 @@ This file doubles as context you can paste into another AI when preparing materi
 ## The daily loop
 
 1. **Today** shows one session: the same number of questions every day (20 by default, Settings → Questions per day), as a row of marks, one per question, coloured by course until you answer it. Under it are the courses they come from (with how many from each, and how many are new); the date heads the page with a button to start (or continue, once you've answered some) beside it. Nothing else: no counts to read, no time estimates, no reminders. Notes to process and books to recall show as counts in the sidebar.
-2. You answer each question by **typing from memory**. There is no multiple choice.
+2. You answer each question by **typing from memory**. There is no multiple choice. A new concept is taught first: its **lesson** (what it is, the terms it introduces, one worked example, a diagram when a picture helps), then its first questions one after another (see Ladders).
 3. Your answer is graded against the question's **key points** (see Grading), you see what you missed, and you rate how well you knew it (Again / Hard / Good / Easy, with a suggested rating preselected — press Enter to accept).
-4. The scheduler (FSRS-6, the current version of the algorithm behind Anki's scheduler) decides when each **concept** comes back. Memory is scheduled per concept, not per question: a concept's questions (recall, explain, apply…) take turns at its reviews, so extra questions add variety without adding review time. Same-day answers count too: getting a new concept right twice in its first session, or missing one again while you relearn it, changes how soon it comes back. Schedules from earlier versions carry over unchanged.
+4. The scheduler (FSRS-6, the current version of the algorithm behind Anki's scheduler) decides when each **concept** comes back. Memory is scheduled per concept, not per question: a concept's questions are the steps of its ladder, and each review asks one of them, so extra steps add depth without adding review time. Same-day answers count too: getting a new concept right twice in its first session, or missing one again while you relearn it, changes how soon it comes back. Schedules from earlier versions carry over unchanged.
 
 ### How the day stays manageable
 
@@ -20,7 +20,7 @@ This file doubles as context you can paste into another AI when preparing materi
 - **An even mix (Settings → Daily mix: Even, the default).** The rest of the day is dealt out one question at a time to whichever course has had the fewest so far, so every course you're studying shows up every day instead of the one with the most material filling it. A course takes its turn with its next due review, or, once all of its due reviews are in, with a new concept. A review that's due but still well remembered can wait a day or two for the mix: recall fades slowly around the due date, so a short wait costs very little, and once it starts to slip it's in the step above. A course with less to ask gives its turns to the others. With **By what's due** the day goes to the most urgent reviews anywhere first, then new concepts in turn. Today says how many reviews are waiting and why.
 - **The rest of the day is filled.** Once everything due is in and new concepts have had their room (see below), reviews coming up soonest (in the next two weeks) are brought forward, courses taking turns again (a course with nothing in the next two weeks offers what it's been longest since you saw), so the day still has its full number and the days ahead get lighter. Only when there's nothing left to ask is the day shorter, and Today says so.
 - **Easily confused ideas, back to back.** Two concepts linked as "easily confused" (say, a C pointer and Hack's A register) are asked one right after the other when both are in a session, and when the day is being filled, the partner of a concept already in it comes first. Contrasting two similar ideas side by side is when mixing helps memory most (Brunmair & Richter's 2019 meta-analysis of interleaving: the benefit is largest for similar categories presented in immediate succession).
-- **One question per review.** When a concept is due, one of its questions is asked: a new concept starts with its most basic question, a question you just missed comes back while you relearn it, and otherwise the question asked longest ago goes next. Your answer reschedules the whole concept.
+- **One question per review, up the ladder.** When a concept is due, one of its steps is asked: a new concept starts on its lowest step, a question you just missed comes back while you relearn it, and otherwise the lowest step you haven't answered right yet (so you climb a step a review, and a missed step is asked again next time). Once every step is climbed, the steps take turns, the one asked longest ago first, so the vocabulary comes back too. Your answer reschedules the whole concept.
 - **New material only when there's room.** New concepts are capped per day (6 by default), shared between your Active courses, and paused automatically if a slipping review was left for tomorrow or if the coming week (counting reviews that waited today) already has close to your daily number of reviews each day.
 - **Load balancing.** When a review is scheduled days out, it lands on the least-busy day in its window, so future days stay even.
 - **Course status.** Each course is *Active* (reviews + new concepts), *Maintaining* (reviews only) or *Paused* (left out). Taking on more subjects means setting older ones to Maintaining, not drowning in reviews.
@@ -35,55 +35,93 @@ Once the day's questions are done, **5 more** is offered if there's anything wor
 ```
 Course (a book, class or subject)
 └── Section (a chapter or part of one)
-    └── Concept (one idea worth remembering; core / supporting / detail)
-        └── Questions (recall, explain, distinguish, apply, connect)
+    └── Concept (one idea worth remembering; core / supporting / detail), with a lesson
+        └── Questions: a ladder of steps (term, fact, use, twist, combine)
 ```
 
 Concepts are connected by **prerequisites** ("B builds on A", a DAG with cycle checks) and by **cross-course links** (related / easily confused / used together). Each link carries a one-sentence explanation. Low-confidence links show as dashed "unconfirmed" and never block anything.
 
 New concepts are introduced from the **knowledge frontier**: a concept becomes eligible once its prerequisites have been started. Several active courses advance in parallel (round-robin).
 
+## Ladders
+
+A concept's questions are a **ladder**: small steps, simplest first, each testing one piece of knowledge and adding one thing to the step below, the way a tutor breaks an idea down (and the way Math Academy builds a topic from small knowledge points).
+
+| Step | What it asks | Typical question |
+|---|---|---|
+| 1 Term | The vocabulary: produce the term from its meaning, or say what a term means in one sentence | "Which keyword declares a variable that's defined in another file?" |
+| 2 Fact | One rule, property or behaviour | "How many times may an external variable be defined in a whole program?" |
+| 3 Use | A small new problem with exactly one right answer | "`a.c` has `int count = 0;`. What line must `b.c` have before using `count`?" |
+| 4 Twist | An edge case, a pitfall, or the difference from a look-alike | "Two files both contain `int count = 0;` at file scope. What happens at link time?" |
+| 5 Combine | This idea with one it builds on | A small problem that needs both |
+
+A core concept gets steps 1–4 (and 5 when there's a natural combination), a supporting one 1–3, a detail 1–2; a step that would be forced or trivial is left out.
+
+- **One answer target.** Every step asks for exactly one thing, and says what form the answer takes ("one word", "a number", "what it prints", "one line of code"), shown under the question. "…, and why?" is two questions: the why goes in the model answer, which you read after answering. Steps 1–4 have a single key point.
+- **Teach, then test.** Before a concept's first question you see its lesson: its summary, the terms it introduces with a one-line definition each, one worked example and, when it helps, a diagram. Then its first steps are asked one after another (up to three), stopping at the first miss. Those extra steps don't count toward the day's number.
+- **Climbing.** Each review asks the lowest step whose last answer wasn't right without help (see "One question per review"). A concept's panel shows its ladder with each climbed step ticked; the session summary lists the steps you climbed.
+- **Terms drill** (the **Drill terms** button on a course, or on a chapter): the first step of every concept you've started, rapid-fire, the ones you're shakiest on first. A term, value or line of code is checked as you press Enter. It's practice: it counts as a review of each concept but not toward the day's number. A course's **Terms** section lists every term its lessons introduce, A to Z.
+- **The subject, not the book.** Questions are about ideas you'd use, on fresh examples, never about the internals of the book's own sample programs.
+
+### Diagrams
+
+A question or a lesson can carry a diagram when a picture is the clearest way to pose it. Claude doesn't draw: it writes a small description, and Tenax checks it and draws it in the app's colours (light or dark). Four kinds:
+
+- **Logic circuits**: gates (AND, OR, NOT, NAND, NOR, XOR, XNOR, MUX) wired from named inputs to outputs, with the inputs' values shown and the output asked about drawn as "?". The circuit is **simulated**, so a question whose answer disagrees with its circuit is rejected before you ever see it. Wires that skip a column run in their own lane, never behind a gate.
+- **Memory**: variables, arrays, structs and list nodes as boxes of cells, with arrows for pointers (side by side for linked lists).
+- **Bits**: a binary word with bit numbers and labelled fields (an instruction format, say), "?" for the bits to work out.
+- **Trees**: binary trees keep left and right apart (a search tree after some insertions, a parse tree).
+
+The grader and Go deeper are given the diagram's description, since they can't see the drawing. A fresh version of a question with a diagram gets a new diagram, never the old one. Small tables (truth tables) can also be written right into a question or lesson.
+
 ## Question types
+
+Each step is one of these kinds:
 
 | Type | What you do | How it's checked |
 |---|---|---|
-| Recall | Produce a term or fact | Accepted answers (typo-tolerant), otherwise key points |
-| Explain | Say what it is and why it matters | Key points |
+| Recall | Produce a term, fact or value | Accepted answers (instantly), otherwise key points |
+| Define | Say what a term means, in one sentence | Key point |
+| Explain | Say how or why, in a sentence or two | Key points |
 | Distinguish | Tell it apart from a similar idea | Key points |
-| Apply | Solve a new example, predict output, fix code | Key points (result + reasoning) |
-| Connect | Explain how ideas work together | Key points |
+| Apply | Solve a new example, predict output, write a line of code | Accepted answers when there's one exact result, otherwise key points |
+| Connect | Use ideas together | Key points |
 
 ## Question quality
 
 Only questions worth years of repetitions get in. Every candidate question passes three filters:
 
-1. **Rules** (no AI): drops questions that contain their own answer, yes/no questions, anything that refers to "the text", "this chapter" or a figure (it won't make sense later), recall answers that are really sentences, questions with no gradable key points, and near-duplicates.
-2. **Independent review**: a separate Claude pass scores each question 1–5 on *worth remembering*, *clear on its own*, *needs real recall*, *gradable* and *accurate*. A question is kept only if it scores 4 or 5 on all five. Fixable questions are rewritten by the reviewer (and re-scored); the rest are dropped with a reason.
-3. **Caps**: up to 2 questions for a core concept (one to know the idea, recall or explain, and one to use it, apply or distinguish, when both pass) and 1 for a supporting or detail concept, the best-scoring first. A typical section ends up with about one and a half questions per concept. A core concept's two questions take turns at its reviews, which keeps you from memorizing one prompt's wording.
+1. **Rules** (no AI): drops questions that contain their own answer, yes/no questions, anything that refers to "the text", "this chapter" or a figure from the book (it won't make sense later), recall answers that are really sentences, questions with no gradable key points, and near-duplicates. Ladder questions also must ask for one thing (no "…, and why?", no "the two steps…", no second question mark outside code, and one key point on steps 1–3), and a diagram must be one Tenax can draw, whose circuit agrees with the answer; a question can only say "shown below" when it has a diagram.
+2. **Independent review**: a separate Claude pass scores each question 1–5 on *worth remembering*, *clear on its own*, *one thing at a time*, *needs real recall*, *gradable* and *accurate*, works code and circuits out itself, and checks each concept's ladder as a whole (simplest first, one new thing per step, no two steps testing the same thing). The vocabulary of an important idea counts as important. A question is kept only if it scores 4 or 5 on everything. Fixable questions are rewritten by the reviewer (most often: two questions cut down to one) and re-scored; the rest are dropped with a reason.
+3. **The ladder**: the best-scoring question at each step, lowest step first, up to 5 steps for a core concept, 3 for a supporting one and 2 for a detail.
 
-Before anything is saved you see a **Review questions** step: what passed (with its score), what was filtered out and why, and you can untick or rescue any question. Concepts left with no good question aren't added.
+Before anything is saved you see a **Review questions** step: what passed (with its step and score), what was filtered out and why, and you can untick or rescue any question. Concepts left with no good question aren't added.
+
+**Rebuild as ladders** (in a course's ⋯ menu, or a chapter's) turns questions written before ladders into ladders: Claude sees each concept and the questions it has, writes the whole ladder (copying a current question where it's already one clear step, splitting broad ones), and the same review and ladder decide what's kept. A current question the new ladder repeats is kept with its history and moved to its step; questions you wrote yourself and code questions with tests are kept as they are; the rest are replaced. Each concept keeps its memory schedule, and gets a lesson if it had none. A concept nothing better passes for keeps its questions. Concepts already rebuilt are skipped unless everything in scope is, in which case it offers to rebuild them again. When only some concepts have been started, it offers **Started so far** (the default) or **All**: the rest can be rebuilt when you reach them, so you don't pay now for chapters you won't study for weeks. With Settings → Book imports and rebuilds on **Half price** (the default) a rebuild goes through the Batch API: half the cost, usually a few minutes (sometimes up to an hour); you can close Tenax meanwhile, and it picks the same batch back up when it opens. The dialog shows a rough cost for the chosen scope and settings. Try it on one chapter first.
 
 After import, quality keeps being enforced:
 - **Report question** (the flag on every question in a session) takes it out of your sessions immediately.
 - A question you miss on **5 different days**, or whose grading you overrule **twice**, is pulled automatically — that pattern usually means the question, not you, is the problem.
 - Pulled questions wait in **Questions to fix** ("Fix reported questions" in search opens it; each concept's panel lists its own), where you can **rewrite with Claude** (the new version passes the same rule checks), restore, or delete.
 - Questions you write yourself get the same rule checks as advice while you type.
-- **More questions** (on a course's Sections header, or inside a chapter) tops up concepts that have fewer than their target: Claude sees the questions a concept already has and writes ones that come at the idea from another side, through the same review and caps. What passes is added automatically.
+- **More questions** (on a course's Sections header, or inside a chapter) tops up concepts that have fewer steps than their ladder allows: Claude sees the questions a concept already has (and their steps) and writes the missing steps, through the same review and ladder. What passes is added automatically, with a lesson for a concept that had none.
 
 ## What the AI costs, and how it's kept down
 
-- Heavy work (finding concepts, writing and reviewing questions, linking, notes, writing tests for code questions) uses Claude Opus; grading, Go deeper and fresh versions use Claude Sonnet, which is fast and a fraction of the price.
+- Heavy work (finding concepts, writing and reviewing questions, linking, notes, writing tests for code questions) uses Claude Opus; grading, Go deeper and fresh versions use Claude Sonnet, which is fast and a fraction of the price. Reviewing and rewriting questions run at high effort (more thinking), since that's where question quality is decided.
+- **Question writing** (Settings → AI and cost) trades care for cost: **Thorough** (Opus thinking more, the default), **Standard** (Opus at its usual effort) or **Economy** (Sonnet writes, at half Opus's price per token). The reviewer is the same at every level, so every question passes the same gate. Output is what costs most (Opus charges five times as much for what it writes as for what it reads), so the writer is told to write one question per step and keep every field short, and leaves out misconceptions on exact-answer steps, where grading never uses them.
+- **What it has cost** (Settings → AI and cost): every call's token counts are noted in `ai-usage.jsonl` in the data folder (90 days kept), and Settings shows the last 30 days by activity (writing questions, reviewing them, grading…) and how much of the input came from the prompt cache. Worked out at list prices; the Anthropic Console bill is the exact figure.
 - System prompts are cached, so the instructions repeated across an import or a study session are billed at a tenth after the first call. The long lists sent with linking and notes (concepts you already know) are cached too.
 - The reviewer only writes out revisions for questions it actually revises, not empty fields for every question.
 - Linking only compares new concepts with your *other* courses (within a course, prerequisites come from extraction), and is skipped when there's nothing else to link to.
 - Notes send the concepts most likely to match with their summaries and the rest by name only.
-- Book imports use the Batch API at half price (see Importing a whole book).
+- Book imports and rebuilds use the Batch API at half price (see Importing a whole book, and Rebuild as ladders). Grading answers costs less with ladders too: a term, value or line of code that matches its accepted answers is marked without calling Claude at all.
 
 ## Grading
 
 Every question carries a small rubric written when the question is created: **key points** a correct answer must contain, plus common **misconceptions** that make an answer wrong.
 
-- Recall answers that match an accepted answer are marked correct instantly.
+- An answer that matches an accepted answer (a term, a value, what a snippet prints, a line of code) is marked correct instantly. Words allow a small typo; code and output must match character for character, apart from spacing and a trailing semicolon, so `*(ip++)` never passes for `(*ip)++`. When every accepted answer is a number and yours is a different number, it's marked wrong instantly. A question with accepted answers has a smaller answer box, and Enter checks it.
 - Otherwise the answer is graded by Claude against the rubric, on meaning, not wording. All key points and no misconception → correct; some points → partly there; otherwise not yet.
 - If the grader can't tell, it asks one short follow-up question.
 - Without an API key (or if grading fails) you check your answer yourself against the same key points.
@@ -109,7 +147,7 @@ A handful of things push practice past plain recall. Most of them work in the ba
 - **Pace.** Tenax times how long you take to answer (before grading). Once it has eight right answers of a kind, a right answer that took more than twice your usual time (and at least 30 seconds more) is marked **Slow** and Hard is suggested instead of Good: it isn't fluent yet. Before that, a generous allowance per question type is used.
 - **Why you missed it** (optional, on any miss): *Forgot*, *Mixed it up* (a wrong belief; preselected when the grader found a misconception), *Slip* (you knew it: Hard is suggested instead of Again) and *Never really learned it* (shows the concept's summary and says to go back to the source: reviewing can't fix something you never learned). Wrong beliefs and things never learned are Again even when part of the answer was right. The summary counts the reasons.
 - **Go deeper** (on a right or partly right answer): Claude asks follow-ups like an interviewer, one level deeper each time (why it works, what if, an edge case, what it's built on), up to four. When an answer breaks, you see the correct idea and the gap, which **Save to Notes** puts in your Notes inbox; processing it turns it into a concept or extra questions like any note. It doesn't change your rating.
-- **Fresh versions** (Settings → Fresh versions, on by default). An apply or distinguish question you've answered before comes back with a new example (new values, a new snippet, a different pair), so you practise the idea rather than recall the old answer. Versions are written a few questions ahead by the faster model and go through the same rule checks as any question; if one isn't ready in time, or fails the checks, the stored question is asked. A missed fresh version comes back unchanged in the same session. The flag on a fresh version offers **Use the original question** instead of reporting it.
+- **Fresh versions** (Settings → Fresh versions, on by default). An apply or distinguish question you've answered before comes back with a new example (new values, a new snippet, a different pair, a new circuit), so you practise the idea rather than recall the old answer. It keeps the original's step and the form of its answer. Versions are written a few questions ahead by the faster model and go through the same rule checks as any question; if one isn't ready in time, or fails the checks, the stored question is asked. A missed fresh version comes back unchanged in the same session. The flag on a fresh version offers **Use the original question** instead of reporting it.
 - **Pretests.** A section none of whose concepts you've started (a chapter you haven't read, or one you just added) has a **Pretest** button: up to five of its core ideas, one basic question each, before you study it. Trying first makes the material stick better afterwards, even when every answer is wrong (the pretesting effect). Nothing is logged or scheduled.
 - **Workload forecast.** While a course is Maintaining or Paused, its page says what Active would mean: about how many new concepts a day (its share of your daily cap) and how many of your daily questions it would take within a month, if you get most of them right.
 
@@ -151,7 +189,7 @@ You can also write questions yourself (Course → Add a question) with key point
 3. The import runs in the background, in reading order. Each chapter's concepts are extracted knowing the earlier chapters', so later chapters point back at earlier ideas as prerequisites (the book's map) instead of recreating them. Question writing for up to two chapters runs alongside, and chapters appear on the course page as they finish. Closing the app pauses the import; it picks up where it left off (a chapter that was mid-way starts over). Two API failures in a row pause it with the error shown.
 4. **Mark as read** on a chapter unlocks it. A locked chapter never comes up in sessions, doesn't count in course totals, and its prerequisites don't hold back chapters you've read out of order. Unlocking doesn't dump the chapter on you: its concepts join the queue and are introduced a few a day like any other new material.
 
-Cost: by default (Settings → Book imports: **Half price**) question writing and review go through Anthropic's Batch API: the same models and prompts at half the price, with each chapter usually taking a few extra minutes (occasionally up to an hour). Roughly 1.5–2.5 cents per page that way (about $6–10 for a 400-page book), or 2–4 cents at full speed. An import that's closed mid-batch picks the same batch back up; anything a batch can't handle is redone live.
+Cost: by default (Settings → Book imports and rebuilds: **Half price**) question writing and review go through Anthropic's Batch API: the same models and prompts at half the price, with each chapter usually taking a few extra minutes (occasionally up to an hour). Since ladders (about twice as many, shorter questions plus a lesson per concept, written at higher effort) the estimate is roughly 2–4 cents per page that way (about $8–16 for a 400-page book), or 3.5–7 cents at full speed; it was 1.5–2.5 and 2–4 cents before, and the new figures are an estimate, not yet a measurement. An import that's closed mid-batch picks the same batch back up; anything a batch can't handle is redone live.
 
 ### Notes
 
@@ -281,11 +319,12 @@ This version starts from an empty library. The first time it runs, anything save
 ```
 electron.cjs      main process: the library's IPC, Claude calls (structured outputs), PDF IPC, backups, sync uploads, updates, title bar
 db.cjs            the library on disk: SQLite (tenax.db), saved a change at a time, recovered from a backup if damaged
+ai-usage.cjs      what each AI call cost: a small log in the data folder, summed for Settings
 code-runner.cjs   runs a code question's tests against an answer (Python, C, JavaScript; time-limited, temporary folder)
 covers.cjs        cover search and download from Open Library (main process, tested with a stubbed fetch)
 sync-folder.cjs   sync folder: this computer's full copy and change files in, the others' out (in order)
 pdf-text.cjs      PDF outline + page text (pdf.js)
-src/lib/          pure logic, unit-tested: fsrs, planner, training (implicit review, pace, pretests, forecast), code, mastery, graph (incl. learning paths), orbits (map layout), timelapse, grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf (incl. the year), cover (shaping covers, spine colours), recall, sync (merging), delta (what changed, so only that is saved), search and commands (the palette), history (sparklines), format (counts, percentages, dates)
+src/lib/          pure logic, unit-tested: fsrs, planner, ladder (steps, introductions, terms drill, glossary), diagram (checking, simulating and laying out diagrams), training (implicit review, pace, pretests, forecast), code, mastery, graph (incl. learning paths), orbits (map layout), timelapse, grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf (incl. the year), cover (shaping covers, spine colours), recall, sync (merging), delta (what changed, so only that is saved), search and commands (the palette), history (sparklines), format (counts, percentages, dates)
 src/state/        reducer (pure, tested; stamps edits for sync), store (holds the library, reports how saving is going), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
 src/app/          the frame: routes (which page for which route), title bar, sidebar, the Ctrl+K palette, the theme
 src/views/        one folder per part: today, courses (incl. Teach back), concepts (concept panel, question forms, the outline), material (adding material, importing a book), session, notes, shelf (books, spines, the year, recalls), map (SkyMap, the 3D map with its engine sky3d.js, or FlatMap), progress, settings

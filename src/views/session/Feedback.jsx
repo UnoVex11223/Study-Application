@@ -17,7 +17,7 @@ const REASON_OPTIONS = Object.entries(MISS_REASONS).map(([k, r]) => [k, r.label,
 /** How the answer was checked, said at the right of the verdict. */
 function gradedBy(grade) {
   if (grade.source === "ai") return `Graded against ${plural(grade.points.length, "key point")}`;
-  if (grade.source === "exact") return "Matched an accepted answer";
+  if (grade.source === "exact") return grade.verdict === "correct" ? "Matched an accepted answer" : "Not one of the accepted answers";
   if (grade.source === "tests") return grade.run.passed ? "All tests passed" : grade.run.timedOut ? "Timed out" : grade.run.stage === "build" ? "Didn't compile" : "A test failed";
   return "";
 }

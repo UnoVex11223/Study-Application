@@ -404,7 +404,7 @@ export function buildNotesImport({ state, entries, now = Date.now() }) {
         courseId: course.id, sectionId: section.id, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance,
         order: nextConcept[section.id]++,
         source: { excerpt: e.note.text.slice(0, NOTE_EXCERPT), location: "", label: `Your note${e.note.context ? ` (${e.note.context})` : ""}, ${date}` },
-        noteId: e.note.id, filledIn: c.filledIn, corrected: c.corrected,
+        noteId: e.note.id, filledIn: c.filledIn, corrected: c.corrected, lesson: c.group?.lesson ?? null,
       });
       concepts.push(concept);
       conceptIds.push(concept.id);

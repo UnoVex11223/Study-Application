@@ -8,7 +8,7 @@ import { Page, PageHeader } from "../../ui/layout.jsx";
 import { Field, Segmented, Confirm } from "../../ui/controls.jsx";
 import { Notice, Spinner } from "../../ui/display.jsx";
 import { getApiKeySet, setApiKey, flush } from "../../lib/persist.js";
-import { aiBridge } from "../../lib/ai.js";
+import { aiBridge, callAi, WRITERS } from "../../lib/ai.js";
 import { questionsPerDay, MIX } from "../../lib/planner.js";
 import { plural, pluralWord, shortDate, clockTime, dateTime } from "../../lib/format.js";
 import { play } from "../../ui/sound.js";
@@ -18,6 +18,31 @@ const RETENTION_OPTIONS = [[0.85, "85%, lighter"], [0.9, "90%, recommended"], [0
 const ON_OFF = [[true, "On"], [false, "Off"]];
 const THEME_OPTIONS = [["dark", "Dark"], ["light", "Light"], ["system", "Match system"]];
 const IMPORT_OPTIONS = [[true, "Half price"], [false, "Faster"]];
+const WRITER_OPTIONS = Object.entries(WRITERS).map(([k, w]) => [k, w.label, w.blurb]);
+const dollars = (x) => (x >= 10 ? `$${x.toFixed(0)}` : x >= 0.995 ? `$${x.toFixed(2)}` : `${Math.max(0, Math.round(x * 100))}¢`);
+
+/** What the AI cost over the last 30 days, by what it was doing (from the app's own log of each call). */
+function AiUsage() {
+  const [usage, setUsage] = useState(null);
+  useEffect(() => { if (aiBridge()) callAi("usage", { days: 30 }).then(r => setUsage(r.ok ? r : null)); }, []);
+  if (!usage) return null;
+  if (!usage.calls) return <p className="muted small">Nothing yet. What each AI call costs is noted from now on and shows here.</p>;
+  return (
+    <div className="stack gap-2">
+      <div className="row"><strong className="grow">Last 30 days</strong><span className="num strong">{dollars(usage.total)}</span></div>
+      <div className="usage-rows">
+        {usage.byActivity.map(a => (
+          <div key={a.kind} className="row small">
+            <span className="grow">{a.label}</span>
+            <span className="muted num">{plural(a.calls, "call")}</span>
+            <span className="num usage-cost">{dollars(a.cost)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="muted small">Worked out from each call's token counts at list prices; your Anthropic Console bill is the exact figure. {Math.round(usage.cacheShare * 100)}% of what was sent came from the prompt cache, at a twentieth of the price.</p>
+    </div>
+  );
+}
 const ROLLOVER_HOURS = [0, 1, 2, 3, 4, 5, 6];
 
 /** One group of settings: its name on the left, its controls on the right, a hairline between groups. */
@@ -222,10 +247,14 @@ export default function Settings() {
 
         <Group title="Anthropic API key"><ApiKey/></Group>
 
-        <Group title="Book imports">
-          <Field help="Half price sends question writing through Anthropic's Batch API: the same questions, usually a few minutes slower per chapter.">
-            <Segmented label="Book imports" options={IMPORT_OPTIONS} value={s.batchImports !== false} onChange={(v) => set({ batchImports: v })}/>
+        <Group title="AI and cost">
+          <Field label="Question writing" help={`${WRITERS[s.questionWriting]?.blurb ?? WRITERS.thorough.blurb} Every question passes the same review either way.`}>
+            <Segmented label="Question writing" options={WRITER_OPTIONS} value={WRITERS[s.questionWriting] ? s.questionWriting : "thorough"} onChange={(v) => set({ questionWriting: v })}/>
           </Field>
+          <Field label="Book imports and rebuilds" help="Half price sends question writing through Anthropic's Batch API: the same questions, usually a few minutes slower (sometimes up to an hour). Nobody waits on these, so it's the easiest saving.">
+            <Segmented label="Book imports and rebuilds" options={IMPORT_OPTIONS} value={s.batchImports !== false} onChange={(v) => set({ batchImports: v })}/>
+          </Field>
+          <Field label="What it has cost"><AiUsage/></Field>
         </Group>
 
         <Group title="Sync across computers"><Sync/></Group>

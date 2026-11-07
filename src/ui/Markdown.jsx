@@ -1,5 +1,5 @@
-// Minimal, safe markdown for prompts and answers: paragraphs, lists, fenced
-// code, inline code, bold/italic, and KaTeX math ($…$ and $$…$$).
+// Minimal, safe markdown for prompts and answers: paragraphs, lists, tables,
+// fenced code, inline code, bold/italic, and KaTeX math ($…$ and $$…$$).
 // Renders React elements — never raw HTML from content (KaTeX output only).
 
 import katex from "katex";
@@ -40,12 +40,26 @@ function withBreaks(text, key) {
   return lines.flatMap((line, i) => (i ? [<br key={`${key}-br${i}`}/>, ...inline(line, `${key}-${i}`)] : inline(line, `${key}-${i}`)));
 }
 
+// A table: a row of cells between pipes, then a separator row (| --- | :-: |).
+const TABLE_ROW = /^\s*\|.*\|\s*$/;
+const TABLE_RULE = /^\s*\|(\s*:?-{2,}:?\s*\|)+\s*$/;
+const cells = (line) => line.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+const tableStarts = (lines, i) => TABLE_ROW.test(lines[i] || "") && TABLE_RULE.test(lines[i + 1] || "");
+
 function parseBlocks(src) {
   const lines = String(src || "").replace(/\r\n/g, "\n").split("\n");
   const blocks = [];
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
+    if (tableStarts(lines, i)) {
+      const head = cells(line);
+      const rows = [];
+      i += 2;
+      while (i < lines.length && TABLE_ROW.test(lines[i])) rows.push(cells(lines[i++]));
+      blocks.push({ type: "table", head, rows });
+      continue;
+    }
     const fence = line.match(/^\s*```(\w*)\s*$/);
     if (fence) {
       const body = [];
@@ -76,7 +90,7 @@ function parseBlocks(src) {
     }
     if (!line.trim()) { i++; continue; }
     const para = [lines[i++].replace(/^#{1,6}\s+/, "")];
-    while (i < lines.length && lines[i].trim() && !/^\s*```/.test(lines[i]) && !/^\s*\$\$/.test(lines[i]) && !/^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) {
+    while (i < lines.length && lines[i].trim() && !/^\s*```/.test(lines[i]) && !/^\s*\$\$/.test(lines[i]) && !/^\s*([-*•]|\d+[.)])\s+/.test(lines[i]) && !tableStarts(lines, i)) {
       para.push(lines[i++].replace(/^#{1,6}\s+/, ""));
     }
     blocks.push({ type: "p", text: para.join("\n") });
@@ -98,6 +112,14 @@ export default function Markdown({ children, className = "" }) {
         if (b.type === "math") return <TeX key={i} tex={b.text} display/>;
         if (b.type === "ul") return <ul key={i}>{b.items.map((t, j) => <li key={j}>{inline(t, `${i}-${j}`)}</li>)}</ul>;
         if (b.type === "ol") return <ol key={i}>{b.items.map((t, j) => <li key={j}>{inline(t, `${i}-${j}`)}</li>)}</ol>;
+        if (b.type === "table") {
+          return (
+            <table key={i}>
+              <thead><tr>{b.head.map((c, j) => <th key={j}>{inline(c, `${i}-h${j}`)}</th>)}</tr></thead>
+              <tbody>{b.rows.map((r, k) => <tr key={k}>{b.head.map((_, j) => <td key={j}>{inline(r[j] ?? "", `${i}-${k}-${j}`)}</td>)}</tr>)}</tbody>
+            </table>
+          );
+        }
         return <p key={i}>{withBreaks(b.text, `${i}`)}</p>;
       })}
     </div>

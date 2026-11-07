@@ -1,17 +1,19 @@
-// A concept's panel: how well you know it, what it connects to, its
-// questions (to edit, fix or add to) and where it came from.
+// A concept's panel: how well you know it, what it connects to, its lesson,
+// its questions as a ladder (to edit, fix or add to) and where it came from.
 
 import { useState } from "react";
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
+import Diagram from "../../ui/Diagram.jsx";
 import { Section } from "../../ui/layout.jsx";
 import { Drawer } from "../../ui/overlays.jsx";
 import { Confirm } from "../../ui/controls.jsx";
-import { StatusDot, ImportanceTag, Notice } from "../../ui/display.jsx";
+import { StatusDot, ImportanceTag, Notice, CheckMark } from "../../ui/display.jsx";
 import { FLAG_REASONS } from "../../lib/quality.js";
-import { index, abilityLabel } from "../../lib/model.js";
+import { index, abilityLabel, levelLabel, levelOf } from "../../lib/model.js";
+import { climbed } from "../../lib/ladder.js";
 import { conceptMastery, explainMastery, STATUS } from "../../lib/mastery.js";
 import { practiceTasks } from "../../lib/planner.js";
 import { relativeDays } from "../../lib/time.js";
@@ -41,6 +43,9 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
   const course = ix.course[c.courseId];
   const section = ix.section[c.sectionId];
   const items = ix.itemsByConcept[c.id] || [];
+  const live = items.filter(i => !i.flag);
+  const climbedCount = live.filter(i => climbed(ix, i)).length;
+  const lesson = c.lesson;
   const prereqs = ix.prereqsOf[c.id] || [];
   const dependents = ix.dependentsOf[c.id] || [];
   const related = ix.relatedOf[c.id] || [];
@@ -135,13 +140,38 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
         </Section>
       )}
 
-      <Section title="Questions" count={items.length || null}
+      {lesson && (lesson.terms?.length > 0 || lesson.example || lesson.diagram) && (
+        <Section title="Lesson">
+          <div className="stack gap-3">
+            {lesson.terms?.length > 0 && (
+              <dl className="lesson-terms">
+                {lesson.terms.map(t => (
+                  <div key={t.term} className="lesson-term"><dt>{t.term}</dt><dd><Markdown>{t.definition}</Markdown></dd></div>
+                ))}
+              </dl>
+            )}
+            {lesson.example && (
+              <details className="disclosure">
+                <summary>Worked example</summary>
+                <Markdown>{lesson.example}</Markdown>
+              </details>
+            )}
+            {lesson.diagram && <Diagram spec={lesson.diagram} className="small"/>}
+          </div>
+        </Section>
+      )}
+
+      <Section title="Ladder" count={live.length ? `${climbedCount} of ${live.length} climbed` : null}
         actions={<button className="btn btn-sm" onClick={() => setEditing("new")}><Icon name="plus"/>Add</button>}>
         <div className="stack">
           {items.map(it => (
             <div key={it.id} className={it.flag ? "item-card flagged" : "item-card"}>
               <div className="row small">
-                <strong>{abilityLabel(it.ability)}</strong>
+                {!it.flag && (climbed(ix, it)
+                  ? <span title="Climbed: your last answer was right"><CheckMark tone="yes"/></span>
+                  : <span className="step-mark" title="Not climbed yet"/>)}
+                <strong title={abilityLabel(it.ability)}>Step {levelOf(it)} · {levelLabel(it)}</strong>
+                <span className="muted">{abilityLabel(it.ability)}</span>
                 <span className="muted grow">{it.flag ? "Out of sessions" : askedLine(ix.itemStats[it.id])}</span>
                 {it.quality?.score != null && <span className="muted" title="Score from the quality review (out of 5)">Quality {it.quality.score.toFixed(1)}</span>}
                 <button className="btn btn-quiet btn-sm btn-icon" title="Edit" aria-label="Edit question" onClick={() => setEditing(it)}><Icon name="edit"/></button>
@@ -149,6 +179,8 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
               </div>
               {it.flag && <div className="error-text">{FLAG_REASONS[it.flag.reason] ?? "Flagged"}</div>}
               <Markdown>{it.prompt}</Markdown>
+              {it.diagram && <Diagram spec={it.diagram} className="small"/>}
+              {it.shape && <div className="small muted">Answer: {it.shape}</div>}
               {it.flag && <FixQuestion item={it} concept={c}/>}
               <details className="disclosure">
                 <summary>Answer and key points</summary>

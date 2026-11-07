@@ -1,6 +1,8 @@
 // A study session: works through a queue of tasks, re-asks misses later in the
 // same session, and inserts a quick "foundation check" on a shaky prerequisite
-// when you miss something that builds on it. It slides up over the whole app.
+// when you miss something that builds on it. A new concept is taught first (its
+// lesson), then asked its first steps in a row until one is missed
+// (lib/ladder.js). It slides up over the whole app.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -12,12 +14,14 @@ import { EmptyState } from "../../ui/layout.jsx";
 import { index, ABILITY_KEYS } from "../../lib/model.js";
 import { conceptMastery } from "../../lib/mastery.js";
 import { buildPlan, pickItem } from "../../lib/planner.js";
+import { introNext, ladderOf } from "../../lib/ladder.js";
 import { aiAvailable, freshVersion } from "../../lib/ai.js";
 import { typicalPace, wantsFreshVersion } from "../../lib/training.js";
 import { dayKey } from "../../lib/time.js";
 import { RATING } from "../../lib/fsrs.js";
 import { play } from "../../ui/sound.js";
 import TaskView from "./TaskView.jsx";
+import LessonCard from "./LessonCard.jsx";
 import { SessionSummary, PretestSummary } from "./SessionSummary.jsx";
 
 const MAX_FOUNDATION = 3;
@@ -63,11 +67,24 @@ function summarize({ results, state, snapshot, startedAt }) {
   }
   const reasons = {};
   for (const r of results) if (r.reason) reasons[r.reason] = (reasons[r.reason] || 0) + 1;
+  // Steps climbed: answered right, without help, for the first time (or the first time since missing them).
+  const climbedBy = new Map();
+  for (const r of firsts) {
+    if (r.verdict !== "correct" || r.aided || sIx.itemStats[r.task.itemId]?.lastOk) continue;
+    const c = ix.concept[r.task.conceptId];
+    if (!c) continue;
+    const steps = ladderOf(ix, c.id);
+    const at = steps.findIndex(i => i.id === r.task.itemId) + 1;
+    const prev = climbedBy.get(c.id);
+    climbedBy.set(c.id, { concept: c, count: (prev?.count || 0) + 1, top: Math.max(prev?.top || 0, at), total: steps.length });
+  }
   return {
     count: firsts.length,
     reported: results.filter(r => r.reported).length,
     unaided: firsts.filter(r => r.verdict === "correct" && !r.aided).length,
     recovered, missed, started, reasons,
+    climbed: [...climbedBy.values()],
+    steps: [...climbedBy.values()].reduce((n, c) => n + c.count, 0),
     // Prerequisites that got partial review credit from answers that built on them.
     strengthened: state.concepts.filter(c => (c.srs?.implicitAt ?? 0) >= startedAt && sIx.concept[c.id]?.srs !== c.srs),
     sureMissed: firsts.filter(r => r.sure && r.verdict !== "correct").map(r => ix.concept[r.task.conceptId]).filter(Boolean),
@@ -86,6 +103,7 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
   const [snapshot] = useState(() => state); // lapses and mastery before this session, for the summary
   const [startedAt] = useState(() => Date.now());
   const [fresh, setFresh] = useState({}); // itemId → { status: pending | ready | failed, question }
+  const [taught, setTaught] = useState(() => new Set()); // concepts whose lesson you've seen in this session
   const pretest = mode === "pretest";
 
   useEffect(() => { aiAvailable().then(setAiReady); }, []);
@@ -121,9 +139,17 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
 
   const onDone = (r) => {
     // A pretest is asked before you've studied the material: nothing is logged or scheduled.
-    if (!pretest) act("attempt", { itemId: task.itemId, mode, requeue: task.kind === "requeue", ...r });
+    if (!pretest) act("attempt", { itemId: task.itemId, mode, requeue: task.kind === "requeue", climb: task.kind === "climb", ...r });
     setResults(res => [...res, { ...r, task }]);
     let next = queue;
+    // Introducing a concept: a right answer goes straight on to its next step.
+    if (!pretest && (task.kind === "new" || task.kind === "climb") && r.verdict === "correct" && !r.aided) {
+      const asked = task.kind === "climb" ? task.step ?? 2 : 1;
+      const up = introNext(ix, task.conceptId, task.itemId, asked);
+      if (up && !queue.slice(idx + 1).some(t => t.itemId === up.id)) {
+        next = [...next.slice(0, idx + 1), { itemId: up.id, conceptId: task.conceptId, courseId: task.courseId, kind: "climb", step: asked + 1 }, ...next.slice(idx + 1)];
+      }
+    }
     if (r.rating === RATING.AGAIN) {
       const times = queue.filter(t => t.itemId === task.itemId).length;
       if (times <= MAX_REQUEUE) {
@@ -168,6 +194,11 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
   const item = task && ix.item[task.itemId];
   const concept = item && ix.concept[item.conceptId];
   const position = Math.min(idx + (done ? 0 : 1), queue.length);
+  // Where this question sits on its concept's ladder.
+  const ladder = concept ? ladderOf(ix, concept.id) : [];
+  const step = item ? { at: ladder.findIndex(i => i.id === item.id) + 1 || 1, total: ladder.length } : null;
+  // Teach, then test: a new concept's lesson comes before its first question.
+  const teach = Boolean(!done && concept && !pretest && task.kind === "new" && !taught.has(concept.id) && (concept.lesson || concept.summary));
 
   return (
     <div className="session" role="dialog" aria-label={title}>
@@ -184,13 +215,17 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
           {!done && (!item || !concept) && (
             <EmptyState title="This question was deleted" actions={<button className="btn" onClick={() => setIdx(i => i + 1)}>Skip</button>}/>
           )}
-          {!done && item && concept && (
+          {teach && (
+            <LessonCard key={`lesson-${concept.id}`} concept={concept} course={ix.course[concept.courseId]} section={ix.section[concept.sectionId]}
+              steps={ladder.length} onStart={() => setTaught(s => new Set(s).add(concept.id))}/>
+          )}
+          {!done && item && concept && !teach && (
             <TaskView
               key={`${idx}-${task.itemId}`}
               task={task} item={item} concept={concept}
               section={ix.section[concept.sectionId]} course={ix.course[concept.courseId]}
               aiReady={aiReady} retention={state.settings.retention} onDone={onDone} onReport={onReport}
-              pace={paces[item.ability] ?? null} pretest={pretest}
+              pace={paces[item.ability] ?? null} pretest={pretest} step={step}
               variant={!pretest && fresh[item.id]?.status === "ready" ? fresh[item.id].question : null}
             />
           )}

@@ -8,7 +8,11 @@
 //   concept  { id, courseId, sectionId, name, summary, kind, importance: core|supporting|detail,
 //              order, source: { excerpt, location } | null, suspended, srs }
 //   item     { id, conceptId, ability, prompt, answer, accept[], points[], misconceptions[], hint,
-//              flag, flagCleared, resetAt }
+//              flag, flagCleared, resetAt, level?, shape?, diagram? }
+//            level = its step on the concept's ladder (LEVELS); shape = what form the answer
+//            takes ("one word", "what it prints"); diagram = a drawing (lib/diagram.js).
+//   concept.lesson { terms: [{ term, definition }], example, diagram } | null
+//            shown before a concept's first question (teach, then test).
 //
 // Memory is scheduled per CONCEPT (concept.srs). A concept's questions are
 // variants that take turns at its reviews, so extra questions add variety,
@@ -20,21 +24,47 @@
 
 import { newSrs, RATING } from "./fsrs.js";
 
-export const SCHEMA_VERSION = 8;
+// v9: ladders (questions with a level, the "define" kind, lessons, diagrams).
+// An older install can't read those (an unknown kind of question breaks its
+// sorting), so it skips a v9 copy when syncing and asks to be updated instead.
+export const SCHEMA_VERSION = 9;
 
 /** The lists of records with ids (stamped when edited, merged one by one when syncing). */
 export const RECORD_COLLECTIONS = ["courses", "sections", "concepts", "items", "edges", "notes", "bookJobs", "shelf"];
 
 export const ABILITIES = {
-  recall:      { label: "Recall",      estSec: 25, rank: 0, blurb: "Produce a term, fact or definition from memory" },
-  explain:     { label: "Explain",     estSec: 70, rank: 1, blurb: "Explain what something is and why it matters" },
-  distinguish: { label: "Distinguish", estSec: 60, rank: 2, blurb: "Tell apart two ideas that are easy to confuse" },
-  apply:       { label: "Apply",       estSec: 90, rank: 3, blurb: "Use the idea on a new example or problem" },
-  connect:     { label: "Connect",     estSec: 90, rank: 4, blurb: "Explain how several ideas work together" },
+  recall:      { label: "Recall",      estSec: 25, rank: 0, blurb: "Produce a term, fact or value from memory" },
+  define:      { label: "Define",      estSec: 35, rank: 1, blurb: "Say what a term means, in one sentence" },
+  explain:     { label: "Explain",     estSec: 70, rank: 2, blurb: "Explain what something is and why it matters" },
+  distinguish: { label: "Distinguish", estSec: 60, rank: 3, blurb: "Tell apart two ideas that are easy to confuse" },
+  apply:       { label: "Apply",       estSec: 90, rank: 4, blurb: "Use the idea on a new example or problem" },
+  connect:     { label: "Connect",     estSec: 90, rank: 5, blurb: "Explain how several ideas work together" },
 };
 export const ABILITY_KEYS = Object.keys(ABILITIES);
 /** "explain" → "Explain" (unknown kinds read as themselves). */
 export const abilityLabel = (a) => ABILITIES[a]?.label ?? a;
+
+// A concept's questions form a ladder: each step tests one piece of knowledge
+// and adds one thing to the step below, from the idea's vocabulary up to using
+// it together with what it builds on (see lib/ladder.js).
+export const LEVELS = {
+  1: { label: "Term",    blurb: "Its name and what it means" },
+  2: { label: "Fact",    blurb: "One rule or property" },
+  3: { label: "Use",     blurb: "A small problem with one answer" },
+  4: { label: "Twist",   blurb: "An edge case, a pitfall, or a look-alike" },
+  5: { label: "Combine", blurb: "Together with an idea it builds on" },
+};
+export const LEVEL_KEYS = [1, 2, 3, 4, 5];
+// Questions written before ladders have no level: their kind says roughly where they sit.
+const ABILITY_LEVEL = { recall: 1, define: 1, explain: 2, apply: 3, distinguish: 4, connect: 5 };
+/** A level from 1 to 5, or null when there isn't a usable one. */
+export const clampLevel = (n) => {
+  const l = Math.round(Number(n));
+  return Number.isFinite(l) && l >= 1 && l <= 5 ? l : null;
+};
+/** The step a question is on (its own level, or one inferred from its kind). */
+export const levelOf = (item) => clampLevel(item?.level) ?? ABILITY_LEVEL[item?.ability] ?? 2;
+export const levelLabel = (item) => LEVELS[levelOf(item)].label;
 
 export const IMPORTANCE = {
   core:       { label: "Core",       weight: 1,    rank: 0 },
@@ -72,6 +102,7 @@ export const DEFAULT_SETTINGS = {
   themeVersion: 2,
   sounds: false, // soft sounds for a right answer, the shelf and the end of a session
   freshVersions: true, // apply and distinguish questions you've answered before come back with a new example
+  questionWriting: "thorough", // how much care (and money) writing questions takes: thorough | standard | economy (lib/ai.js WRITERS)
 };
 
 let counter = 0;
@@ -236,6 +267,7 @@ export function index(state) {
   for (const i of state.items) { item[i.id] = i; (itemsByConcept[i.conceptId] ||= []).push(i); }
   // Per-question history: rated attempts since the question was last rewritten.
   // A "miss" is a study day on which you answered Again at least once.
+  // lastOk: the most recent answer was right without help (a climbed step).
   const itemStats = {};
   for (const i of state.items) itemStats[i.id] = { seen: 0, lastSeen: 0, missDays: [] };
   for (const a of state.attempts) {
@@ -243,7 +275,7 @@ export function index(state) {
     const st = itemStats[a.itemId];
     if (!st || a.rating == null || a.ts <= (item[a.itemId].resetAt || 0)) continue;
     st.seen++;
-    if (a.ts > st.lastSeen) st.lastSeen = a.ts;
+    if (a.ts >= st.lastSeen) { st.lastSeen = a.ts; st.lastOk = a.verdict === "correct" && !a.aided; }
     if (a.rating === RATING.AGAIN && st.missDays.at(-1)?.day !== a.day) st.missDays.push({ day: a.day, ts: a.ts });
   }
   for (const e of state.edges) {
@@ -259,7 +291,10 @@ export function index(state) {
   for (const list of Object.values(sectionsByCourse)) list.sort((a, b) => a.order - b.order);
   const byOrder = (a, b) => (a.order - b.order) || (IMPORTANCE[a.importance]?.rank ?? 1) - (IMPORTANCE[b.importance]?.rank ?? 1);
   for (const list of Object.values(conceptsBySection)) list.sort(byOrder);
-  for (const list of Object.values(itemsByConcept)) list.sort((a, b) => ABILITIES[a.ability].rank - ABILITIES[b.ability].rank);
+  // A concept's questions in ladder order: lowest step first.
+  for (const list of Object.values(itemsByConcept)) {
+    list.sort((a, b) => (levelOf(a) - levelOf(b)) || ((ABILITIES[a.ability]?.rank ?? 9) - (ABILITIES[b.ability]?.rank ?? 9)) || ((a.createdAt || 0) - (b.createdAt || 0)));
+  }
 
   const ix = {
     course, section, concept, item, sectionsByCourse, conceptsBySection, conceptsByCourse, itemsByConcept,

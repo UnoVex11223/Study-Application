@@ -19,3 +19,7 @@
 .facts dt { color: var(--ink-3); }
 .facts dd { margin: 0; }
 .mono-path { font-family: var(--mono); font-size: var(--text-xs); overflow-wrap: anywhere; }
+
+/* What the AI has cost, by activity (Settings → AI and cost). */
+.usage-rows { display: flex; flex-direction: column; gap: var(--space-1); }
+.usage-cost { min-width: 56px; text-align: right; }
