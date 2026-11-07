@@ -21,7 +21,7 @@ electron.cjs          the main process: the window, IPC handlers, Claude calls, 
 preload.cjs           the bridge: everything the interface can ask for (window.tenax)
 db.cjs                the library on disk: a SQLite database (tenax.db)
 sync-folder.cjs       the sync folder: this computer's files in, the other computers' out
-covers.cjs, code-runner.cjs, pdf-text.cjs    cover search, running code tests, reading PDFs
+covers.cjs, code-runner.cjs, pdf-text.cjs, ai-usage.cjs    cover search, running code tests, reading PDFs, what AI calls cost
 src/
   main.jsx            entry: loads the fonts and styles, renders <App/>
   App.jsx             providers + the shell: which page shows, the study session, the palette
@@ -48,7 +48,7 @@ src/
     controls.jsx        Segmented, Field, Confirm
     overlays.jsx        Drawer, Modal, ConfirmDialog, Menu, MenuItem, PointerMenu
     display.jsx         Bar, Spark, Figures, Notice, StatusDot, Stars, Logo, Spinner…
-    Icon.jsx, Markdown.jsx, Cover.jsx, motion.js, sound.js, hooks.js, nav.js, cx.js
+    Icon.jsx, Markdown.jsx, Diagram.jsx, Cover.jsx, motion.js, sound.js, hooks.js, nav.js, cx.js
   state/              the data and everything that changes it
     store.jsx           holds the state, saves it, gives components act()
     reducer.js          every change, as a pure function (unit-tested)
@@ -56,6 +56,8 @@ src/
   lib/                the logic, as plain JavaScript (no React, unit-tested in tests/)
     model.js            the data model: courses → sections → concepts → questions
     planner.js          what to ask today
+    ladder.js           a concept's questions as steps: which to ask, introductions, the terms drill
+    diagram.js          diagrams: checking a spec, simulating circuits, laying out the drawing
     fsrs.js             when each concept comes back
     persist.js          loading the library, and saving what changed (through window.tenax.db)
     delta.js            what changed between two versions of the library

@@ -175,3 +175,54 @@ test("topping up counts existing questions, skips their duplicates and fills mis
   assert.equal(selectForConcept(cands, reviews, "core", { existing, extra: 1 }).kept.length, 2, "a note's extra slot");
 });
 
+
+// ── Ladders ────────────────────────────────────────────────────────────────
+const MUX = { type: "circuit", inputs: ["a", "b", "sel"], gates: [{ id: "m", op: "MUX", in: ["a", "b", "sel"] }], outputs: { out: "m" }, values: { a: 1, b: 0, sel: 1 }, ask: "out" };
+
+test("ladder questions ask for one thing: two-part prompts and multi-point steps are blocked", () => {
+  const step = (fields) => q({ level: 2, shape: "one sentence", ...fields });
+  assert.equal(lintQuestion(step({})).ok, true);
+  assert.ok(codes(lintQuestion(step({ prompt: "What does `*ip++` increment, and why?" }))).includes("compound"));
+  assert.ok(codes(lintQuestion(step({ prompt: "Describe the two steps needed to share a variable between files." }))).includes("compound"));
+  assert.ok(codes(lintQuestion(step({ prompt: "What does it print? What would change with `%d`?" }))).includes("compound"));
+  assert.ok(codes(lintQuestion(step({ points: ["one", "two"] }))).includes("one-point"));
+  assert.equal(lintQuestion(step({ level: 4, points: ["one", "two"] })).ok, true, "a twist may need two things (a warning)");
+  assert.ok(codes(lintQuestion(step({ shape: "" }))).includes("shape"), "a missing shape is a warning");
+  assert.equal(lintQuestion(q({ prompt: "What does `*ip++` increment, and why?" })).ok, true, "questions written before ladders keep the old rules");
+  assert.equal(lintQuestion(step({ prompt: "What does this print?\n```c\nprintf(\"%d?\", x ? 1 : 2);\n```" })).ok, true, "question marks in code don't count");
+});
+
+test("a diagram must be drawable and agree with the answer; a picture can only be referred to when it's there", () => {
+  const circuit = (fields) => q({ ability: "apply", level: 3, shape: "0 or 1", prompt: "In the circuit shown, what is out?", answer: "0", accept: ["0"], points: ["out is 0"], diagram: MUX, ...fields });
+  assert.equal(lintQuestion(circuit({})).ok, true, JSON.stringify(lintQuestion(circuit({})).issues));
+  assert.ok(codes(lintQuestion(circuit({ accept: ["1"] }))).includes("diagram-answer"));
+  assert.ok(codes(lintQuestion(circuit({ diagram: { type: "circuit", inputs: [] } }))).includes("diagram"));
+  assert.ok(codes(lintQuestion(circuit({ diagram: null, diagramError: "bad JSON" }))).includes("diagram"));
+  assert.ok(codes(lintQuestion(circuit({ diagram: null, prompt: "What is out for the circuit shown below?" }))).includes("context"));
+});
+
+test("the ladder keeps the best question at each step, lowest step first, up to the concept's number of steps", () => {
+  const c = (id, level, ability, prompt, extra = {}) => q({ id, level, ability, shape: "one word", prompt, ...extra });
+  const cands = [
+    c("t1", 1, "recall", "Which keyword declares a variable that's defined in another file?", { accept: ["extern"], points: ["extern"] }),
+    c("t2", 1, "define", "In one sentence, what does `extern` tell the compiler about a variable?"),
+    c("f1", 2, "recall", "How many times may an external variable be defined in a whole program?", { accept: ["once"], points: ["once"] }),
+    c("u1", 3, "apply", "a.c has `int n = 0;`. What line lets b.c use `n`?", { accept: ["extern int n;"], points: ["extern int n;"] }),
+    c("w1", 4, "apply", "Two files both contain `int n = 0;` at file scope. What happens at link time?"),
+    c("w2", 5, "connect", "A header declares `extern int n;` and two files include it. Which of them must define `n`?"),
+  ];
+  const reviews = { t1: review("keep", { importance: 4 }), t2: review("keep", {}), f1: review("keep", {}), u1: review("keep", {}), w1: review("keep", {}), w2: review("keep", {}) };
+  const core = selectForConcept(cands, reviews, "core");
+  assert.deepEqual(core.kept.map(k => k.id), ["t2", "f1", "u1", "w1", "w2"], "the better-scored term question wins step 1");
+  assert.ok(core.dropped.find(d => d.id === "t1").reasons[0].includes("better for this step"));
+  assert.deepEqual(selectForConcept(cands, reviews, "supporting").kept.map(k => k.id), ["t2", "f1", "u1"]);
+  assert.deepEqual(selectForConcept(cands, reviews, "detail").kept.map(k => k.level), [1, 2]);
+  const topUp = selectForConcept(cands, reviews, "core", { existing: [{ ability: "recall", level: 1, prompt: "Name the keyword" }] });
+  assert.deepEqual(topUp.kept.map(k => k.level), [2, 3, 4, 5], "a step the concept has isn't written twice");
+});
+
+test("the focus score is optional, so older reviews still pass", () => {
+  assert.equal(judge(q(), review("keep", {})).keep, true);
+  assert.equal(judge(q(), review("keep", { focus: 3 })).keep, false, "a two-part question fails on focus");
+  assert.equal(judge(q(), review("keep", { focus: 5 })).dims.focus, 5);
+});

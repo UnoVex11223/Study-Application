@@ -52,20 +52,23 @@ export function chaptersFromStarts(rows, pages) {
 
 /**
  * Rough time and cost for importing the chosen chapters (Opus pricing, 2026).
- * About 3 cents a page live; question writing and review (roughly three
- * quarters of that) cost half through the Batch API.
+ * Before ladders it was about 3 cents a page live, three quarters of it
+ * question writing and review. Ladders write about twice as many (shorter)
+ * questions plus a lesson per concept, at higher effort, so that part is
+ * counted twice: about 5 cents a page live. This is an estimate, not a
+ * measurement; question writing and review cost half through the Batch API.
  */
 export function estimate(chapters, { batch = false } = {}) {
   const chosen = chapters.filter(c => c.include);
   const pages = chosen.reduce((n, c) => n + Math.max(1, c.to - c.from + 1), 0);
   const round = (x) => Math.max(1, Math.round(x));
-  const factor = batch ? 0.62 : 1;
+  const factor = batch ? 0.57 : 1;
   return {
     chapters: chosen.length,
     pages,
     batch,
-    minutes: batch ? [round(chosen.length * 1.2 + 8), round(chosen.length * 1.5 + 60)] : [round(chosen.length * 1.2 + 2), round(chosen.length * 2 + 4)],
-    dollars: [round(pages * 0.02 * factor), round(pages * 0.04 * factor)],
+    minutes: batch ? [round(chosen.length * 1.2 + 8), round(chosen.length * 1.5 + 60)] : [round(chosen.length * 1.5 + 2), round(chosen.length * 2.5 + 4)],
+    dollars: [round(pages * 0.035 * factor), round(pages * 0.07 * factor)],
   };
 }
 

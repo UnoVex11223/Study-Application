@@ -32,9 +32,13 @@ export function SessionSummary({ summary, more, onDone, onMore }) {
         <Figures three>
           <Figure value={s.count} label="questions"/>
           <Figure value={s.count ? pct(s.unaided / s.count) : "0%"} label="right first time, no help"/>
-          <Figure value={s.started.length} label="new concepts started"/>
+          <Figure value={s.steps} label={s.steps === 1 ? "step climbed" : "steps climbed"}/>
         </Figures>
         <div className="stack gap-2">
+          {s.climbed.length > 0 && (
+            <p><strong>Climbed:</strong> {s.climbed.map(c => (c.total > 1 ? `${c.concept.name} (to step ${c.top} of ${c.total})` : c.concept.name)).join(", ")}.</p>
+          )}
+          {s.started.length > 0 && <p><strong>New:</strong> {names(s.started)}.</p>}
           {s.recovered.length > 0 && <p><strong>Recovered:</strong> {names(s.recovered)}. These had slipped before and you got them back.</p>}
           {s.missed.length > 0 && <p><strong>Coming back soon:</strong> {names(s.missed)}.</p>}
           {s.sureMissed.length > 0 && <p><strong>You were sure about:</strong> {names(s.sureMissed)}. Confident mistakes are worth a second look.</p>}

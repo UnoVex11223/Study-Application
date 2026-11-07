@@ -39,6 +39,7 @@
 import { retrievability } from "./fsrs.js";
 import { index, IMPORTANCE } from "./model.js";
 import { dayKey, dayEndTs, DAY_MS } from "./time.js";
+import { ladderOf, reviewStep } from "./ladder.js";
 
 const PROVISIONAL = 0.6;           // prereq edges below this confidence don't gate
 const EARLY_DAYS = 14;             // reviews pulled forward to fill a day come from the next two weeks
@@ -52,10 +53,14 @@ export const MIX = {
 /** Questions in a day's session (the setting, or one worked out from the old time budget). */
 export const questionsPerDay = (settings) => Math.max(1, Math.round(settings?.dailyQuestions || DEFAULT_PER_DAY));
 
-/** Questions answered in today's sessions: practice, teach back and a missed question asked again don't count. */
+/**
+ * Questions answered in today's sessions: practice, teach back, a missed
+ * question asked again and the next steps of a concept being introduced (they
+ * belong to its first question) don't count.
+ */
 export function answeredOn(state, day) {
   let n = 0;
-  for (const a of state.attempts) if (a.day === day && a.mode === "session" && !a.requeue) n++;
+  for (const a of state.attempts) if (a.day === day && a.mode === "session" && !a.requeue && !a.climb) n++;
   return n;
 }
 
@@ -78,13 +83,13 @@ export function forecastLoad(state, { now = Date.now(), days = 14 } = {}) {
 }
 
 /**
- * Which of a concept's questions to ask. A new concept starts with its most
- * basic question; during same-day relearning, the question you just missed
- * comes back; otherwise the question asked longest ago (never-asked first),
- * so every variant gets its turn.
+ * Which of a concept's questions to ask (its ladder, lib/ladder.js). A new
+ * concept starts on its lowest step; during same-day relearning, the question
+ * you just missed comes back; otherwise the lowest step you haven't answered
+ * right yet, and once you've climbed them all, the one asked longest ago.
  */
 export function pickItem(ix, concept, { exclude } = {}) {
-  const items = (ix.itemsByConcept[concept.id] || []).filter(i => !i.flag && !exclude?.has(i.id));
+  const items = ladderOf(ix, concept.id, { exclude });
   if (!items.length) return null;
   const srs = concept.srs;
   if (!srs || srs.state === "new") return items[0];
@@ -93,13 +98,11 @@ export function pickItem(ix, concept, { exclude } = {}) {
     for (let k = attempts.length - 1; k >= 0; k--) {
       if (attempts[k].rating == null) continue;
       const last = items.find(i => i.id === attempts[k].itemId);
-      if (last) return last;
+      if (last && attempts[k].verdict !== "correct") return last;
       break;
     }
   }
-  let best = items[0];
-  for (const it of items) if ((ix.itemStats[it.id]?.lastSeen ?? 0) < (ix.itemStats[best.id]?.lastSeen ?? 0)) best = it;
-  return best;
+  return reviewStep(ix, items);
 }
 
 function isEligible(ix, concept) {

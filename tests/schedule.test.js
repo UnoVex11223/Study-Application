@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { newSrs, RATING } from "../src/lib/fsrs.js";
-import { emptyState, makeCourse, makeSection, makeConcept, makeItem, normalizeState, index } from "../src/lib/model.js";
+import { emptyState, makeCourse, makeSection, makeConcept, makeItem, normalizeState, index, SCHEMA_VERSION } from "../src/lib/model.js";
 import { buildPlan, forecastLoad, pickItem } from "../src/lib/planner.js";
 import { reducer } from "../src/state/reducer.js";
 import { LEECH_LAPSES } from "../src/lib/quality.js";
@@ -105,7 +105,7 @@ test("saved data from before keeps its progress: the latest-reviewed question's 
   old.items.find(i => i.id === aApply.id).srs = { ...reviewSrs(NOW + 2 * DAY), lastReview: NOW - 5 * DAY, stability: 4 };
 
   const out = normalizeState(old);
-  assert.equal(out.version, 8);
+  assert.equal(out.version, SCHEMA_VERSION);
   const na = out.concepts.find(c => c.id === a.id), nb = out.concepts.find(c => c.id === b.id);
   assert.equal(na.srs.stability, 12);
   assert.equal(na.srs.due, NOW + 9 * DAY);

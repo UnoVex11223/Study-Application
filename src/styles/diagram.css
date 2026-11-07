@@ -1,0 +1,27 @@
+/* Diagrams (ui/Diagram.jsx): circuits, memory, bits and trees, drawn in the
+   page's ink on a slightly raised surface, so they follow the theme. The
+   one thing to work out ("?") is in the accent colour. */
+
+.diagram { margin: 0; max-width: 100%; overflow-x: auto; padding: var(--space-3); border-radius: var(--radius-lg); background: var(--inset); }
+.diagram svg { display: block; max-width: none; margin: 0 auto; }
+.diagram.small { padding: var(--space-2); }
+
+.dg-line { fill: none; stroke: var(--ink-2); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.dg-fill { fill: var(--surface); }
+.dg-fill.dg-on { fill: var(--select); }
+.dg-wire { stroke: var(--ink-3); }
+.dg-arrow { stroke: var(--ink-2); }
+.dg-head { fill: var(--ink-2); }
+.dg-dot { fill: var(--ink-2); }
+.dg-text { fill: var(--ink); font: 500 13px var(--sans); }
+.dg-text.dg-mono { font-family: var(--mono); font-weight: 400; }
+.dg-text.dg-small { font-size: 11px; }
+.dg-text.dg-muted { fill: var(--ink-3); }
+.dg-text.dg-accent { fill: var(--link); font-weight: 700; }
+.dg-text.dg-ask { fill: var(--accent); font-weight: 700; }
+
+/* Tables in questions, answers and lessons (truth tables, mostly). */
+.md table { border-collapse: collapse; margin: var(--space-2) 0; font: 400 var(--text-sm) / var(--leading-ui) var(--mono); }
+.md th, .md td { padding: var(--space-1) var(--space-3); border: 1px solid var(--rule-strong); text-align: center; }
+.md th { color: var(--ink-2); font-weight: 600; background: var(--surface-2); }
+.q-prompt .md table { font-size: var(--text-md); }

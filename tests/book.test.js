@@ -47,7 +47,7 @@ test("typed-in start pages become page ranges; estimates scale with pages", () =
   const e = estimate([{ from: 1, to: 200, include: true }, { from: 201, to: 400, include: true }, { from: 401, to: 500, include: false }]);
   assert.equal(e.pages, 400);
   assert.equal(e.chapters, 2);
-  assert.ok(e.dollars[0] >= 5 && e.dollars[1] <= 20);
+  assert.ok(e.dollars[0] >= 5 && e.dollars[1] <= 30);
 });
 
 // ── Locked chapters ────────────────────────────────────────────────────────

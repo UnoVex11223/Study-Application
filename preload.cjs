@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld("tenax", {
     batchCreate: (payload) => ipcRenderer.invoke("ai:batch-create", payload),
     batchStatus: (batchId) => ipcRenderer.invoke("ai:batch-status", batchId),
     batchResults: (batchId) => ipcRenderer.invoke("ai:batch-results", batchId),
+    usage: (payload) => ipcRenderer.invoke("ai:usage", payload),
   },
   code: {
     run: (payload) => ipcRenderer.invoke("code:run", payload),

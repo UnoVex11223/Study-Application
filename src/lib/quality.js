@@ -10,31 +10,39 @@
 //      question 1–5 on importance, clarity, retrieval, gradability and
 //      accuracy, and keeps, rewrites or drops it. Only questions scoring 4+ on
 //      every dimension pass.
-//   3. Caps: at most 2 questions for a core concept (one to know the idea, one
-//      to use it, when both pass) and 1 for a supporting or detail concept —
-//      the best-scoring ones.
+//   3. Ladder: one question per step of the concept's ladder (model.js
+//      LEVELS), the best-scoring at each step, up to 5 steps for a core
+//      concept, 3 for a supporting one and 2 for a detail.
 // After import, questions you report, miss 5+ times, or whose grading you
 // dispute twice are pulled from sessions until you fix or restore them.
+//
+// Ladder questions (the ones with a level) are held to a stricter shape: one
+// answer target each. "What prints, and why?" is two questions; the why goes
+// in the model answer, which you read after answering.
 
 import { normalize } from "./grade.js";
+import { levelOf, clampLevel } from "./model.js";
+import { parseDiagram, checkDiagramAnswer } from "./diagram.js";
 
 export const PASS_SCORE = 4;
-// Questions per concept. Memory is scheduled per concept and its questions take
-// turns, so a second question on a core concept keeps you from memorizing one
-// prompt's wording; beyond that, more questions mostly mean more to read
-// through on import, so sections stay a manageable size.
-export const QUESTION_CAP = { core: 2, supporting: 1, detail: 1 };
+// Steps per concept. Memory is scheduled per concept and its steps take turns
+// at its reviews (lib/ladder.js), so extra steps add depth, not review time.
+export const QUESTION_CAP = { core: 5, supporting: 3, detail: 2 };
+// Questions written before ladders (no level): a core concept's pair covers
+// knowing the idea and using it.
+const LEGACY_CAP = { core: 2, supporting: 1, detail: 1 };
 
-// With only a couple of slots, a core concept's pair should cover knowing the
-// idea (recall, explain) and using it (distinguish, apply, connect).
-const ABILITY_GROUP = { recall: "know", explain: "know", distinguish: "use", apply: "use", connect: "use" };
+const ABILITY_GROUP = { recall: "know", define: "know", explain: "know", distinguish: "use", apply: "use", connect: "use" };
 export const DIMENSIONS = {
   importance: "Worth remembering",
   clarity: "Clear on its own",
+  focus: "One thing at a time",
   retrieval: "Needs real recall",
   gradability: "Gradable",
   accuracy: "Accurate",
 };
+// Scores a review may leave out (reviews written before the dimension existed).
+const OPTIONAL_DIMENSIONS = new Set(["focus"]);
 
 export const FLAG_REASONS = {
   unclear: "Unclear or ambiguous",
@@ -54,13 +62,19 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const YES_NO = /^\s*(is|are|was|were|does|do|did|can|could|will|would|should|has|have|had)\b/i;
 const OPEN = /\b(why|how|explain|describe|what happens|what would)\b/i;
-const CONTEXT = /\b(according to (the|this) (text|author|book|chapter|passage|reading|section)|in (this|the) (chapter|section|passage|reading)|the author|as (mentioned|discussed|shown|described|noted) (above|earlier|previously|in the)|the (above|following|previous) (example|figure|table|listing|code)|(figure|fig\.|table|listing) \d)/i;
+const CONTEXT = /\b(according to (the|this) (text|author|book|chapter|passage|reading|section)|in (this|the) (chapter|section|passage|reading)|the author|as (mentioned|discussed|described|noted) (above|earlier|previously|in the)|as shown (earlier|previously|in the)|(figure|fig\.|table|listing) \d)/i;
+// Pointing at a picture or example that isn't in the question (fine when a diagram is attached).
+const FIGURE_REF = /\b(the (above|following|previous) (example|figure|table|listing|code|diagram)|as shown above|the (diagram|picture|drawing|figure) (below|above|shown)|shown (below|above))\b/i;
 const LIST_ALL = /\b(list|name|enumerate|give) (all|every|each of the)\b/i;
+// Two questions in one: "…, and why?", "…and then explain…", "the two reasons…".
+const COMPOUND = /([,;]\s*and\s+(why|how|what|which|when|where)\b)|(\band\s+(then\s+)?(explain|describe|justify)\b)|(\b(two|three|four|both) (reasons|steps|ways|things|differences|effects|properties|rules|parts)\b)|(\bdescribe both\b)/i;
 
 /** Word-set similarity of two prompts (0–1), ignoring common words. */
 export function similarity(a, b) {
-  const A = new Set(words(a).filter(w => !STOP.has(w)));
-  const B = new Set(words(b).filter(w => !STOP.has(w)));
+  // Code counts: "What does this print?" over two different snippets is two different questions.
+  const tokens = (s) => normalize(String(s || "").replace(/```\w*/g, " ")).split(" ").filter(w => w && !STOP.has(w));
+  const A = new Set(tokens(a));
+  const B = new Set(tokens(b));
   if (!A.size || !B.size) return 0;
   let inter = 0;
   for (const w of A) if (B.has(w)) inter++;
@@ -87,6 +101,31 @@ export function lintQuestion(q, { others = [] } = {}) {
   if (CONTEXT.test(prompt)) add("context", "block", "Refers to the book or an example you won't have in front of you later.");
   if (LIST_ALL.test(prompt)) add("list", "warn", "Asks for a complete list; long lists are hard to recall and to grade.");
   if ((prompt.match(/\?/g) || []).length > 2) add("multi", "warn", "Asks several questions at once.");
+
+  // A drawing: it has to be one Tenax can draw, and a circuit has to agree with the answer.
+  const drawn = q.diagram ? parseDiagram(q.diagram) : { ok: true, diagram: null };
+  if (q.diagramError || !drawn.ok) add("diagram", "block", `The diagram can't be drawn: ${q.diagramError || drawn.error}`);
+  else if (drawn.diagram) {
+    const wrong = checkDiagramAnswer({ ...q, diagram: drawn.diagram });
+    if (wrong) add("diagram-answer", "block", wrong);
+  }
+  if (!drawn.diagram && FIGURE_REF.test(prompt)) add("context", "block", "Refers to a picture or example that isn't in the question.");
+
+  // Ladder questions: one answer target each.
+  const level = clampLevel(q.level);
+  if (level) {
+    const plainPrompt = stripCode(prompt);
+    const questions = (plainPrompt.match(/\?/g) || []).length;
+    if (level <= 4 && (COMPOUND.test(plainPrompt) || questions > 1)) {
+      add("compound", "block", "Asks for two things at once. Make it two steps, or put the why in the model answer.");
+    }
+    const pts = (q.points || []).map(p => String(p).trim()).filter(Boolean);
+    if (q.ability !== "recall" && pts.length > 1) {
+      if (level <= 3) add("one-point", "block", "A step should need one thing in the answer; this needs several.");
+      else if (level === 4 || pts.length > 2) add("one-point", "warn", "Needs more than one thing in the answer; it may be two steps.");
+    }
+    if (!String(q.shape || "").trim()) add("shape", "warn", "Doesn't say what form the answer takes (a word, a number, what it prints…).");
+  }
 
   if (q.ability === "recall") {
     const acc = (q.accept || []).map(a => String(a).trim()).filter(Boolean);
@@ -125,7 +164,8 @@ export function judge(candidate, review) {
   const reasons = [];
   let dims = null;
   if (review) {
-    dims = Object.fromEntries(Object.keys(DIMENSIONS).map(k => [k, clampScore(review.scores?.[k])]));
+    const keys = Object.keys(DIMENSIONS).filter(k => !OPTIONAL_DIMENSIONS.has(k) || review.scores?.[k] != null);
+    dims = Object.fromEntries(keys.map(k => [k, clampScore(review.scores?.[k])]));
     if (review.verdict === "drop") return { keep: false, q, dims, score: avg(dims), revised, reasons: [review.reason || "Dropped by the quality review."] };
     if (review.verdict === "revise" && review.revision?.prompt?.trim()) {
       q = { ...candidate, ...pickRevision(review.revision) };
@@ -151,6 +191,11 @@ function pickRevision(r) {
   if (Array.isArray(r.required_points) && r.required_points.length) out.points = r.required_points;
   if (Array.isArray(r.misconceptions)) out.misconceptions = r.misconceptions;
   if (typeof r.hint === "string") out.hint = r.hint;
+  if (typeof r.shape === "string" && r.shape.trim()) out.shape = r.shape.trim();
+  if (typeof r.diagram === "string" && r.diagram.trim()) {
+    const d = parseDiagram(r.diagram);
+    if (d.ok) { out.diagram = d.diagram; out.diagramError = undefined; } else out.diagramError = d.error;
+  }
   return out;
 }
 
@@ -179,7 +224,9 @@ export function selectForConcept(candidates, reviews, importance = "supporting",
   // Best first; unscored (critic unavailable) rank in the middle.
   passing.sort((a, b) => (b.score ?? 3.5) - (a.score ?? 3.5));
 
-  const full = (QUESTION_CAP[importance] ?? 2) + extra;
+  if (candidates.some(c => clampLevel(c.level))) return selectLadder(passing, dropped, importance, { existing, extra });
+
+  const full = (LEGACY_CAP[importance] ?? 2) + extra;
   // An extra slot (a note's own example) is always available, even on a
   // concept that already has more than today's cap from an earlier version.
   const cap = Math.max(extra, full - existing.length);
@@ -213,6 +260,39 @@ export function selectForConcept(candidates, reviews, importance = "supporting",
   for (const e of rest) {
     if (kept.length >= cap) { dropped.push({ ...e, reasons: [`This ${importance} concept already has its ${full} best question${full === 1 ? "" : "s"}.`] }); continue; }
     tryAdd(e);
+  }
+  return { kept, dropped };
+}
+
+/**
+ * The ladder: the best passing question at each step, lowest step first, up
+ * to the concept's number of steps. Steps the concept already has (topping
+ * up) aren't written twice; a note's extra slot may add one more anywhere.
+ */
+function selectLadder(passing, dropped, importance, { existing, extra }) {
+  const full = (QUESTION_CAP[importance] ?? 3) + extra;
+  const cap = Math.max(extra, full - existing.length);
+  const taken = new Set(existing.map(levelOf));
+  let spare = extra;
+  const kept = [];
+  const byLevel = new Map();
+  for (const e of passing) {
+    const l = levelOf(e);
+    if (!byLevel.has(l)) byLevel.set(l, []);
+    byLevel.get(l).push(e);
+  }
+  for (const l of [...byLevel.keys()].sort((a, b) => a - b)) {
+    let placed = false;
+    for (const e of byLevel.get(l)) {
+      if (placed) { dropped.push({ ...e, reasons: ["Another question was better for this step."] }); continue; }
+      if (kept.length >= cap) { dropped.push({ ...e, reasons: [`This ${importance} concept already has its ${full} steps.`] }); continue; }
+      if (taken.has(l) && spare <= 0) { dropped.push({ ...e, reasons: ["The ladder already has this step."] }); continue; }
+      const lint = lintQuestion(e, { others: [...existing, ...kept] });
+      if (!lint.ok) { dropped.push({ ...e, reasons: [lint.issues.find(i => i.severity === "block").message] }); continue; }
+      if (taken.has(l)) spare--;
+      kept.push({ ...e, level: l, warnings: lint.issues.filter(i => i.severity === "warn").map(i => i.message) });
+      placed = true;
+    }
   }
   return { kept, dropped };
 }

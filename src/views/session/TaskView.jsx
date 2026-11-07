@@ -13,6 +13,8 @@
 //  - Why you missed it: optional, and each reason has its own fix (Feedback.jsx).
 //  - Go deeper: an interviewer's follow-ups until an answer breaks (GoDeeper.jsx).
 //  - Fresh versions: an apply question you've seen comes back with a new example.
+//  - Short answers (a term, a value, what it prints) are checked instantly
+//    against the accepted answers, and Enter checks them.
 
 import { useEffect, useRef, useState } from "react";
 import { useNav } from "../../ui/nav.js";
@@ -21,7 +23,7 @@ import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
 import { Spinner } from "../../ui/display.jsx";
 import { cx } from "../../ui/cx.js";
-import { matchesAccepted, verdictFromChecks, suggestedRating } from "../../lib/grade.js";
+import { matchesAccepted, plainlyWrong, verdictFromChecks, suggestedRating } from "../../lib/grade.js";
 import { gradeWithAI, rubricFor } from "../../lib/ai.js";
 import { previewIntervals } from "../../lib/fsrs.js";
 import { isSlow } from "../../lib/training.js";
@@ -42,7 +44,7 @@ function indentOnTab(e, setAnswer) {
   requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = at + 4; });
 }
 
-export default function TaskView({ task, item: stored, concept, section, course, aiReady, retention, pace = null, variant = null, pretest = false, onDone, onReport }) {
+export default function TaskView({ task, item: stored, concept, section, course, aiReady, retention, pace = null, variant = null, pretest = false, step = null, onDone, onReport }) {
   const [phase, setPhase] = useState("answer"); // answer | grading | running | followup | selfcheck | feedback
   const [answer, setAnswer] = useState("");
   const [hint, setHint] = useState(false);
@@ -65,10 +67,12 @@ export default function TaskView({ task, item: stored, concept, section, course,
 
   useEffect(() => { started.current = Date.now(); answerRef.current?.focus(); }, []);
 
-  const item = fresh ? { ...stored, ...fresh, accept: [] } : stored;
+  const item = fresh ? { ...stored, ...fresh, accept: fresh.accept ?? [] } : stored;
   const points = rubricFor(item);
   const aided = hint || gaveUp;
   const code = hasTests(stored) ? stored.tests : null;
+  // A short exact answer: a smaller box, and Enter checks it.
+  const quick = !code && item.accept?.length > 0;
 
   const stamp = () => { const t = Date.now() - started.current; setTook(v => v || t); };
   const finishWith = (g) => {
@@ -105,6 +109,9 @@ export default function TaskView({ task, item: stored, concept, section, course,
     }
     if (!fu && item.accept?.length && matchesAccepted(answer, item.accept)) {
       return finishWith({ verdict: "correct", source: "exact", points: points.map(text => ({ text, met: true })), misconceptionsFound: [], feedback: "" });
+    }
+    if (!fu && item.accept?.length && plainlyWrong(answer, item.accept)) {
+      return finishWith({ verdict: "incorrect", source: "exact", points: points.map(text => ({ text, met: false })), misconceptionsFound: [], feedback: "" });
     }
     return grader(fu, note);
   };
@@ -155,21 +162,23 @@ export default function TaskView({ task, item: stored, concept, section, course,
 
   return (
     <div className="task enter">
-      <QuestionCard task={task} item={item} concept={concept} course={course} section={section} fresh={fresh} code={code}
+      <QuestionCard task={task} item={item} concept={concept} course={course} section={section} fresh={fresh} code={code} step={step}
         canUseOriginal={phase === "answer"} onUseOriginal={() => setFresh(null)} onReport={onReport}/>
 
       <div className="stack gap-3">
         <textarea
-          ref={answerRef} className={cx("answer-box", code && "code")} value={answer} onChange={e => setAnswer(e.target.value)}
-          disabled={phase !== "answer"} aria-label="Your answer" spellCheck={!code}
-          placeholder={phase === "answer" ? "Answer from memory, in your own words" : undefined}
-          onKeyDown={code ? (e) => indentOnTab(e, setAnswer) : undefined}
+          ref={answerRef} className={cx("answer-box", code && "code", quick && "short")} value={answer} onChange={e => setAnswer(e.target.value)}
+          disabled={phase !== "answer"} aria-label="Your answer" spellCheck={!code && !quick}
+          placeholder={phase === "answer" ? (quick ? "Your answer" : "Answer from memory, in your own words") : undefined}
+          onKeyDown={code ? (e) => indentOnTab(e, setAnswer) : quick ? (e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); submit(); }
+          } : undefined}
         />
         {hint && item.hint && <div className="hint-box"><Markdown>{item.hint}</Markdown></div>}
         {phase === "answer" && (
           <div className="row">
             <button className="btn btn-primary" onClick={() => submit()} disabled={!answer.trim()}>
-              {code ? "Run tests" : "Check answer"}<span className="kbd">Ctrl ↵</span>
+              {code ? "Run tests" : "Check answer"}<span className="kbd">{quick ? "↵" : "Ctrl ↵"}</span>
             </button>
             {!pretest && (
               <button className={cx("btn btn-quiet sure-toggle", sure && "on")} aria-pressed={sure} onClick={() => setSure(v => !v)}

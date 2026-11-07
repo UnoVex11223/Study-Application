@@ -32,3 +32,6 @@
 .review-q > input { margin-top: 2px; }
 .review-q.off { opacity: .55; }
 .review-q .md { font-size: var(--text-md); }
+
+/* A ladder step not climbed yet: an empty ring where the tick will go. */
+.step-mark { display: inline-block; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--surface-3); }

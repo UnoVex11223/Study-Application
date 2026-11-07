@@ -373,3 +373,20 @@ test("stored settings from before the monochrome theme switch to Black once", as
   assert.equal(normalizeState({ settings: { dailyQuestions: 15, dailyMinutes: 60 } }).settings.dailyQuestions, 15);
   assert.equal(normalizeState({}).settings.dailyQuestions, 20);
 });
+
+test("exact answers: code must match character for character (spacing aside); a different number is plainly wrong", async () => {
+  const { plainlyWrong } = await import("../src/lib/grade.js");
+  assert.ok(matchesAccepted("extern int count", ["extern int count;"]), "a trailing semicolon doesn't matter");
+  assert.ok(matchesAccepted("`(*ip)++`", ["(*ip)++"]));
+  assert.ok(matchesAccepted("#include<stdio.h>", ["#include <stdio.h>"]));
+  assert.ok(!matchesAccepted("*(ip++)", ["(*ip)++"]), "punctuation is the answer");
+  assert.ok(!matchesAccepted("x->next", ["x.next"]));
+  assert.ok(!matchesAccepted("13", ["12"]), "a number has no typos");
+  assert.ok(matchesAccepted("12", ["12"]));
+  assert.ok(plainlyWrong("13", ["12", "twelve"]) === false, "a word among the answers: let the grader decide");
+  assert.ok(plainlyWrong("13", ["12"]));
+  assert.ok(!plainlyWrong("12.0", ["12"]), "the same value written differently isn't plainly wrong");
+  assert.ok(!plainlyWrong("it's 13 I think", ["12"]));
+  assert.ok(plainlyWrong("1", ["0", "false"]), "a logic value is a bit, however it's written");
+  assert.ok(!plainlyWrong("false", ["0", "low"]));
+});

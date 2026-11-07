@@ -1,6 +1,6 @@
 // A course: its book cover and name, whether it's Active, how it's going (the
-// figures), its sections with their concepts, and how often each kind of
-// question is answered right.
+// figures), its sections with their concepts, the terms it teaches (and a
+// drill for them), and how often each kind of question is answered right.
 
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -18,6 +18,8 @@ import { index, COURSE_STATUS, ABILITIES } from "../../lib/model.js";
 import { courseMastery, sectionMastery, abilityBreakdown } from "../../lib/mastery.js";
 import { practiceTasks, questionsPerDay } from "../../lib/planner.js";
 import { activationForecast, pretestTasks, sectionStarted } from "../../lib/training.js";
+import { termTasks, glossary } from "../../lib/ladder.js";
+import Markdown from "../../ui/Markdown.jsx";
 import { aiBridge } from "../../lib/ai.js";
 import { lastDays, milestones, runningTotal } from "../../lib/history.js";
 import { dayKey } from "../../lib/time.js";
@@ -26,7 +28,7 @@ import { Outline, OutlineItem, ConceptRow, OutlineActions } from "../concepts/Ou
 import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import ItemForm from "../concepts/ItemForm.jsx";
 import CourseForm from "./CourseForm.jsx";
-import { JobBanner, TopUpBanner, TopUpModal } from "./CourseBanners.jsx";
+import { JobBanner, TopUpBanner, TopUpModal, RebuildModal } from "./CourseBanners.jsx";
 
 const STATUS_OPTIONS = Object.entries(COURSE_STATUS).map(([k, v]) => [k, v.label, v.blurb]);
 const CHAPTER_STATUS = {
@@ -67,6 +69,7 @@ export default function Course({ courseId }) {
   const [deleting, setDeleting] = useState(false);
   const [removing, setRemoving] = useState(null); // a section to remove
   const [topUpScope, setTopUpScope] = useState(null);
+  const [rebuildScope, setRebuildScope] = useState(null);
   const history = useHistory(state, courseId, now);
 
   // Opened at a chapter (from the palette): bring it into view.
@@ -89,6 +92,8 @@ export default function Course({ courseId }) {
   const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i })).filter(x => x.c.include && x.c.status !== "done"));
   const topUps = bg.tasks.filter(t => t.courseId === courseId);
   const topUpRunning = topUps.some(t => t.status === "running");
+  const terms = glossary(state, courseId);
+  const drillable = termTasks(state, { courseId }).length;
   const abilityRows = Object.entries(abilityBreakdown(state, { courseId, now })).filter(([, v]) => v.attempts > 0);
   // What Active would mean for your days, shown while the course isn't Active yet.
   const forecast = course.status !== "active" ? activationForecast(state, courseId) : null;
@@ -106,6 +111,14 @@ export default function Course({ courseId }) {
   const topUp = (label, conceptIds, sectionId = null) => setTopUpScope({
     label, conceptIds, start: (ids) => bg.topUp({ label, courseId, sectionId, conceptIds: ids }),
   });
+  const rebuild = (label, conceptIds, sectionId = null) => setRebuildScope({
+    label, conceptIds, start: (ids) => bg.rebuild({ label, courseId, sectionId, conceptIds: ids }),
+  });
+  // Terms drill: the vocabulary of everything you've started, rapid-fire.
+  const drill = (scope, title) => {
+    const tasks = termTasks(state, scope);
+    if (tasks.length) nav.startSession({ tasks, mode: "practice", title: `Terms: ${title}` });
+  };
   const deleteCourse = () => {
     jobs.forEach(j => bookBridge()?.remove(j.bookId));
     act("course/delete", { id: course.id });
@@ -125,11 +138,17 @@ export default function Course({ courseId }) {
                 onChange={(status) => act("course/update", { id: course.id, patch: { status } })}/>
               <div className="page-actions">
                 <button className="btn" onClick={() => practice({ courseId }, course.name)} disabled={!m.introduced}><Icon name="play"/>Practice</button>
+                {drillable > 0 && (
+                  <button className="btn" onClick={() => drill({ courseId }, course.name)} title="Rapid-fire on the terms of every concept you've started">
+                    <Icon name="bulb"/>Drill terms
+                  </button>
+                )}
                 <button className="btn" onClick={() => nav.go("teach", { courseId })} disabled={!sections.some(s => !s.locked)}><Icon name="pen"/>Teach back</button>
                 <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus"/>Add material</button>
                 <Menu label="More for this course" trigger="btn btn-quiet btn-icon">
                   <MenuItem icon="edit" onClick={() => setEditing(true)}>Edit course</MenuItem>
                   {ai && <MenuItem icon="sparkle" disabled={topUpRunning} onClick={() => topUp(course.name, (ix.conceptsByCourse[courseId] || []).map(c => c.id))}>Write more questions</MenuItem>}
+                  {ai && <MenuItem icon="wand" disabled={topUpRunning} onClick={() => rebuild(course.name, (ix.conceptsByCourse[courseId] || []).map(c => c.id))}>Rebuild as ladders</MenuItem>}
                   <MenuItem icon="trash" danger onClick={() => setDeleting(true)}>Delete course</MenuItem>
                 </Menu>
               </div>
@@ -200,6 +219,9 @@ export default function Course({ courseId }) {
                     <OutlineActions>
                       {!s.locked && <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play"/>Practice section</button>}
                       {!s.locked && <button className="btn btn-sm" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}><Icon name="pen"/>Teach it back</button>}
+                      {!s.locked && termTasks(state, { courseId, sectionId: s.id }).length > 0 && (
+                        <button className="btn btn-sm" onClick={() => drill({ courseId, sectionId: s.id }, s.title)}><Icon name="bulb"/>Drill terms</button>
+                      )}
                       {!sectionStarted(state, s.id) && concepts.length > 0 && (
                         <button className="btn btn-sm" onClick={() => pretest(s)}
                           title="Try its questions before you study it: attempting first makes the material stick better, even when you get them wrong. Nothing is scheduled.">
@@ -209,6 +231,7 @@ export default function Course({ courseId }) {
                       <span className="grow"/>
                       <Menu label={`More for ${s.title}`}>
                         {ai && <MenuItem icon="sparkle" disabled={topUpRunning} onClick={() => topUp(s.title, concepts.map(c => c.id), s.id)}>Write more questions</MenuItem>}
+                        {ai && <MenuItem icon="wand" disabled={topUpRunning} onClick={() => rebuild(s.title, concepts.map(c => c.id), s.id)}>Rebuild as ladders</MenuItem>}
                         {!s.locked && s.pages && <MenuItem icon="lock" onClick={() => act("section/lock", { id: s.id, locked: true })}>Lock until read</MenuItem>}
                         <MenuItem icon="trash" danger onClick={() => setRemoving(s)}>Remove section</MenuItem>
                       </Menu>
@@ -233,6 +256,23 @@ export default function Course({ courseId }) {
             </Outline>
           </Section>
 
+          {terms.length > 0 && (
+            <Section title="Terms" count={terms.length}
+              actions={drillable > 0 && <button className="btn btn-sm btn-quiet" onClick={() => drill({ courseId }, course.name)}><Icon name="bulb"/>Drill</button>}>
+              <details className="disclosure">
+                <summary>All of this course's terms, A to Z</summary>
+                <dl className="glossary">
+                  {terms.map(t => (
+                    <div key={t.term} className="glossary-row">
+                      <dt><button className="link" onClick={() => setConceptId(t.conceptId)} title={t.conceptName}>{t.term}</button></dt>
+                      <dd><Markdown>{t.definition}</Markdown></dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            </Section>
+          )}
+
           {abilityRows.length > 0 && (
             <Section title="Right answers by kind of question" note="last 60 days">
               <div className="ability-grid">
@@ -253,6 +293,7 @@ export default function Course({ courseId }) {
       {editing && <CourseForm course={course} onClose={() => setEditing(false)} onSave={(patch) => { act("course/update", { id: course.id, patch }); setEditing(false); }}/>}
       {adding && <ItemForm courseId={courseId} onClose={() => setAdding(null)}/>}
       {topUpScope && <TopUpModal scope={topUpScope} onClose={() => setTopUpScope(null)} onStart={topUpScope.start}/>}
+      {rebuildScope && <RebuildModal scope={rebuildScope} onClose={() => setRebuildScope(null)} onStart={rebuildScope.start}/>}
       {deleting && (
         <ConfirmDialog title="Delete this course?" action="Delete course" onConfirm={deleteCourse} onClose={() => setDeleting(false)}>
           {course.name} will be deleted with all its concepts, questions and history.

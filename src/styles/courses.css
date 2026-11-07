@@ -93,3 +93,10 @@ button.outline-toggle:focus-visible { box-shadow: inset 0 0 0 2px var(--link); }
 .teach-section { width: auto; max-width: 360px; }
 .teach-input { min-height: 320px; }
 .teach-summary { font-size: var(--text-lg); line-height: var(--leading-body); }
+
+/* The course's terms (lib/ladder.js glossary). */
+.glossary { display: grid; gap: 0; margin: var(--space-3) 0 0; }
+.glossary-row { display: grid; grid-template-columns: minmax(140px, 30%) 1fr; gap: var(--space-4); align-items: baseline; padding: var(--space-2) 0; border-top: 1px solid var(--rule); }
+.glossary-row dt { font-weight: 600; }
+.glossary-row dd { margin: 0; color: var(--ink-2); }
+.glossary-row .md p { margin: 0; }

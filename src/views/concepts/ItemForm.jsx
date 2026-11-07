@@ -11,11 +11,12 @@ import { Notice, Spinner } from "../../ui/display.jsx";
 import { aiBridge, writeTests } from "../../lib/ai.js";
 import { CODE_LANGS, guessLang, runCode } from "../../lib/code.js";
 import { lintQuestion } from "../../lib/quality.js";
-import { index, makeConcept, makeItem, makeSection, ABILITIES, ABILITY_KEYS, IMPORTANCE } from "../../lib/model.js";
+import { index, makeConcept, makeItem, makeSection, ABILITIES, ABILITY_KEYS, IMPORTANCE, LEVELS, LEVEL_KEYS, levelOf } from "../../lib/model.js";
 
 const NEW = "__new";
 const lines = (s) => s.split("\n").map(x => x.trim()).filter(Boolean);
 const ABILITY_OPTIONS = ABILITY_KEYS.map(k => [k, ABILITIES[k].label]);
+const LEVEL_OPTIONS = LEVEL_KEYS.map(l => [String(l), `${l} ${LEVELS[l].label}`, LEVELS[l].blurb]);
 const IMPORTANCE_OPTIONS = Object.entries(IMPORTANCE).map(([k, v]) => [k, v.label]);
 const LANG_OPTIONS = Object.entries(CODE_LANGS).map(([k, l]) => [k, l.label]);
 const TEST_PLACEHOLDER = {
@@ -36,6 +37,8 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
   const [conceptName, setConceptName] = useState("");
   const [importance, setImportance] = useState("core");
   const [ability, setAbility] = useState(item?.ability ?? "explain");
+  const [level, setLevel] = useState(String(item ? levelOf(item) : 2));
+  const [shape, setShape] = useState(item?.shape ?? "");
   const [prompt, setPrompt] = useState(item?.prompt ?? "");
   const [answer, setAnswer] = useState(item?.answer ?? "");
   const [points, setPoints] = useState((item?.points ?? []).join("\n"));
@@ -70,15 +73,15 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
 
   // The same rule checks new questions go through, shown as advice while you type.
   const lint = prompt.trim() && answer.trim()
-    ? lintQuestion({ ability, prompt, answer, accept: lines(accept), points: lines(points).length ? lines(points) : [answer] })
+    ? lintQuestion({ ability, level: Number(level), shape, diagram: item?.diagram ?? null, prompt, answer, accept: lines(accept), points: lines(points).length ? lines(points) : [answer] })
     : { issues: [] };
 
   const save = () => {
     if (!valid) return;
     const fields = {
-      ability, prompt: prompt.trim(), answer: answer.trim(),
+      ability, level: Number(level), shape: shape.trim(), prompt: prompt.trim(), answer: answer.trim(),
       points: lines(points).length ? lines(points) : [answer.trim()],
-      accept: ability === "recall" ? lines(accept) : [],
+      accept: lines(accept),
       misconceptions: lines(misc), hint: hint.trim(),
       tests: showTests && tests.trim() ? { lang, code: tests.replace(/\s+$/, "") } : null,
     };
@@ -131,17 +134,19 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
         <Field label="Importance"><Segmented label="Importance" options={IMPORTANCE_OPTIONS} value={importance} onChange={setImportance}/></Field>
       )}
       <Field label="Type of question"><Segmented label="Type of question" options={ABILITY_OPTIONS} value={ability} onChange={setAbility}/></Field>
+      <Field label="Step on the concept's ladder"><Segmented label="Step on the ladder" options={LEVEL_OPTIONS} value={level} onChange={setLevel}/></Field>
       <Field label="Question" htmlFor="if-prompt">
         <textarea id="if-prompt" className="textarea short" value={prompt} onChange={e => setPrompt(e.target.value)}/>
+      </Field>
+      <Field label="What form the answer takes (optional)" htmlFor="if-shape">
+        <input id="if-shape" className="input" placeholder="one word, a number, what it prints…" value={shape} onChange={e => setShape(e.target.value)}/>
       </Field>
       <Field label="Model answer" htmlFor="if-answer">
         <textarea id="if-answer" className="textarea short" value={answer} onChange={e => setAnswer(e.target.value)}/>
       </Field>
-      {ability === "recall" && (
-        <Field label="Accepted answers, one per line" htmlFor="if-accept">
-          <textarea id="if-accept" className="textarea short" value={accept} onChange={e => setAccept(e.target.value)}/>
-        </Field>
-      )}
+      <Field label={ability === "recall" ? "Accepted answers, one per line" : "Exact answers marked right instantly, one per line (optional)"} htmlFor="if-accept">
+        <textarea id="if-accept" className="textarea short" value={accept} onChange={e => setAccept(e.target.value)}/>
+      </Field>
       <Field label="Key points a correct answer must include, one per line" htmlFor="if-points">
         <textarea id="if-points" className="textarea short" value={points} onChange={e => setPoints(e.target.value)}/>
       </Field>

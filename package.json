@@ -42,7 +42,8 @@
       "sync-folder.cjs",
       "db.cjs",
       "covers.cjs",
-      "code-runner.cjs"
+      "code-runner.cjs",
+      "ai-usage.cjs"
     ],
     "directories": {
       "output": "release"
