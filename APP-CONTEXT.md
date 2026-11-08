@@ -180,6 +180,16 @@ If text lost something in copying (a figure, a garbled equation), you're told in
 
 You can also write questions yourself (Course → Add a question) with key points, accepted answers, misconceptions and a hint.
 
+### New course from a paste
+
+**Courses → New course** starts from a paste: a guide, a set of notes, a transcript (or dropped `.md`/`.txt` files). One paste can make several courses.
+
+1. **Sort into courses.** Claude reads the paste (as numbered lines, long ones cut short, so even a long guide is one cheap call) and sorts it into courses and chapters. A course is one subject: fields people study on their own (databases, security and identity, a framework or language like React or Python, data engineering) get their own course when the paste gives them a chapter or more, while foundations covered on the way (how processes, networks or HTTP work, in a web guide) stay in the main subject's course. Material for a course you already have goes into it. The paste's own headings are the chapter boundaries; self-check questions stay with their chapter; a table of contents, "how to use this guide" and the like are left out.
+2. **Look it over.** Rename a course, untick a chapter. Naming a course like one you have (or like another in the list) merges them. The page shows a rough time and cost.
+3. **Create.** The new courses appear at once and the rest runs in the background exactly like a book import (below): one import, in the paste's order, so a later chapter in any of the courses builds on earlier ones as prerequisites instead of repeating them; question writing goes through half-price batches by default. A pasted chapter has no pages and nothing to mark as read: it's unlocked, and its concepts are introduced a few a day like any new material.
+
+Notes are much denser than book pages: about one concept per 250–500 characters (a 10,000-character guide gave 26 concepts and about $1.60 of questions at full price, November 2026). The estimate works from that. **Start an empty course** on the same page makes a course with nothing in it, to fill with Add material.
+
 ### Importing a whole book
 
 **Courses → Import a book** takes the book's PDF and does every chapter at once:
@@ -304,7 +314,7 @@ Merging works record by record: for every course, chapter, concept, question, li
 
 Size: one full copy per computer, replaced about once a day (it doesn't grow with each sync), plus the change files since. Under 1 KB per question once compressed, so about 10–15 MB for a library the size of 20 books; the copy carries the most recent 30,000 reviews.
 
-Not synced: the API key (enter it once per computer) and book PDFs. A book import runs on the computer that has the PDF; the others show its progress and get each chapter as it's saved. If two computers are used offline at the same time, both sets of reviews are kept; if the same concept was reviewed on both, the later review's schedule wins.
+Not synced: the API key (enter it once per computer) and book PDFs (and pasted guides being imported). A book import runs on the computer that has the PDF; the others show its progress and get each chapter as it's saved. If two computers are used offline at the same time, both sets of reviews are kept; if the same concept was reviewed on both, the later review's schedule wins.
 
 ### Installing
 
@@ -325,7 +335,7 @@ covers.cjs        cover search and download from Open Library (main process, tes
 sync-folder.cjs   sync folder: this computer's full copy and change files in, the others' out (in order)
 pdf-text.cjs      PDF outline + page text (pdf.js)
 src/lib/          pure logic, unit-tested: fsrs, planner, ladder (steps, introductions, terms drill, glossary), diagram (checking, simulating and laying out diagrams), training (implicit review, pace, pretests, forecast), code, mastery, graph (incl. learning paths), orbits (map layout), timelapse, grade, quality, model, ai, book, bookRunner, batchWriter, notes, shelf (incl. the year), cover (shaping covers, spine colours), recall, sync (merging), delta (what changed, so only that is saved), search and commands (the palette), history (sparklines), format (counts, percentages, dates)
-src/state/        reducer (pure, tested; stamps edits for sync), store (holds the library, reports how saving is going), sync (pulls and merges), bookImport (keeps book imports running), background (question top-ups)
+src/state/        reducer (pure, tested; stamps edits for sync), store (holds the library, reports how saving is going), sync (pulls and merges), bookImport (keeps book and paste imports running), background (question top-ups)
 src/app/          the frame: routes (which page for which route), title bar, sidebar, the Ctrl+K palette, the theme
 src/views/        one folder per part: today, courses (incl. Teach back), concepts (concept panel, question forms, the outline), material (adding material, importing a book), session, notes, shelf (books, spines, the year, recalls), map (SkyMap, the 3D map with its engine sky3d.js, or FlatMap), progress, settings
 src/ui/           shared building blocks: layout (Page, PageHeader, Section), controls, overlays (drawer, modal, menu), display (bars, figures, notices), Icon, Markdown, Cover, motion, sound

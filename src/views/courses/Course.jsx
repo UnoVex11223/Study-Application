@@ -14,7 +14,7 @@ import { Page, EmptyState } from "../../ui/layout.jsx";
 import { Menu, MenuItem, ConfirmDialog } from "../../ui/overlays.jsx";
 import { Bar, Spinner } from "../../ui/display.jsx";
 import { CoverArt } from "../../ui/Cover.jsx";
-import { index, COURSE_STATUS } from "../../lib/model.js";
+import { index, COURSE_STATUS, jobCourseIds, chapterCourse, dropJobCourse } from "../../lib/model.js";
 import { courseMastery, sectionMastery } from "../../lib/mastery.js";
 import { practiceTasks } from "../../lib/planner.js";
 import { pretestTasks, sectionStarted } from "../../lib/training.js";
@@ -68,8 +68,10 @@ export default function Course({ courseId }) {
   const m = courseMastery(state, courseId, now);
   const sections = ix.sectionsByCourse[courseId] || [];
   const shelfItem = state.shelf.find(it => it.courseId === courseId) || null;
-  const jobs = state.bookJobs.filter(j => j.courseId === courseId);
-  const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i })).filter(x => x.c.include && x.c.status !== "done"));
+  // A book being imported into this course, or a pasted guide with chapters for it.
+  const jobs = state.bookJobs.filter(j => jobCourseIds(j).includes(courseId));
+  const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i }))
+    .filter(x => x.c.include && x.c.status !== "done" && chapterCourse(job, x.c) === courseId));
   const topUps = bg.tasks.filter(t => t.courseId === courseId);
   const topUpRunning = topUps.some(t => t.status === "running");
   const drillable = termTasks(state, { courseId }).length;
@@ -97,7 +99,8 @@ export default function Course({ courseId }) {
     if (tasks.length) nav.startSession({ tasks, mode: "practice", title: `Terms: ${title}` });
   };
   const deleteCourse = () => {
-    jobs.forEach(j => bookBridge()?.remove(j.bookId));
+    // The saved PDF or paste goes with the last course it was filling.
+    jobs.forEach(j => { if (!dropJobCourse(j, course.id)) bookBridge()?.remove(j.bookId); });
     act("course/delete", { id: course.id });
     nav.go("courses");
   };
@@ -183,16 +186,16 @@ export default function Course({ courseId }) {
           })}
           {waiting.map(({ job, c, i }) => (
             <OutlineItem key={`${job.id}-${i}`} title={c.title} waiting
-              lead={c.status === "reading" || c.status === "writing" ? <Spinner/> : <Icon name={c.status === "failed" ? "alert" : "lock"}/>}
+              lead={c.status === "reading" || c.status === "writing" ? <Spinner/> : <Icon name={c.status === "failed" ? "alert" : job.source === "text" ? "note" : "lock"}/>}
               meta={<>
                 <span>{c.status === "pending" && job.status === "paused" ? "Paused" : c.status === "writing" && c.mode === "batch" ? "Writing questions (half-price batch)…" : CHAPTER_STATUS[c.status]}</span>
                 {c.status === "failed" && c.error && <span className="warn">{c.error}</span>}
               </>}
-              side={
+              side={job.source !== "text" && (
                 <label className="check-label" title="Unlock this chapter as soon as it's imported">
                   <input type="checkbox" checked={Boolean(c.read)} onChange={() => importer.setRead(job.id, i, !c.read)}/>Read
                 </label>
-              }/>
+              )}/>
           ))}
         </Outline>
       )}

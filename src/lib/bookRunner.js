@@ -1,7 +1,9 @@
-// Runs a whole-book import. Chapters are read and their concepts extracted in
-// reading order, so each chapter can point at earlier chapters' concepts as
+// Runs a whole-book import, or a pasted guide sorted into courses (lib/paste.js:
+// its chapters are character ranges of the paste, each naming its course).
+// Chapters are read and their concepts extracted in reading order, so each
+// chapter can point at earlier chapters' concepts (in any of the courses) as
 // prerequisites and doesn't recreate them. Question writing for up to two
-// chapters runs alongside. Chapters are added to the course in order, locked
+// chapters runs alongside. Chapters are added to their course in order, locked
 // unless you've marked them read.
 //
 // Everything the runner needs is passed in, so it can be tested without React:
@@ -14,6 +16,7 @@
 import { api, extractMaterial, generateTasks, linkConcepts } from "./ai.js";
 import { writeViaBatch } from "./batchWriter.js";
 import { chapterImport } from "./book.js";
+import { chapterCourse } from "./model.js";
 import { reducer } from "../state/reducer.js";
 
 const MAX_WRITING = 2;       // chapters whose questions are being written at once (live)
@@ -30,7 +33,8 @@ export async function runBookJob({ jobId, getState, act, book, sleep, pollMs }) 
   const findJob = () => getState()?.bookJobs?.find(j => j.id === jobId);
   const job = findJob();
   if (!job) return "missing";
-  const { courseId, bookId } = job;
+  const { bookId } = job;
+  const pasted = job.source === "text";
 
   const setChapter = (index, patch) => act("book/chapter", { id: jobId, index, patch });
   const stopped = () => findJob()?.status !== "running";
@@ -70,15 +74,17 @@ export async function runBookJob({ jobId, getState, act, book, sleep, pollMs }) 
     setChapter(i, { status: "reading", error: "" });
     let text;
     try { text = await book.text({ bookId, from: ch.from, to: ch.to }); } catch (err) { text = { ok: false, error: err?.message }; }
-    if (!text?.ok) { fail(i, text?.error || "Couldn't read these pages."); continue; }
-    if (text.text.replace(/\[Page \d+\]/g, "").replace(/\s+/g, "").length < MIN_TEXT) {
+    if (!text?.ok) { fail(i, text?.error || (pasted ? "Couldn't read the pasted text." : "Couldn't read these pages.")); continue; }
+    const letters = text.text.replace(/\[Page \d+\]/g, "").replace(/\s+/g, "").length;
+    if (pasted && letters < MIN_TEXT / 6) { setChapter(i, { status: "done", concepts: 0, questions: 0, error: "" }); continue; }
+    if (!pasted && letters < MIN_TEXT) {
       fail(i, "These pages have no readable text. A scanned PDF needs text recognition (OCR) first.", { counts: false });
       continue;
     }
 
     let ex;
     try {
-      ex = await extractMaterial({ state: getState(), courseId, title: ch.title, location: `pp. ${ch.from}–${ch.to}`, text: text.text, alsoKnown });
+      ex = await extractMaterial({ state: getState(), courseId: chapterCourse(job, ch), title: ch.title, location: pasted ? "" : `pp. ${ch.from}–${ch.to}`, text: text.text, alsoKnown });
     } catch (err) { ex = { ok: false, error: err?.message || "Something went wrong." }; }
     if (!ex.ok) { fail(i, ex.error); continue; }
     failures = 0;
@@ -97,6 +103,7 @@ export async function runBookJob({ jobId, getState, act, book, sleep, pollMs }) 
   }
 
   function startWriting(i, ch, ex, savedBatch) {
+    const courseId = chapterCourse(job, ch);
     // Take this chapter's place in the import order now, before writing starts.
     const prev = chain;
     let release;
@@ -125,7 +132,7 @@ export async function runBookJob({ jobId, getState, act, book, sleep, pollMs }) 
         const state = getState();
         const payload = chapterImport({
           state, courseId, chapter: ch, extraction: ex, groups: res.groups,
-          order: job.baseOrder + i, locked: !live.read, alsoKnown: imported,
+          order: ch.order ?? job.baseOrder + i, locked: !live.read, alsoKnown: imported, pages: !pasted,
         });
         act("import", {
           payload,

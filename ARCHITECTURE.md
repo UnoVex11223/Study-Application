@@ -36,7 +36,7 @@ src/
     today/              Today, the questions-to-fix panel
     courses/            the course list and its rows (Notes lists areas with them too), a course page, its banners, Teach it back
     concepts/           shared by courses and notes: the concept panel, question forms, the outline
-    material/           adding material, importing a book
+    material/           adding material, a new course from a paste, importing a book
     session/            a study session: the question, grading feedback, Go deeper, the summary
     notes/              Notes: capture, process, the areas notes made (and regrouping them), deleting notes
     shelf/              the shelf: books, spines, the year, a book's panel, the form, recalls

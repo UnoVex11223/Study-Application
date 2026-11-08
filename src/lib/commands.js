@@ -43,7 +43,7 @@ export function commandEntries(state, { plan = null, now = Date.now(), syncing =
   const flagged = state.items.filter(i => i.flag).length;
   if (flagged) add({ kind: "action", id: "a:fix", title: "Fix reported questions", sub: `${flagged} waiting`, icon: "flag", to: { view: "today", params: { fix: at } }, suggest: true });
   add({ kind: "action", id: "a:note", title: "Capture a note", icon: "note", keys: "Ctrl Shift N", to: { view: "notes", params: { capture: at } }, suggest: true });
-  add({ kind: "action", id: "a:course", title: "Create a course", icon: "plus", to: { view: "courses", params: { create: true, at } }, suggest: true });
+  add({ kind: "action", id: "a:course", title: "Create a course", icon: "plus", to: { view: "new", params: { at } }, suggest: true });
   add({ kind: "action", id: "a:book", title: "Import a book", icon: "book", to: { view: "book", params: { at } }, suggest: true });
   const year = new Date(now).getFullYear();
   add({ kind: "action", id: "a:year", title: `${year} on your shelf`, icon: "shelf", to: { view: "shelf", params: { year, at } } });

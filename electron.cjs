@@ -440,6 +440,69 @@ ${escapeTag(text)}
   return structured({ kind: "extract", tier: "deep", system: EXTRACT_SYSTEM, prompt, schema: EXTRACT_SCHEMA, maxTokens: 32000 });
 });
 
+// ── 1b. Sorting a paste into courses ─────────────────────────────────────────
+// One paste (a guide, a set of notes) can span several subjects. Before any
+// concepts are extracted, the paste is split into courses and chapters, so
+// each chapter is then imported like a book chapter (lib/bookRunner.js).
+const PLAN_SCHEMA = obj({
+  title: str("A short name for the whole paste, e.g. 'Web application guide'"),
+  courses: {
+    type: "array",
+    items: obj({
+      name: str("The course's name: its subject"),
+      existing: str("The exact name of one of the learner's existing courses this material goes into, or empty for a new course"),
+      parts: {
+        type: "array",
+        items: obj({
+          title: str("The chapter's name, without numbering"),
+          start_line: { type: "integer", description: "The number of the line this chapter starts on" },
+        }),
+      },
+    }),
+  },
+  skip: {
+    type: "array",
+    items: obj({
+      start_line: { type: "integer", description: "The number of the line this skipped run starts on" },
+      reason: str("Why it isn't worth studying, in a few words"),
+    }),
+  },
+});
+
+const PLAN_SYSTEM = `You sort a long paste of study material (a guide, course notes, a set of lessons) into courses and chapters for a spaced-repetition app. Each chapter is then read on its own to find the ideas worth remembering and write questions about them, so you only decide where things go; you never summarize.
+
+The paste is shown as numbered lines. Long lines are cut short: you see enough of each to tell what it's about.
+
+COURSES
+- A course is one subject the learner studies and tracks as a whole, the size of a book or a university course: "Web development", "React", "Databases", "Security", "Data engineering". Never name a course after the document ("Guide notes") or use a catch-all ("General", "Misc").
+- Each course is about one subject. Fields people study on their own get their own course when the paste gives one a chapter or more, even if it presents them as steps of one story: databases, security and identity, a framework or language (React, Python), data engineering, machine learning. A web guide with chapters on HTTP, React, databases and authentication is four courses.
+- Foundations a paste covers on the way to its main subject (how processes, networks or HTTP work, in a web guide) stay in that subject's course. Never make a course of a single short section, and ten chapters about one subject are one course.
+- Put material in one of the learner's existing courses (listed with their chapters) when it's the same subject: give that course's exact name in existing. Otherwise leave existing empty.
+- List courses in the order their material first appears.
+
+CHAPTERS
+- Each part is one chapter of its course: a run of lines from start_line up to the line before the next part or skip (of any course) starts.
+- Use the source's own headings as boundaries ("Part 3: HTTP" starts a chapter, titled "HTTP"). Keep the source's order within a course. A course's chapters needn't be next to each other in the paste.
+- A chapter is usually 2,000–15,000 characters. Split a much longer section at its sub-headings; join tiny neighbouring sections of the same subject into one chapter.
+- Self-check questions, exercises and summaries at the end of a section stay in that section's chapter: they show what matters.
+
+SKIP
+Add a skip for runs with nothing worth remembering: a table of contents, "how to use this guide", navigation, sign-offs, link lists, boilerplate.
+
+Every line belongs to exactly one part or skip, so the first one starts at line 1, and no two start on the same line.`;
+
+ipcMain.handle("ai:plan", async (_e, { lines, total, courses = [] }) => {
+  const known = courses.slice(0, 60).map((c) => `- ${c.name}${c.chapters?.length ? `: ${c.chapters.slice(0, 30).join("; ")}` : ""}`).join("\n");
+  const prompt = `<existing_courses>
+${escapeTag(known) || "(none yet)"}
+</existing_courses>
+
+<source lines="${Number(total) || 0}">
+${escapeTag(lines)}
+</source>`;
+  return structured({ kind: "plan", tier: "deep", system: PLAN_SYSTEM, prompt, schema: PLAN_SCHEMA, maxTokens: 8000 });
+});
+
 // ── 2. Question ladders with rubrics, and a lesson per concept ──────────────────
 const ABILITY_ENUM = { type: "string", enum: ["recall", "define", "explain", "distinguish", "apply", "connect"] };
 const DIAGRAM_FIELD = str("A diagram as JSON text (see DIAGRAMS), or empty when there's none");
@@ -1093,8 +1156,20 @@ ipcMain.handle("pdf:text", async (_e, { data, from, to }) => {
 // ── Whole books ───────────────────────────────────────────────────────────────
 // A book being imported is copied into the app's data folder so the import can
 // carry on after a restart. It's deleted when you dismiss the finished import.
+// A pasted text being imported (a guide sorted into courses) is kept the same
+// way, as a .txt file; its chapters are character ranges instead of pages.
 const booksDir = () => path.join(app.getPath("userData"), "books");
 const bookFile = (id) => path.join(booksDir(), `${String(id).replace(/[^\w-]/g, "")}.pdf`);
+const textFile = (id) => path.join(booksDir(), `${String(id).replace(/[^\w-]/g, "")}.txt`);
+
+ipcMain.handle("book:save-text", (_e, text) => {
+  try {
+    const bookId = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    fs.mkdirSync(booksDir(), { recursive: true });
+    fs.writeFileSync(textFile(bookId), String(text ?? ""), "utf8");
+    return { ok: true, bookId };
+  } catch (err) { return { ok: false, error: err?.message || "Couldn't save the text." }; }
+});
 
 ipcMain.handle("book:save", async (_e, data) => {
   try {
@@ -1107,14 +1182,18 @@ ipcMain.handle("book:save", async (_e, data) => {
 });
 ipcMain.handle("book:text", async (_e, { bookId, from, to }) => {
   try {
+    if (fs.existsSync(textFile(bookId))) {
+      const text = fs.readFileSync(textFile(bookId), "utf8");
+      return { ok: true, text: text.slice(Math.max(0, Number(from) || 0), Number(to) || text.length), from, to };
+    }
     const file = bookFile(bookId);
     if (!fs.existsSync(file)) return { ok: false, error: "The book's PDF is no longer available. Import the book again." };
     return { ok: true, ...(await pdf.pageText(fs.readFileSync(file), from, to)) };
   } catch (err) { return pdfError(err); }
 });
-ipcMain.handle("book:has", (_e, bookId) => fs.existsSync(bookFile(bookId)));
+ipcMain.handle("book:has", (_e, bookId) => fs.existsSync(bookFile(bookId)) || fs.existsSync(textFile(bookId)));
 ipcMain.handle("book:delete", (_e, bookId) => {
-  try { fs.rmSync(bookFile(bookId), { force: true }); } catch { /* already gone */ }
+  try { fs.rmSync(bookFile(bookId), { force: true }); fs.rmSync(textFile(bookId), { force: true }); } catch { /* already gone */ }
   return { ok: true };
 });
 

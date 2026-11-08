@@ -74,9 +74,10 @@ export function estimate(chapters, { batch = false } = {}) {
 
 /**
  * Store records for one chapter: a single section named after the chapter
- * holding all of its concepts, locked until you mark it read.
+ * holding all of its concepts, locked until you mark it read. A pasted
+ * guide's chapter (pages: false) has no page range.
  */
-export function chapterImport({ state, courseId, chapter, extraction, groups, order, locked, alsoKnown = [] }) {
+export function chapterImport({ state, courseId, chapter, extraction, groups, order, locked, alsoKnown = [], pages = true }) {
   const flat = {
     sections: [{
       title: chapter.title,
@@ -84,8 +85,8 @@ export function chapterImport({ state, courseId, chapter, extraction, groups, or
       concepts: extraction.sections.flatMap(s => s.concepts),
     }],
   };
-  const label = `${chapter.title}, pp. ${chapter.from}–${chapter.to}`;
+  const label = pages ? `${chapter.title}, pp. ${chapter.from}–${chapter.to}` : chapter.title;
   const payload = buildImport({ state, courseId, extraction: flat, groups, sourceLabel: label, alsoKnown });
-  payload.sections = payload.sections.map(s => ({ ...s, order, locked, pages: [chapter.from, chapter.to] }));
+  payload.sections = payload.sections.map(s => ({ ...s, order, locked, ...(pages ? { pages: [chapter.from, chapter.to] } : {}) }));
   return payload;
 }

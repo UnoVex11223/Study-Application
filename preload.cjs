@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("tenax", {
     teachback: (payload) => ipcRenderer.invoke("ai:teachback", payload),
     notes: (payload) => ipcRenderer.invoke("ai:notes", payload),
     areas: (payload) => ipcRenderer.invoke("ai:areas", payload),
+    plan: (payload) => ipcRenderer.invoke("ai:plan", payload),
     probe: (payload) => ipcRenderer.invoke("ai:probe", payload),
     variant: (payload) => ipcRenderer.invoke("ai:variant", payload),
     tests: (payload) => ipcRenderer.invoke("ai:tests", payload),
@@ -66,6 +67,7 @@ contextBridge.exposeInMainWorld("tenax", {
   },
   book: {
     save: (data) => ipcRenderer.invoke("book:save", data),
+    saveText: (text) => ipcRenderer.invoke("book:save-text", text),
     text: (payload) => ipcRenderer.invoke("book:text", payload),
     remove: (bookId) => ipcRenderer.invoke("book:delete", bookId),
     has: (bookId) => ipcRenderer.invoke("book:has", bookId),

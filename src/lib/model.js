@@ -212,6 +212,28 @@ export const makeCourse = (fields, existingCount = 0) => ({
   color: COURSE_COLORS[existingCount % COURSE_COLORS.length], createdAt: Date.now(), ...fields,
 });
 
+/** The course a background import's chapter goes into (a pasted guide's chapters each name theirs). */
+export const chapterCourse = (job, ch) => ch.courseId ?? job.courseId;
+
+/** Every course a background import fills: a book's one, or the several a pasted guide was sorted into. */
+export const jobCourseIds = (job) => [...new Set([job.courseId, ...(job.chapters || []).filter(c => c.include !== false).map(c => c.courseId)].filter(Boolean))];
+
+/**
+ * A course was deleted: a job that only filled that course goes; one that
+ * fills others too just stops importing its chapters (left in place, so a
+ * running import's chapter numbers still line up).
+ */
+export function dropJobCourse(job, courseId) {
+  const others = jobCourseIds(job).filter(id => id !== courseId);
+  if (!others.length) return null;
+  if (!jobCourseIds(job).includes(courseId)) return job;
+  return {
+    ...job,
+    courseId: job.courseId === courseId ? others[0] : job.courseId,
+    chapters: job.chapters.map(c => (chapterCourse(job, c) === courseId ? { ...c, include: false, courseId } : c)),
+  };
+}
+
 export const makeSection = (fields) => ({ id: uid("s"), title: "Section", summary: "", order: 0, sourceLabel: "", locked: false, ...fields });
 
 export const makeConcept = (fields) => ({
