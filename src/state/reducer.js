@@ -1,5 +1,5 @@
 // All state changes, as a pure reducer (unit-tested in tests/).
-import { emptyState, normalizeState, index, removeConcepts, levelOf, RECORD_COLLECTIONS } from "../lib/model.js";
+import { emptyState, normalizeState, index, removeConcepts, levelOf, RECORD_COLLECTIONS, dropJobCourse } from "../lib/model.js";
 import { rate, newSrs, RATING } from "../lib/fsrs.js";
 import { makeLoadAt } from "../lib/planner.js";
 import { mergeEdges } from "../lib/graph.js";
@@ -32,7 +32,7 @@ function apply(state, action) {
         ...next,
         courses: next.courses.filter(c => c.id !== action.id),
         sections: next.sections.filter(s => s.courseId !== action.id),
-        bookJobs: next.bookJobs.filter(j => j.courseId !== action.id),
+        bookJobs: next.bookJobs.map(j => dropJobCourse(j, action.id)).filter(Boolean),
         shelf: next.shelf.some(it => it.courseId === action.id)
           ? next.shelf.map(it => (it.courseId !== action.id ? it : {
             ...it, courseId: null, title: it.title || course?.name || "Untitled",
@@ -73,10 +73,10 @@ function apply(state, action) {
       return { ...state, sections: state.sections.map(s => (s.id === action.id ? { ...s, locked: Boolean(action.locked), ...(action.locked ? {} : { readAt: action.now }) } : s)) };
 
     // Whole-book imports.
-    case "book/start":
+    case "book/start": // a book's new course, or the courses a pasted guide was sorted into
       return {
         ...state,
-        courses: action.course ? [...state.courses, action.course] : state.courses,
+        courses: [...state.courses, ...(action.course ? [action.course] : []), ...(action.courses || [])],
         bookJobs: [...state.bookJobs, action.job],
       };
     case "book/patch":

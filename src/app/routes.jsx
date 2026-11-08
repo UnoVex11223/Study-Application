@@ -11,6 +11,7 @@ import Course from "../views/courses/Course.jsx";
 import TeachBack from "../views/courses/TeachBack.jsx";
 import AddMaterial from "../views/material/AddMaterial.jsx";
 import ImportBook from "../views/material/ImportBook.jsx";
+import NewCourse from "../views/material/NewCourse.jsx";
 import Notes from "../views/notes/Notes.jsx";
 import Shelf from "../views/shelf/Shelf.jsx";
 import KnowledgeMap from "../views/map/KnowledgeMap.jsx";
@@ -28,6 +29,7 @@ export function pageFor(route, { plan }) {
     );
     case "import": return <AddMaterial courseId={route.courseId}/>;
     case "book": return <ImportBook key={route.at ?? "book"} courseId={route.courseId}/>;
+    case "new": return <NewCourse key={route.at ?? "new"}/>;
     case "teach": return <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>;
     case "map": return <KnowledgeMap focusCourseId={route.courseId} focusConceptId={route.conceptId}/>;
     case "progress": return <Progress/>;
@@ -38,6 +40,6 @@ export function pageFor(route, { plan }) {
 
 /** The sidebar item for a route: pages inside a course light up Courses. */
 export function navItemFor(route) {
-  if (["course", "import", "teach", "book"].includes(route.view)) return "courses";
+  if (["course", "import", "teach", "book", "new"].includes(route.view)) return "courses";
   return route.view;
 }

@@ -8,7 +8,7 @@
 //   • settings: the most recently changed copy wins
 // Pure functions; unit-tested in tests/sync.test.js.
 
-import { normalizeState, SCHEMA_VERSION, RECORD_COLLECTIONS as COLLECTIONS } from "./model.js";
+import { normalizeState, SCHEMA_VERSION, RECORD_COLLECTIONS as COLLECTIONS, jobCourseIds } from "./model.js";
 
 const MAX_ATTEMPTS = 30000;
 
@@ -79,7 +79,7 @@ export function mergeStates(local, others) {
   const conceptIds = new Set(merged.concepts.map(c => c.id));
   merged.items = merged.items.filter(i => conceptIds.has(i.conceptId));
   merged.edges = merged.edges.filter(e => conceptIds.has(e.from) && conceptIds.has(e.to));
-  merged.bookJobs = merged.bookJobs.filter(j => courseIds.has(j.courseId));
+  merged.bookJobs = merged.bookJobs.filter(j => jobCourseIds(j).some(id => courseIds.has(id)));
 
   // Review history from every computer.
   const seen = new Set(), attempts = [];

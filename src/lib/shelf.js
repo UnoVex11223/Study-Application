@@ -15,7 +15,7 @@
 // in your own words, a star rating and dates, and Tenax asks you to recall
 // them now and then (see lib/recall.js).
 
-import { uid, index } from "./model.js";
+import { uid, index, chapterCourse } from "./model.js";
 import { courseMastery } from "./mastery.js";
 import { hasNotes, firstRecall } from "./recall.js";
 
@@ -66,8 +66,7 @@ export function courseChapters(state, courseId, ix = index(state)) {
   const read = sections.filter(s => !s.locked).length;
   // Chapters of a book import that aren't in the course yet still count.
   const waiting = state.bookJobs
-    .filter(j => j.courseId === courseId)
-    .reduce((n, j) => n + j.chapters.filter(c => c.include !== false && c.status !== "done").length, 0);
+    .reduce((n, j) => n + j.chapters.filter(c => chapterCourse(j, c) === courseId && c.include !== false && c.status !== "done").length, 0);
   return { read, chapters: sections.length + waiting };
 }
 
@@ -87,7 +86,8 @@ export function shelfEntries(state, now = Date.now()) {
 
   const fromCourse = (course, item) => {
     const { read, chapters } = courseChapters(state, course.id, ix);
-    const booky = state.bookJobs.some(j => j.courseId === course.id);
+    // A pasted guide isn't a book: only a PDF import makes a course a textbook.
+    const booky = state.bookJobs.some(j => j.courseId === course.id && j.source !== "text");
     // A book import knows all its chapters; otherwise only the total you set counts.
     const total = item?.total > 0 ? Math.max(item.total, chapters) : booky ? chapters : 0;
     const logged = Math.max(item?.done || 0, read);

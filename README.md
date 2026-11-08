@@ -46,7 +46,7 @@
 
 1. Download `Tenax-Setup-<version>.exe` from the [latest release](https://github.com/UnoVex11223/Study-Application/releases/latest) and run it. The app isn't code-signed, so Windows SmartScreen asks the first time: choose **More info → Run anyway**.
 2. Paste an Anthropic API key in **Settings → Anthropic API key** (the **Create a key** button there opens the Anthropic Console). It's encrypted with your Windows account and never leaves your computer except in calls to the API.
-3. Create a course, or import a book, and add your first chapter.
+3. **New course**: paste a guide or notes (one paste can make several courses), or import a book's PDF.
 
 Tenax updates itself: new releases download in the background and install the next time you close it.
 
