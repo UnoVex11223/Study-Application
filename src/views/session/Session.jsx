@@ -194,21 +194,17 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
   const item = task && ix.item[task.itemId];
   const concept = item && ix.concept[item.conceptId];
   const position = Math.min(idx + (done ? 0 : 1), queue.length);
-  // Where this question sits on its concept's ladder.
-  const ladder = concept ? ladderOf(ix, concept.id) : [];
-  const step = item ? { at: ladder.findIndex(i => i.id === item.id) + 1 || 1, total: ladder.length } : null;
   // Teach, then test: a new concept's lesson comes before its first question.
   const teach = Boolean(!done && concept && !pretest && task.kind === "new" && !taught.has(concept.id) && (concept.lesson || concept.summary));
 
   return (
     <div className="session" role="dialog" aria-label={title}>
       <div className="session-top">
-        <button className="btn btn-quiet" onClick={exit}><Icon name="x"/>{done ? "Close" : "End session"}</button>
-        <div className="session-progress">
-          <span className="num">{position} of {queue.length}</span>
+        <button className="btn btn-quiet btn-icon" onClick={exit} aria-label={done ? "Close" : "End session"} title={done ? "Close" : "End session"}><Icon name="x"/></button>
+        <div className="session-progress" aria-label={`${position} of ${queue.length}`}>
           <Bar value={queue.length ? Math.min(idx, queue.length) / queue.length : 1}/>
         </div>
-        <span className="session-title ell">{title}</span>
+        <span/>
       </div>
       <div className="session-body">
         <div className="session-inner">
@@ -216,16 +212,14 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
             <EmptyState title="This question was deleted" actions={<button className="btn" onClick={() => setIdx(i => i + 1)}>Skip</button>}/>
           )}
           {teach && (
-            <LessonCard key={`lesson-${concept.id}`} concept={concept} course={ix.course[concept.courseId]} section={ix.section[concept.sectionId]}
-              steps={ladder.length} onStart={() => setTaught(s => new Set(s).add(concept.id))}/>
+            <LessonCard key={`lesson-${concept.id}`} concept={concept} onStart={() => setTaught(s => new Set(s).add(concept.id))}/>
           )}
           {!done && item && concept && !teach && (
             <TaskView
               key={`${idx}-${task.itemId}`}
-              task={task} item={item} concept={concept}
-              section={ix.section[concept.sectionId]} course={ix.course[concept.courseId]}
-              aiReady={aiReady} retention={state.settings.retention} onDone={onDone} onReport={onReport}
-              pace={paces[item.ability] ?? null} pretest={pretest} step={step}
+              item={item} concept={concept}
+              aiReady={aiReady} onDone={onDone} onReport={onReport}
+              pace={paces[item.ability] ?? null} pretest={pretest}
               variant={!pretest && fresh[item.id]?.status === "ready" ? fresh[item.id].question : null}
             />
           )}

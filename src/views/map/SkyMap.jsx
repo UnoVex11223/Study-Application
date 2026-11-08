@@ -222,7 +222,7 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
             <span className="lapse-date">{lapseLabel}</span>
           </div>
         )}
-        <MapLegend fading={!lapse} unread={ix.lockedConcepts.size > 0} bridges={data.bridges.length > 0}/>
+        <MapLegend unread={ix.lockedConcepts.size > 0} bridges={data.bridges.length > 0}/>
       </div>
 
       {selected && ix.concept[selected] && (

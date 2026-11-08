@@ -1,78 +1,41 @@
-// The question being asked: what kind of task it is, which step of the
-// concept's ladder it is, the question itself (with its diagram, and what form
-// the answer takes), and the flag for reporting a bad question (or, on a fresh
-// version, going back to the original).
+// The question being asked, and nothing else: the question itself (with its
+// diagram), and a flag for reporting a bad question that only shows when you
+// point at the card (on a fresh version, it offers the original instead).
 
 import { useState } from "react";
 import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
 import Diagram from "../../ui/Diagram.jsx";
-import { CourseDot } from "../../ui/display.jsx";
 import { cx } from "../../ui/cx.js";
-import { abilityLabel, levelLabel } from "../../lib/model.js";
 import { FLAG_REASONS } from "../../lib/quality.js";
-import { CODE_LANGS } from "../../lib/code.js";
 
-const KIND_LABEL = {
-  new: "New concept",
-  learning: "Relearning",
-  review: "Review",
-  foundation: "Foundation check",
-  practice: "Practice",
-  requeue: "One more try",
-  pretest: "Pretest",
-  climb: "Next step",
-  drill: "Terms",
-};
 const REPORT_REASONS = ["unclear", "wrong", "trivial", "other"];
 
-export default function QuestionCard({ task, item, concept, course, section, fresh, code, step = null, canUseOriginal, onUseOriginal, onReport }) {
+export default function QuestionCard({ item, fresh, canUseOriginal, onUseOriginal, onReport }) {
   const [reporting, setReporting] = useState(false);
   return (
-    <div className="stack gap-3">
-      <div className="session-kind">
-        <span>{KIND_LABEL[task.kind] ?? "Review"}</span>
-        {concept.importance === "core" && <span className="tag sky">Core</span>}
-        {fresh && <span className="tag" title="A new example of a question you've answered before, written for today">Fresh version</span>}
-      </div>
-
-      <article className="q-card">
-        <div className="q-head">
-          <span className="tag sky" title={abilityLabel(item.ability)}>{levelLabel(item)}</span>
-          {step && step.total > 1 && <span className="q-step" title="Steps on this concept's ladder, simplest first">Step {step.at} of {step.total}</span>}
-          <CourseDot color={course?.color}/>
-          <span className="grow ell">{course?.name}{section ? ` / ${section.title}` : ""}</span>
-          <button className={cx("btn btn-quiet btn-sm btn-icon", reporting && "on")} onClick={() => setReporting(r => !r)}
-            title="Report this question" aria-label="Report this question" aria-expanded={reporting}>
-            <Icon name="flag"/>
-          </button>
+    <article className="q-card">
+      <button className={cx("btn btn-quiet btn-sm btn-icon q-flag", reporting && "on")} onClick={() => setReporting(r => !r)}
+        title="Report this question" aria-label="Report this question" aria-expanded={reporting}>
+        <Icon name="flag"/>
+      </button>
+      <div className="q-prompt"><Markdown>{item.prompt}</Markdown></div>
+      {item.diagram && <Diagram spec={item.diagram}/>}
+      {reporting && (
+        <div className="report-box stack gap-2 enter">
+          {fresh ? (
+            <div className="row wrap">
+              {canUseOriginal && <button className="btn btn-sm" onClick={() => { onUseOriginal(); setReporting(false); }}>Use the original question</button>}
+              <button className="btn btn-sm btn-quiet" onClick={() => setReporting(false)}>Cancel</button>
+            </div>
+          ) : (
+            <div className="row wrap">
+              {REPORT_REASONS.map(r => <button key={r} className="btn btn-sm" onClick={() => onReport(r)}>{FLAG_REASONS[r]}</button>)}
+              <button className="btn btn-sm btn-quiet" onClick={() => setReporting(false)}>Cancel</button>
+            </div>
+          )}
         </div>
-        <div className="q-prompt"><Markdown>{item.prompt}</Markdown></div>
-        {item.diagram && <Diagram spec={item.diagram}/>}
-        {item.shape && !code && <div className="q-shape">Answer: {item.shape}</div>}
-        {code && <div className="small muted">{CODE_LANGS[code.lang].label}, checked by running its tests</div>}
-        {reporting && (
-          <div className="report-box stack gap-2 enter">
-            {fresh ? (
-              <>
-                <div className="small">This is a fresh version written for today, so it won't come back.</div>
-                <div className="row wrap">
-                  {canUseOriginal && <button className="btn btn-sm" onClick={() => { onUseOriginal(); setReporting(false); }}>Use the original question</button>}
-                  <button className="btn btn-sm btn-quiet" onClick={() => setReporting(false)}>Cancel</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="small">What's wrong with this question? It will be taken out of your sessions until you fix or restore it.</div>
-                <div className="row wrap">
-                  {REPORT_REASONS.map(r => <button key={r} className="btn btn-sm" onClick={() => onReport(r)}>{FLAG_REASONS[r]}</button>)}
-                  <button className="btn btn-sm btn-quiet" onClick={() => setReporting(false)}>Cancel</button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </article>
-    </div>
+      )}
+    </article>
   );
 }

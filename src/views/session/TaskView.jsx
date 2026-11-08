@@ -5,27 +5,22 @@
 //                              → followup → …       (the grader wants one more detail)
 //                              → selfcheck → feedback (no API key, or grading failed)
 //
-// Around that core, a few things that make practice harder in the useful way:
-//  - "I'm sure": say so before checking; a confident miss gets flagged, since
-//    correcting a mistake you were sure of is when it sticks best.
+// The screen stays bare: the question, the answer box (its placeholder says
+// what form the answer takes), Check, and I don't know. Behind it:
 //  - Pace: a right answer that took far longer than usual isn't fluent yet, so
-//    Hard is suggested instead of Good.
-//  - Why you missed it: optional, and each reason has its own fix (Feedback.jsx).
-//  - Go deeper: an interviewer's follow-ups until an answer breaks (GoDeeper.jsx).
+//    Hard is suggested instead of Good. (Ctrl+Shift+Enter checks as "I'm sure":
+//    a confident miss comes back a little sooner.)
 //  - Fresh versions: an apply question you've seen comes back with a new example.
 //  - Short answers (a term, a value, what it prints) are checked instantly
 //    against the accepted answers, and Enter checks them.
 
 import { useEffect, useRef, useState } from "react";
-import { useNav } from "../../ui/nav.js";
 import { useKey, isTyping } from "../../ui/hooks.js";
-import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
 import { Spinner } from "../../ui/display.jsx";
 import { cx } from "../../ui/cx.js";
 import { matchesAccepted, plainlyWrong, verdictFromChecks, suggestedRating } from "../../lib/grade.js";
 import { gradeWithAI, rubricFor } from "../../lib/ai.js";
-import { previewIntervals } from "../../lib/fsrs.js";
 import { isSlow } from "../../lib/training.js";
 import { hasTests, runCode } from "../../lib/code.js";
 import { play } from "../../ui/sound.js";
@@ -44,32 +39,28 @@ function indentOnTab(e, setAnswer) {
   requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = at + 4; });
 }
 
-export default function TaskView({ task, item: stored, concept, section, course, aiReady, retention, pace = null, variant = null, pretest = false, step = null, onDone, onReport }) {
+export default function TaskView({ item: stored, concept, aiReady, pace = null, variant = null, pretest = false, onDone, onReport }) {
   const [phase, setPhase] = useState("answer"); // answer | grading | running | followup | selfcheck | feedback
   const [answer, setAnswer] = useState("");
-  const [hint, setHint] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
   const [sure, setSure] = useState(false);
   const [grade, setGrade] = useState(null);
   const [followUp, setFollowUp] = useState({ question: "", answer: "" });
   const [error, setError] = useState("");
   const [override, setOverride] = useState(null); // you can overrule the grade either way: "correct" | "incorrect"
-  const [reason, setReason] = useState(null); // why you missed it
-  const [deeper, setDeeper] = useState(false);
-  const [probe, setProbe] = useState(null);
+  const [reason, setReason] = useState(null); // a wrong belief the grader found (makes Again the suggestion)
   // A fresh version is decided when the question appears and never swapped mid-answer.
   const [fresh, setFresh] = useState(variant);
   const [took, setTook] = useState(0); // time to your answer, before any grading
   const started = useRef(0);
   const finished = useRef(false);
   const answerRef = useRef(null);
-  const { now } = useNav();
 
   useEffect(() => { started.current = Date.now(); answerRef.current?.focus(); }, []);
 
   const item = fresh ? { ...stored, ...fresh, accept: fresh.accept ?? [] } : stored;
   const points = rubricFor(item);
-  const aided = hint || gaveUp;
+  const aided = gaveUp;
   const code = hasTests(stored) ? stored.tests : null;
   // A short exact answer: a smaller box, and Enter checks it.
   const quick = !code && item.accept?.length > 0;
@@ -136,7 +127,6 @@ export default function TaskView({ task, item: stored, concept, section, course,
       misconceptions: override === "correct" ? [] : grade.misconceptionsFound,
       sure, slow, reason: missed ? reason : null, variant: Boolean(fresh),
       tests: grade.source === "tests" ? (grade.run.passed ? "passed" : "failed") : null,
-      probe,
     });
   };
   // A pretest isn't rated: it's asked before you've studied the material.
@@ -158,41 +148,31 @@ export default function TaskView({ task, item: stored, concept, section, course,
       if (e.key === "Enter") { e.preventDefault(); if (pretest) next(); else rate(suggested); }
       else if (!pretest && ["1", "2", "3", "4"].includes(e.key)) rate(Number(e.key));
     }
-  }, [phase, answer, followUp, suggested, grade, override, aided, sure, reason, probe, pretest, took]);
+  }, [phase, answer, followUp, suggested, grade, override, aided, sure, reason, pretest, took]);
 
   return (
     <div className="task enter">
-      <QuestionCard task={task} item={item} concept={concept} course={course} section={section} fresh={fresh} code={code} step={step}
-        canUseOriginal={phase === "answer"} onUseOriginal={() => setFresh(null)} onReport={onReport}/>
+      <QuestionCard item={item} fresh={fresh} canUseOriginal={phase === "answer"} onUseOriginal={() => setFresh(null)} onReport={onReport}/>
 
       <div className="stack gap-3">
         <textarea
           ref={answerRef} className={cx("answer-box", code && "code", quick && "short")} value={answer} onChange={e => setAnswer(e.target.value)}
           disabled={phase !== "answer"} aria-label="Your answer" spellCheck={!code && !quick}
-          placeholder={phase === "answer" ? (quick ? "Your answer" : "Answer from memory, in your own words") : undefined}
+          placeholder={phase === "answer" ? (item.shape ? item.shape[0].toUpperCase() + item.shape.slice(1) : "Your answer") : undefined}
           onKeyDown={code ? (e) => indentOnTab(e, setAnswer) : quick ? (e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); submit(); }
           } : undefined}
         />
-        {hint && item.hint && <div className="hint-box"><Markdown>{item.hint}</Markdown></div>}
         {phase === "answer" && (
           <div className="row">
             <button className="btn btn-primary" onClick={() => submit()} disabled={!answer.trim()}>
-              {code ? "Run tests" : "Check answer"}<span className="kbd">{quick ? "↵" : "Ctrl ↵"}</span>
+              {code ? "Run tests" : "Check"}<span className="kbd">{quick ? "↵" : "Ctrl ↵"}</span>
             </button>
-            {!pretest && (
-              <button className={cx("btn btn-quiet sure-toggle", sure && "on")} aria-pressed={sure} onClick={() => setSure(v => !v)}
-                title="Say so before checking when you're confident. A confident miss is the most useful kind to catch. (Ctrl+Shift+Enter checks as sure.)">
-                <span className="sure-box">{sure && <Icon name="check" size={11} stroke={3}/>}</span>I'm sure
-              </button>
-            )}
             <span className="grow"/>
-            {item.hint && !hint && <button className="btn btn-quiet" onClick={() => setHint(true)}><Icon name="bulb"/>Hint</button>}
             <button className="btn btn-quiet" onClick={giveUp}>I don't know</button>
           </div>
         )}
-        {phase === "grading" && <div className="busy small"><Spinner/>Checking against the key points…</div>}
-        {phase === "running" && <div className="busy small"><Spinner/>Running the tests…</div>}
+        {(phase === "grading" || phase === "running") && <div className="busy small"><Spinner/>Checking…</div>}
       </div>
 
       {phase === "followup" && (
@@ -214,10 +194,7 @@ export default function TaskView({ task, item: stored, concept, section, course,
 
       {phase === "feedback" && grade && (
         <Feedback grade={grade} verdict={verdict} override={override} onOverride={setOverride}
-          aided={aided} slow={slow} sure={sure} item={item} concept={concept} course={course} answer={answer} pretest={pretest}
-          reason={reason} onReason={setReason} suggested={suggested} intervals={previewIntervals(concept.srs, now, { retention })}
-          onRate={rate} onNext={next} canDeeper={aiReady && !pretest && (verdict === "correct" || verdict === "partial")}
-          deeper={deeper} onDeeper={() => setDeeper(true)} onProbe={setProbe}/>
+          item={item} pretest={pretest} suggested={suggested} onRate={rate} onNext={next}/>
       )}
     </div>
   );

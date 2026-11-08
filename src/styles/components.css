@@ -114,7 +114,8 @@ input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex-shrink: 0; a
 .status-dot.learning { border-color: var(--link); background: linear-gradient(90deg, var(--link) 50%, transparent 50%); }
 .status-dot.practiced { border-color: var(--link); background: linear-gradient(90deg, var(--link) 75%, transparent 75%); }
 .status-dot.mastered { border-color: var(--good); background: var(--good); }
-.status-dot.slipping { border-color: var(--warn); background: var(--warn); }
+/* Slipping isn't shown for now: it looks like Practiced, no orange. */
+.status-dot.slipping { border-color: var(--link); background: linear-gradient(90deg, var(--link) 75%, transparent 75%); }
 
 .tag {
   display: inline-flex; align-items: center; flex-shrink: 0; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-xs);

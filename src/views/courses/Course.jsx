@@ -1,57 +1,38 @@
-// A course: its book cover and name, whether it's Active, how it's going (the
-// figures), its sections with their concepts, the terms it teaches (and a
-// drill for them), and how often each kind of question is answered right.
+// A course, kept bare: its cover and name, Practice and Drill terms, and its
+// chapters (each with how much is mastered) that open to show their concepts.
+// Everything else (whether it's Active, Teach back, editing, adding material,
+// writing or rebuilding questions) is under the ⋯ menu.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../../state/store.jsx";
 import { useBackground } from "../../state/background.jsx";
 import { useSync } from "../../state/sync.jsx";
 import { useBookImport, bookBridge } from "../../state/bookImport.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
-import { Page, Section, EmptyState } from "../../ui/layout.jsx";
-import { Segmented } from "../../ui/controls.jsx";
+import { Page, EmptyState } from "../../ui/layout.jsx";
 import { Menu, MenuItem, ConfirmDialog } from "../../ui/overlays.jsx";
-import { Bar, Figures, Figure, Spark, ImportanceTag, Notice, Spinner } from "../../ui/display.jsx";
+import { Bar, Spinner } from "../../ui/display.jsx";
 import { CoverArt } from "../../ui/Cover.jsx";
-import { index, COURSE_STATUS, ABILITIES } from "../../lib/model.js";
-import { courseMastery, sectionMastery, abilityBreakdown } from "../../lib/mastery.js";
-import { practiceTasks, questionsPerDay } from "../../lib/planner.js";
-import { activationForecast, pretestTasks, sectionStarted } from "../../lib/training.js";
-import { termTasks, glossary } from "../../lib/ladder.js";
-import Markdown from "../../ui/Markdown.jsx";
+import { index, COURSE_STATUS } from "../../lib/model.js";
+import { courseMastery, sectionMastery } from "../../lib/mastery.js";
+import { practiceTasks } from "../../lib/planner.js";
+import { pretestTasks, sectionStarted } from "../../lib/training.js";
+import { termTasks } from "../../lib/ladder.js";
 import { aiBridge } from "../../lib/ai.js";
-import { lastDays, milestones, runningTotal } from "../../lib/history.js";
-import { dayKey } from "../../lib/time.js";
-import { plural, pct } from "../../lib/format.js";
+import { pct } from "../../lib/format.js";
 import { Outline, OutlineItem, ConceptRow, OutlineActions } from "../concepts/Outline.jsx";
 import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import ItemForm from "../concepts/ItemForm.jsx";
 import CourseForm from "./CourseForm.jsx";
 import { JobBanner, TopUpBanner, TopUpModal, RebuildModal } from "./CourseBanners.jsx";
 
-const STATUS_OPTIONS = Object.entries(COURSE_STATUS).map(([k, v]) => [k, v.label, v.blurb]);
 const CHAPTER_STATUS = {
   pending: "Waiting",
   reading: "Finding concepts…",
   writing: "Writing questions…",
   failed: "Failed",
 };
-
-/** Concepts started and mastered over the last 30 days, for the sparklines. */
-function useHistory(state, courseId, now) {
-  return useMemo(() => {
-    const ix = index(state);
-    if (!ix.course[courseId]) return null;
-    const all = (ix.conceptsByCourse[courseId] || []).filter(c => !c.suspended && !ix.lockedConcepts.has(c.id));
-    const core = all.filter(c => c.importance === "core");
-    const days = lastDays(dayKey(now, state.settings.rolloverHour), 30);
-    return {
-      started: runningTotal(milestones(state, all, now).started, days),
-      mastered: runningTotal(milestones(state, core.length ? core : all, now).mastered, days),
-    };
-  }, [state, courseId, now]);
-}
 
 export default function Course({ courseId }) {
   const { state, act } = useStore();
@@ -70,7 +51,6 @@ export default function Course({ courseId }) {
   const [removing, setRemoving] = useState(null); // a section to remove
   const [topUpScope, setTopUpScope] = useState(null);
   const [rebuildScope, setRebuildScope] = useState(null);
-  const history = useHistory(state, courseId, now);
 
   // Opened at a chapter (from the palette): bring it into view.
   useEffect(() => {
@@ -92,12 +72,9 @@ export default function Course({ courseId }) {
   const waiting = jobs.flatMap(job => job.chapters.map((c, i) => ({ job, c, i })).filter(x => x.c.include && x.c.status !== "done"));
   const topUps = bg.tasks.filter(t => t.courseId === courseId);
   const topUpRunning = topUps.some(t => t.status === "running");
-  const terms = glossary(state, courseId);
   const drillable = termTasks(state, { courseId }).length;
-  const abilityRows = Object.entries(abilityBreakdown(state, { courseId, now })).filter(([, v]) => v.attempts > 0);
-  // What Active would mean for your days, shown while the course isn't Active yet.
-  const forecast = course.status !== "active" ? activationForecast(state, courseId) : null;
   const ai = Boolean(aiBridge());
+  const allIds = (ix.conceptsByCourse[courseId] || []).map(c => c.id);
 
   const toggle = (id) => setOpen(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const practice = (scope, title) => {
@@ -134,36 +111,30 @@ export default function Course({ courseId }) {
           <div className="course-head-main">
             <h1 className="page-title">{course.name}</h1>
             <div className="course-toolbar">
-              <Segmented label="Course status" options={STATUS_OPTIONS} value={course.status}
-                onChange={(status) => act("course/update", { id: course.id, patch: { status } })}/>
+              {course.status !== "active" && <span className="muted small">{COURSE_STATUS[course.status].label}</span>}
+              <span className="grow"/>
               <div className="page-actions">
-                <button className="btn" onClick={() => practice({ courseId }, course.name)} disabled={!m.introduced}><Icon name="play"/>Practice</button>
-                {drillable > 0 && (
-                  <button className="btn" onClick={() => drill({ courseId }, course.name)} title="Rapid-fire on the terms of every concept you've started">
-                    <Icon name="bulb"/>Drill terms
-                  </button>
-                )}
-                <button className="btn" onClick={() => nav.go("teach", { courseId })} disabled={!sections.some(s => !s.locked)}><Icon name="pen"/>Teach back</button>
-                <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus"/>Add material</button>
+                <button className="btn btn-primary" onClick={() => practice({ courseId }, course.name)} disabled={!m.introduced}><Icon name="play"/>Practice</button>
+                {drillable > 0 && <button className="btn" onClick={() => drill({ courseId }, course.name)}><Icon name="bulb"/>Drill terms</button>}
                 <Menu label="More for this course" trigger="btn btn-quiet btn-icon">
+                  {Object.entries(COURSE_STATUS).map(([k, v]) => (
+                    <MenuItem key={k} icon={course.status === k ? "check" : "blank"} title={v.blurb}
+                      onClick={() => act("course/update", { id: course.id, patch: { status: k } })}>{v.label}</MenuItem>
+                  ))}
+                  <MenuItem icon="pen" disabled={!sections.some(s => !s.locked)} onClick={() => nav.go("teach", { courseId })}>Teach back</MenuItem>
+                  <MenuItem icon="map" onClick={() => nav.go("map", { courseId })}>Show on map</MenuItem>
                   <MenuItem icon="edit" onClick={() => setEditing(true)}>Edit course</MenuItem>
-                  {ai && <MenuItem icon="sparkle" disabled={topUpRunning} onClick={() => topUp(course.name, (ix.conceptsByCourse[courseId] || []).map(c => c.id))}>Write more questions</MenuItem>}
-                  {ai && <MenuItem icon="wand" disabled={topUpRunning} onClick={() => rebuild(course.name, (ix.conceptsByCourse[courseId] || []).map(c => c.id))}>Rebuild as ladders</MenuItem>}
+                  <MenuItem icon="plus" onClick={() => nav.go("import", { courseId })}>Add material</MenuItem>
+                  {ai && <MenuItem icon="sparkle" disabled={topUpRunning} onClick={() => topUp(course.name, allIds)}>Write more questions</MenuItem>}
+                  {ai && <MenuItem icon="wand" disabled={topUpRunning} onClick={() => rebuild(course.name, allIds)}>Rebuild as ladders</MenuItem>}
                   <MenuItem icon="trash" danger onClick={() => setDeleting(true)}>Delete course</MenuItem>
                 </Menu>
               </div>
             </div>
           </div>
         </div>
-        {forecast && (
-          <p className="help">
-            If Active: about {plural(Math.max(1, Math.round(forecast.newPerDay)), "new concept")} a day, and within a month it would take
-            about {Math.max(1, Math.round(forecast.perDay))} of your {questionsPerDay(state.settings)} daily questions.
-          </p>
-        )}
       </header>
 
-      {course.status === "paused" && <Notice icon="pause">Paused courses are left out of daily sessions. Their schedules resume when you switch back.</Notice>}
       {(jobs.length > 0 || topUps.length > 0) && (
         <div className="stack">
           {jobs.map(job => <JobBanner key={job.id} job={job} device={device}/>)}
@@ -180,113 +151,50 @@ export default function Course({ courseId }) {
           {!ai && "Automatic extraction runs in the desktop app with an API key."}
         </EmptyState>
       ) : (
-        <>
-          <Figures>
-            <Figure value={m.mastered} of={m.basisCount} label={`${m.basisIsCore ? "core concepts" : "concepts"} mastered`}
-              spark={history && <Spark values={history.mastered} label="Mastered over the last 30 days"/>}/>
-            <Figure value={pct(m.coveragePct)} label={`of ${plural(m.total, "concept")} started`}
-              spark={history && <Spark values={history.started} label="Started over the last 30 days"/>}/>
-            <Figure value={m.memory == null ? "–" : pct(m.memory)} label="average recall today"/>
-            <Figure value={m.slipping} label="slipping"/>
-          </Figures>
-
-          <Section title="Sections" actions={<>
-            <button className="btn btn-sm btn-quiet" onClick={() => setAdding({})}><Icon name="plus"/>Add a question</button>
-            <button className="btn btn-sm btn-quiet" onClick={() => nav.go("map", { courseId })}><Icon name="map"/>Map</button>
-          </>}>
-            <Outline>
-              {sections.map(s => {
-                const sm = sectionMastery(state, s.id, now);
-                const concepts = ix.conceptsBySection[s.id] || [];
-                return (
-                  <OutlineItem key={s.id} id={`sec-${s.id}`} title={s.title} titleIcon={s.locked ? "lock" : null}
-                    open={open.has(s.id)} onToggle={() => toggle(s.id)}
-                    meta={<>
-                      <span>{plural(sm.total, "concept")}</span>
-                      {s.locked ? <span>locked until you've read it</span> : <>
-                        <span>{sm.mastered} of {sm.basisCount} mastered</span>
-                        {sm.introduced < sm.total && <span>{sm.introduced} started</span>}
-                        {sm.slipping > 0 && <span className="warn">{sm.slipping} slipping</span>}
-                      </>}
-                    </>}
-                    side={s.locked
-                      ? <button className="btn btn-sm" onClick={() => act("section/lock", { id: s.id, locked: false })}><Icon name="check"/>Mark as read</button>
-                      : <><span className="outline-pct num">{pct(sm.masteryPct)}</span><Bar value={sm.masteryPct} tone="good" thin/></>}>
-                    {concepts.map(c => (
-                      <ConceptRow key={c.id} concept={c} status={sm.per[c.id]?.status ?? "new"} onOpen={setConceptId}
-                        tags={<>{sm.per[c.id]?.due && <span className="tag sky">Due</span>}<ImportanceTag importance={c.importance}/></>}/>
-                    ))}
-                    <OutlineActions>
-                      {!s.locked && <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play"/>Practice section</button>}
-                      {!s.locked && <button className="btn btn-sm" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}><Icon name="pen"/>Teach it back</button>}
-                      {!s.locked && termTasks(state, { courseId, sectionId: s.id }).length > 0 && (
-                        <button className="btn btn-sm" onClick={() => drill({ courseId, sectionId: s.id }, s.title)}><Icon name="bulb"/>Drill terms</button>
-                      )}
-                      {!sectionStarted(state, s.id) && concepts.length > 0 && (
-                        <button className="btn btn-sm" onClick={() => pretest(s)}
-                          title="Try its questions before you study it: attempting first makes the material stick better, even when you get them wrong. Nothing is scheduled.">
-                          <Icon name="target"/>Pretest
-                        </button>
-                      )}
-                      <span className="grow"/>
-                      <Menu label={`More for ${s.title}`}>
-                        {ai && <MenuItem icon="sparkle" disabled={topUpRunning} onClick={() => topUp(s.title, concepts.map(c => c.id), s.id)}>Write more questions</MenuItem>}
-                        {ai && <MenuItem icon="wand" disabled={topUpRunning} onClick={() => rebuild(s.title, concepts.map(c => c.id), s.id)}>Rebuild as ladders</MenuItem>}
-                        {!s.locked && s.pages && <MenuItem icon="lock" onClick={() => act("section/lock", { id: s.id, locked: true })}>Lock until read</MenuItem>}
-                        <MenuItem icon="trash" danger onClick={() => setRemoving(s)}>Remove section</MenuItem>
-                      </Menu>
-                    </OutlineActions>
-                  </OutlineItem>
-                );
-              })}
-              {waiting.map(({ job, c, i }) => (
-                <OutlineItem key={`${job.id}-${i}`} title={c.title} waiting
-                  lead={c.status === "reading" || c.status === "writing" ? <Spinner/> : <Icon name={c.status === "failed" ? "alert" : "lock"}/>}
-                  meta={<>
-                    <span className="num">pp. {c.from}–{c.to}</span>
-                    <span>{c.status === "pending" && job.status === "paused" ? "Paused" : c.status === "writing" && c.mode === "batch" ? "Writing questions (half-price batch)…" : CHAPTER_STATUS[c.status]}</span>
-                    {c.status === "failed" && c.error && <span className="warn">{c.error}</span>}
-                  </>}
-                  side={
-                    <label className="check-label" title="Unlock this chapter as soon as it's imported">
-                      <input type="checkbox" checked={Boolean(c.read)} onChange={() => importer.setRead(job.id, i, !c.read)}/>Read
-                    </label>
-                  }/>
-              ))}
-            </Outline>
-          </Section>
-
-          {terms.length > 0 && (
-            <Section title="Terms" count={terms.length}
-              actions={drillable > 0 && <button className="btn btn-sm btn-quiet" onClick={() => drill({ courseId }, course.name)}><Icon name="bulb"/>Drill</button>}>
-              <details className="disclosure">
-                <summary>All of this course's terms, A to Z</summary>
-                <dl className="glossary">
-                  {terms.map(t => (
-                    <div key={t.term} className="glossary-row">
-                      <dt><button className="link" onClick={() => setConceptId(t.conceptId)} title={t.conceptName}>{t.term}</button></dt>
-                      <dd><Markdown>{t.definition}</Markdown></dd>
-                    </div>
-                  ))}
-                </dl>
-              </details>
-            </Section>
-          )}
-
-          {abilityRows.length > 0 && (
-            <Section title="Right answers by kind of question" note="last 60 days">
-              <div className="ability-grid">
-                {abilityRows.map(([k, v]) => (
-                  <div key={k} className="ability">
-                    <div className="ability-top"><span>{ABILITIES[k].label}</span><span className="num strong">{pct(v.correct / v.attempts)}</span></div>
-                    <Bar value={v.correct / v.attempts} thin/>
-                    <div className="ability-n num">of {v.attempts}</div>
-                  </div>
+        <Outline>
+          {sections.map(s => {
+            const sm = sectionMastery(state, s.id, now);
+            const concepts = ix.conceptsBySection[s.id] || [];
+            const drillHere = !s.locked && termTasks(state, { courseId, sectionId: s.id }).length > 0;
+            return (
+              <OutlineItem key={s.id} id={`sec-${s.id}`} title={s.title} titleIcon={s.locked ? "lock" : null}
+                open={open.has(s.id)} onToggle={() => toggle(s.id)}
+                side={s.locked
+                  ? <button className="btn btn-sm" onClick={() => act("section/lock", { id: s.id, locked: false })}><Icon name="check"/>Mark as read</button>
+                  : <><span className="outline-pct num">{pct(sm.masteryPct)}</span><Bar value={sm.masteryPct} tone="good" thin/></>}>
+                {concepts.map(c => (
+                  <ConceptRow key={c.id} concept={c} status={sm.per[c.id]?.status ?? "new"} onOpen={setConceptId}/>
                 ))}
-              </div>
-            </Section>
-          )}
-        </>
+                <OutlineActions>
+                  {!s.locked && <button className="btn btn-sm" onClick={() => practice({ sectionId: s.id }, s.title)} disabled={!sm.introduced}><Icon name="play"/>Practice</button>}
+                  {drillHere && <button className="btn btn-sm" onClick={() => drill({ courseId, sectionId: s.id }, s.title)}><Icon name="bulb"/>Drill terms</button>}
+                  <span className="grow"/>
+                  <Menu label={`More for ${s.title}`}>
+                    {!s.locked && <MenuItem icon="pen" onClick={() => nav.go("teach", { courseId, sectionId: s.id })}>Teach it back</MenuItem>}
+                    {!sectionStarted(state, s.id) && concepts.length > 0 && <MenuItem icon="target" onClick={() => pretest(s)}>Pretest</MenuItem>}
+                    {ai && <MenuItem icon="sparkle" disabled={topUpRunning} onClick={() => topUp(s.title, concepts.map(c => c.id), s.id)}>Write more questions</MenuItem>}
+                    {ai && <MenuItem icon="wand" disabled={topUpRunning} onClick={() => rebuild(s.title, concepts.map(c => c.id), s.id)}>Rebuild as ladders</MenuItem>}
+                    {!s.locked && s.pages && <MenuItem icon="lock" onClick={() => act("section/lock", { id: s.id, locked: true })}>Lock until read</MenuItem>}
+                    <MenuItem icon="trash" danger onClick={() => setRemoving(s)}>Remove section</MenuItem>
+                  </Menu>
+                </OutlineActions>
+              </OutlineItem>
+            );
+          })}
+          {waiting.map(({ job, c, i }) => (
+            <OutlineItem key={`${job.id}-${i}`} title={c.title} waiting
+              lead={c.status === "reading" || c.status === "writing" ? <Spinner/> : <Icon name={c.status === "failed" ? "alert" : "lock"}/>}
+              meta={<>
+                <span>{c.status === "pending" && job.status === "paused" ? "Paused" : c.status === "writing" && c.mode === "batch" ? "Writing questions (half-price batch)…" : CHAPTER_STATUS[c.status]}</span>
+                {c.status === "failed" && c.error && <span className="warn">{c.error}</span>}
+              </>}
+              side={
+                <label className="check-label" title="Unlock this chapter as soon as it's imported">
+                  <input type="checkbox" checked={Boolean(c.read)} onChange={() => importer.setRead(job.id, i, !c.read)}/>Read
+                </label>
+              }/>
+          ))}
+        </Outline>
       )}
 
       {conceptId && <ConceptPanel conceptId={conceptId} onOpen={setConceptId} onClose={() => setConceptId(null)}/>}

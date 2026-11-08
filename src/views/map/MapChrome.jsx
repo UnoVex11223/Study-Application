@@ -37,14 +37,12 @@ export function ZoomControls({ onIn, onOut, onFit }) {
   );
 }
 
-/** What the planets' looks mean. `fading`, `unread` and `bridges` add those entries when they're on the map. */
-export function MapLegend({ fading = false, unread = false, bridges = false }) {
+/** What the planets' colours mean. `unread` and `bridges` add those entries when they're on the map. */
+export function MapLegend({ unread = false, bridges = false }) {
   return (
     <div className="map-legend">
       <span><span className="orb mastered"/>Mastered</span>
       <span><span className="orb learning"/>Learning</span>
-      <span><span className="orb slipping"/>Slipping</span>
-      {fading && <span><span className="orb fading"/>Fading</span>}
       <span><span className="orb new"/>Not started</span>
       {unread && <span><span className="orb unread"/>Unread chapter</span>}
       {bridges && <span><span className="legend-line"/>Links between books</span>}

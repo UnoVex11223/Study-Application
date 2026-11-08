@@ -23,3 +23,6 @@
 /* What the AI has cost, by activity (Settings → AI and cost). */
 .usage-rows { display: flex; flex-direction: column; gap: var(--space-1); }
 .usage-cost { min-width: 56px; text-align: right; }
+
+/* The page sits in the middle of the window. */
+.page.settings-page { justify-content: center; }

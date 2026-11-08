@@ -1,7 +1,7 @@
 // The shelf: books you read for their own sake, textbooks and courses, each
 // with its own tab (Tenax courses are on it automatically, see lib/shelf.js).
-// They stand on shelves as books (BookCard.jsx), or spine-out like a bookcase
-// (SpineShelf.jsx); the year button shows what you finished (YearView.jsx).
+// They stand on shelves as books, covers out (BookCard.jsx); the year
+// (YearView.jsx) opens from search.
 // Reading books also keep notes, a rating and recalls (BookPanel.jsx,
 // RecallSession.jsx). Covers are shaped by lib/cover.js.
 
@@ -12,14 +12,12 @@ import Icon from "../../ui/Icon.jsx";
 import { Page, PageHeader } from "../../ui/layout.jsx";
 import { ConfirmDialog } from "../../ui/overlays.jsx";
 import { transition } from "../../ui/motion.js";
-import { cx } from "../../ui/cx.js";
 import { shelfEntries, SHELF_FILTERS, SHELF_KINDS, makeShelfItem } from "../../lib/shelf.js";
 import { dueForRecall } from "../../lib/recall.js";
 import { BookCard, AddCard, Fillers } from "./BookCard.jsx";
 import BookPanel from "./BookPanel.jsx";
 import ShelfForm from "./ShelfForm.jsx";
 import RecallSession from "./RecallSession.jsx";
-import SpineShelf from "./SpineShelf.jsx";
 import YearView from "./YearView.jsx";
 
 // Shelf geometry: the narrowest a book column gets, and the space between books (also in shelf.css).
@@ -62,7 +60,7 @@ function Tabs({ tabs, value, onChange, counts }) {
     <div className="shelf-tabs" role="tablist" aria-label="Show" ref={listRef}>
       {tabs.map(f => (
         <button key={f.id} role="tab" aria-selected={value === f.id} onClick={() => onChange(f.id)}>
-          {f.label}<span className="tab-count num">{counts[f.id]}</span>
+          {f.label}
         </button>
       ))}
       <span className="tab-ink" ref={inkRef} aria-hidden="true"/>
@@ -87,8 +85,6 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   const shelfRef = useRef(null);
   const cols = useColumns(shelfRef);
 
-  const view = state.settings.shelfView === "spines" ? "spines" : "covers";
-  const thisYear = new Date(nav.now).getFullYear();
   const due = dueForRecall(state.shelf, nav.now);
   const tab = SHELF_FILTERS.find(f => f.id === filter);
   const visible = entries.filter(e => !e.hidden);
@@ -124,7 +120,6 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   };
 
   const showYear = (y) => transition(() => { setYear(y); document.querySelector(".main")?.scrollTo(0, 0); });
-  const setView = (v) => transition(() => act("settings", { patch: { shelfView: v } }));
 
   // Panels, forms and dialogs, shown over the shelf or the year view.
   const overlays = (
@@ -165,31 +160,21 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   return (
     <Page className="shelf-page">
       <PageHeader title="Shelf" actions={<>
-        <button className="btn" onClick={() => showYear(thisYear)} title={`${thisYear} on your shelf`}><Icon name="today"/>{thisYear}</button>
         {due.length > 0 && <button className="btn" onClick={() => setRecallQueue(due.map(it => it.id))}><Icon name="play"/>Recall {due.length}</button>}
         <button className="btn btn-primary" onClick={add}><Icon name="plus"/>Add to shelf</button>
       </>}/>
 
       <div className="shelf-bar">
         <Tabs tabs={SHELF_FILTERS} value={filter} onChange={setFilter} counts={counts}/>
-        <div className="shelf-view" role="group" aria-label="Show as">
-          <button className={cx(view === "covers" && "on")} aria-pressed={view === "covers"} onClick={() => setView("covers")} title="Covers" aria-label="Covers"><Icon name="covers"/></button>
-          <button className={cx(view === "spines" && "on")} aria-pressed={view === "spines"} onClick={() => setView("spines")} title="Spines" aria-label="Spines"><Icon name="spines"/></button>
-        </div>
       </div>
 
-      {view === "spines" ? (
-        <SpineShelf key={filter} entries={shown} onOpen={openEntry} onEdit={edit}
-          onHide={(e) => setHidden(e, true)} onRemove={setRemoving} onAdd={withAdd ? add : null} addLabel={addLabel}/>
-      ) : (
-        <div className="shelf" ref={shelfRef}>
-          <div className="shelf-grid" key={filter}>
-            {shown.map((e, i) => card(e, i))}
-            {withAdd && <AddCard label={addLabel} index={shown.length} onAdd={add}/>}
-            <Fillers count={fill(shown.length + (withAdd ? 1 : 0))} from={shown.length + 1}/>
-          </div>
+      <div className="shelf" ref={shelfRef}>
+        <div className="shelf-grid" key={filter}>
+          {shown.map((e, i) => card(e, i))}
+          {withAdd && <AddCard label={addLabel} index={shown.length} onAdd={add}/>}
+          <Fillers count={fill(shown.length + (withAdd ? 1 : 0))} from={shown.length + 1}/>
         </div>
-      )}
+      </div>
       {shown.length === 0 && !withAdd && <p className="shelf-none">Nothing here yet.</p>}
 
       {hidden.length > 0 && (
