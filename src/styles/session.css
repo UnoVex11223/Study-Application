@@ -103,3 +103,13 @@
 .lesson-term dd { margin: 0; color: var(--ink-2); }
 .lesson-example { line-height: var(--leading-body); }
 .lesson-example .md pre { margin: var(--space-2) 0; }
+
+/* ── Minimal session (the question, the answer, the rating; nothing else) ── */
+.q-card { position: relative; }
+.q-flag { position: absolute; top: var(--space-3); right: var(--space-3); opacity: 0; transition: opacity var(--dur-quick) var(--ease-out); }
+.q-card:hover .q-flag, .q-flag:focus-visible, .q-flag.on { opacity: 1; }
+.q-card .q-prompt { padding-right: var(--space-6); }
+.feedback-links { display: flex; justify-content: flex-end; }
+.session-done { padding-top: var(--space-8); }
+.session-done-title { margin: 0; font: 500 var(--title-lg) / var(--leading-tight) var(--serif); }
+.session-top .session-progress .bar { height: 3px; }

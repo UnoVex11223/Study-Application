@@ -10,14 +10,13 @@ import Diagram from "../../ui/Diagram.jsx";
 import { Section } from "../../ui/layout.jsx";
 import { Drawer } from "../../ui/overlays.jsx";
 import { Confirm } from "../../ui/controls.jsx";
-import { StatusDot, ImportanceTag, Notice, CheckMark } from "../../ui/display.jsx";
+import { StatusDot, Notice, CheckMark } from "../../ui/display.jsx";
 import { FLAG_REASONS } from "../../lib/quality.js";
 import { index, abilityLabel, levelLabel, levelOf } from "../../lib/model.js";
 import { climbed } from "../../lib/ladder.js";
-import { conceptMastery, explainMastery, STATUS } from "../../lib/mastery.js";
+import { conceptMastery, STATUS } from "../../lib/mastery.js";
 import { practiceTasks } from "../../lib/planner.js";
-import { relativeDays } from "../../lib/time.js";
-import { plural, pct } from "../../lib/format.js";
+import { plural } from "../../lib/format.js";
 import ItemForm from "./ItemForm.jsx";
 import FixQuestion from "./FixQuestion.jsx";
 
@@ -40,6 +39,8 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
   if (!c) return null;
 
   const m = conceptMastery(state, c.id);
+  // Slipping isn't shown for now: it reads as Practiced.
+  const shownStatus = m.status === "slipping" ? "practiced" : m.status;
   const course = ix.course[c.courseId];
   const section = ix.section[c.sectionId];
   const items = ix.itemsByConcept[c.id] || [];
@@ -49,7 +50,6 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
   const prereqs = ix.prereqsOf[c.id] || [];
   const dependents = ix.dependentsOf[c.id] || [];
   const related = ix.relatedOf[c.id] || [];
-  const nextDue = c.srs && c.srs.state !== "new" ? c.srs.due : null;
   const locked = ix.lockedConcepts.has(c.id);
 
   const practice = () => {
@@ -81,15 +81,10 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
       context={[course?.name, section?.title].filter(Boolean).join(" / ")}>
       <section className="stack">
         <div className="row wrap">
-          <span className="row gap-2 strong"><StatusDot status={m.status}/>{STATUS[m.status].label}</span>
-          <ImportanceTag importance={c.importance}/>
-          {c.suspended && <span className="tag warn">Suspended</span>}
-          {m.memory != null && <span className="tag">Recall chance now {pct(m.memory)}</span>}
-          {nextDue && <span className="tag">Next review {relativeDays(nextDue)}</span>}
+          <span className="row gap-2 strong"><StatusDot status={shownStatus}/>{STATUS[shownStatus].label}</span>
+          {c.suspended && <span className="tag">Suspended</span>}
         </div>
-        <p className="muted small">{explainMastery(m)}</p>
         {c.summary && <div className="quote"><Markdown>{c.summary}</Markdown></div>}
-        {c.importanceReason && <p className="muted small">Why it matters: {c.importanceReason}</p>}
         {c.filledIn && <Notice>Your note was brief, so Claude filled in details. Check them against a source you trust, and edit the questions if anything's off.</Notice>}
         {c.corrected && <Notice tone="warn" icon="alert">Your original note needed a correction: {c.corrected}</Notice>}
         {locked && <Notice icon="lock">This concept is in a chapter you haven't marked as read, so it won't come up in sessions yet.</Notice>}

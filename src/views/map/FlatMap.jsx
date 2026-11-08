@@ -20,23 +20,13 @@ import { index } from "../../lib/model.js";
 import { conceptMastery } from "../../lib/mastery.js";
 import { layeredLayout } from "../../lib/graph.js";
 import { orbitalLayout, planetAt, systemBounds, TILT, seeded, bridgesBetween, bow, onCurve, fadeIn } from "../../lib/orbits.js";
-import { sunSprites, starTile, planetBody, planetShade, varyColor, PLANET_SPRITE, PLANET_R } from "./sky.js";
+import { sunSprites, planetBody, planetShade, varyColor, PLANET_SPRITE, PLANET_R } from "./sky.js";
 
 const RADIUS = { core: 6.4, supporting: 4.8, detail: 3.7 };
-const SLIPPING = "#F2A65A";
 const MAX_LABEL = 30;
 const short = (n) => (n.length > MAX_LABEL ? `${n.slice(0, MAX_LABEL - 1)}…` : n);
 const stillPreferred = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-// The starfield, as on the 3D map: plain black with two layers of crisp
-// stars at different depths (they drift at different speeds as you move).
-// Painted once per session and reused.
-let tiles = null;
-const starTiles = () => (tiles ||= {
-  far: starTile(640, 380, 11, { bright: 0.6, spikes: false }),
-  near: starTile(900, 50, 23, { bright: 0.85, spikes: false }),
-});
 
 function hexToRgb(hex) {
   const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || "");
@@ -139,7 +129,7 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
         id: c.id, courseId: c.courseId, name: short(c.name), core: c.importance === "core",
         r: RADIUS[c.importance] ?? 5, orbit: o || null, fixed: f || null, x: f?.x ?? 0, y: f?.y ?? 0, depth: 0,
         sx: o?.sx ?? 0, sy: o?.sy ?? 0, color, kind,
-        halo: kind === "bright" ? color : kind === "slipping" ? SLIPPING : null, pulse: kind === "slipping",
+        halo: null, pulse: false,
         ring: c.importance === "core" && kind !== "dust" ? `rgba(${hexToRgb(color)}, .5)` : null,
       });
     }
@@ -760,7 +750,7 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
         </EmptyState>
       ) : (
         <div className="map-wrap space" ref={wrapRef}>
-          <div className="space-bg" ref={spaceRef} style={{ backgroundImage: [starTiles().far, starTiles().near].join(", ") }}/>
+          <div className="space-bg" ref={spaceRef}/>
           <canvas ref={canvasRef} className="map-canvas" role="img" aria-label="Knowledge map"
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerLeave}/>
           <ZoomControls onIn={() => zoom(1.25)} onOut={() => zoom(0.8)} onFit={fit}/>

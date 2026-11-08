@@ -1,4 +1,4 @@
-/* The knowledge map (views/map/). The sky is always night: the map declares
+/* The knowledge map (views/map/), flat like the rest of the app. The sky is always night: the map declares
    color-scheme: dark, so every token inside it resolves to the dark theme's
    value, whatever the app's theme. The 3D engine is views/map/sky3d.js; the
    flat map paints its own stars into .space-bg. */
@@ -11,7 +11,7 @@
   height: calc(100vh - var(--titlebar-h) - var(--space-10) - var(--control-md) - var(--space-8) - var(--space-6));
 }
 .map-wrap.space {
-  color-scheme: dark; isolation: isolate; background: #0E0E15; color: var(--ink);
+  color-scheme: dark; isolation: isolate; background: #1F1F28; color: var(--ink);
   --btn-bg: color-mix(in srgb, var(--inset) 72%, transparent);
   --btn-bg-hover: color-mix(in srgb, var(--surface) 95%, transparent);
 }
@@ -31,18 +31,12 @@
   background: color-mix(in srgb, var(--inset) 72%, transparent); color: var(--ink-2); font-size: var(--text-xs);
 }
 .map-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-/* The legend's planets: little worlds lit from the upper left, like the ones on the map. */
-.orb {
-  --c: #8F9BD6; display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%;
-  background: radial-gradient(circle at 34% 32%, color-mix(in srgb, var(--c) 70%, #fff) 0, var(--c) 38%, color-mix(in srgb, var(--c) 30%, #000) 78%, #000 100%);
-  box-shadow: inset -1px -1px 2px rgba(0, 0, 0, .5);
-}
-.orb.mastered { --c: #9AA8F0; box-shadow: inset -1px -1px 2px rgba(0, 0, 0, .4), 0 0 0 1px rgba(160, 180, 255, .18); }
-.orb.learning { --c: #7E86A8; }
-.orb.slipping { --c: #E0974A; }
-.orb.fading { --c: #6F7380; opacity: .7; }
-.orb.new { --c: #555860; }
-.orb.unread { --c: #3C3E44; width: 7px; height: 7px; margin: 0 1.5px; }
+/* The legend's planets: flat discs, like the ones on the map. */
+.orb { --c: var(--k0); display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.orb.mastered { --c: var(--k0); }
+.orb.learning { --c: color-mix(in srgb, var(--k0) 55%, #54546D); }
+.orb.new { --c: #54546D; }
+.orb.unread { --c: #363646; width: 7px; height: 7px; margin: 0 1.5px; }
 .legend-line { flex-shrink: 0; width: 18px; height: 1px; background: rgba(210, 215, 228, .7); }
 
 /* A chosen concept's Learning path, at the top left. */

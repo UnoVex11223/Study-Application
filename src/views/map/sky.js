@@ -1,6 +1,6 @@
 // Pictures for the flat knowledge map (the Prerequisites chart, and the map
 // on computers without WebGL 2), painted once on small canvases and reused:
-// suns for books, lit planets for concepts, and the starfield behind them.
+// suns for books and planets for concepts, both flat discs (and a starfield, no longer shown).
 // Browser-only (uses canvas); everything is seeded, so the sky looks the same
 // every visit.
 
@@ -24,107 +24,24 @@ const rgba = (c, a = 1) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`;
 const canvas = (w, h = w) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
 
 // ── Suns ────────────────────────────────────────────────────────────────────
-// Each book's star takes its course colour: a white-hot core, a surface that
-// warms towards the colour at the edge (limb darkening), fine granulation, a
-// soft corona, a bright bloom and diffraction spikes.
+// Each book's sun is a flat disc in its course's colour, like the rest of the
+// app: no glow, no corona. (corona, bloom and spikes stay as empty canvases so
+// the map can keep drawing them without a special case.)
 
 const sunCache = new Map();
+const EMPTY = typeof document === "undefined" ? null : canvas(2);
 
 /** { body, corona, bloom, spikes } canvases for a sun of this colour. */
 export function sunSprites(color) {
   if (sunCache.has(color)) return sunCache.get(color);
-  const tint = hexRgb(color);
-  const white = [255, 252, 240];
-  const warm = mix(tint, [255, 214, 150], 0.62);
-  const rim = mix(tint, [150, 70, 30], 0.35);
-
-  // Body: 256px, radius 120 (the rest is a thin halo).
   const body = canvas(256);
-  let g = body.getContext("2d");
-  const R = 112, C = 128;
-  let grad = g.createRadialGradient(C - 18, C - 22, 4, C, C, R);
-  grad.addColorStop(0, rgba(white));
-  grad.addColorStop(0.35, rgba(mix(white, warm, 0.35)));
-  grad.addColorStop(0.75, rgba(warm));
-  grad.addColorStop(1, rgba(rim));
-  g.fillStyle = grad;
-  g.beginPath(); g.arc(C, C, R, 0, Math.PI * 2); g.fill();
-  // Granulation: faint light and dark cells over the surface.
-  g.save();
-  g.beginPath(); g.arc(C, C, R, 0, Math.PI * 2); g.clip();
-  const rand = rng(hexRgb(color).reduce((n, v) => n * 31 + v, 7));
-  for (let i = 0; i < 520; i++) {
-    const a = rand() * Math.PI * 2, d = Math.sqrt(rand()) * R;
-    const x = C + Math.cos(a) * d, y = C + Math.sin(a) * d, r = 2 + rand() * 6;
-    g.fillStyle = rand() < 0.55 ? `rgba(255, 250, 235, ${0.05 + rand() * 0.07})` : rgba(rim, 0.05 + rand() * 0.08);
-    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-  }
-  // Limb darkening on top of the texture.
-  grad = g.createRadialGradient(C, C, R * 0.55, C, C, R);
-  grad.addColorStop(0, "rgba(0, 0, 0, 0)");
-  grad.addColorStop(1, rgba(mix(rim, [40, 15, 5], 0.4), 0.45));
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 256);
-  g.restore();
-  // A thin bright edge.
-  grad = g.createRadialGradient(C, C, R * 0.96, C, C, R * 1.12);
-  grad.addColorStop(0, rgba(mix(warm, white, 0.5), 0.5));
-  grad.addColorStop(1, rgba(warm, 0));
-  g.fillStyle = grad;
-  g.beginPath(); g.arc(C, C, R * 1.12, 0, Math.PI * 2); g.fill();
-
-  // Corona: a wide soft glow.
-  const corona = canvas(256);
-  g = corona.getContext("2d");
-  grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, rgba(mix(white, warm, 0.3), 0.55));
-  grad.addColorStop(0.18, rgba(warm, 0.32));
-  grad.addColorStop(0.42, rgba(tint, 0.12));
-  grad.addColorStop(1, rgba(tint, 0));
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 256);
-
-  // Bloom: the bright glare right around the disc, drawn additively over
-  // everything near the sun (planets passing close are washed out a little).
-  const bloom = canvas(256);
-  g = bloom.getContext("2d");
-  grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, rgba(white, 0.9));
-  grad.addColorStop(0.12, rgba(mix(white, warm, 0.25), 0.55));
-  grad.addColorStop(0.3, rgba(warm, 0.16));
-  grad.addColorStop(0.6, rgba(tint, 0.04));
-  grad.addColorStop(1, rgba(tint, 0));
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 256);
-
-  // Diffraction spikes, like a bright star in a telescope photo: four long
-  // thin ones and four short faint ones between them. They don't turn.
-  const spikes = canvas(512);
-  g = spikes.getContext("2d");
-  g.translate(256, 256);
-  for (let i = 0; i < 8; i++) {
-    const long = i % 2 === 0, len = long ? 250 : 110, w = long ? 1.6 : 1.1;
-    g.save();
-    g.rotate((i * Math.PI) / 4);
-    const lg = g.createLinearGradient(0, 0, len, 0);
-    lg.addColorStop(0, rgba(mix(white, warm, 0.2), long ? 0.75 : 0.32));
-    lg.addColorStop(0.25, rgba(mix(white, warm, 0.5), long ? 0.28 : 0.1));
-    lg.addColorStop(1, rgba(tint, 0));
-    g.fillStyle = lg;
-    g.beginPath(); g.moveTo(0, -w); g.lineTo(len, 0); g.lineTo(0, w); g.closePath(); g.fill();
-    g.restore();
-  }
-  const out = { body, corona, bloom, spikes };
+  const g = body.getContext("2d");
+  g.fillStyle = rgba(hexRgb(color));
+  g.beginPath(); g.arc(128, 128, 84, 0, Math.PI * 2); g.fill();
+  const out = { body, corona: EMPTY, bloom: EMPTY, spikes: EMPTY };
   sunCache.set(color, out);
   return out;
 }
-
-
-// ── Planets ─────────────────────────────────────────────────────────────────
-// A concept is a small planet lit by its book's sun. The body (colour, faint
-// cloud bands, darker towards the edge) keeps still; the shading on top
-// (a lit side with a thin bright rim, a dark night side) is turned to face
-// the sun as the planet goes round, so it waxes and wanes like a moon.
 
 /** A course colour nudged a little in hue and brightness, so planets in one system aren't all identical. */
 export function varyColor(hex, r) {
@@ -160,34 +77,13 @@ export function planetBody(color, kind) {
   const key = `${color}|${kind}`;
   if (bodyCache.has(key)) return bodyCache.get(key);
   const S = PLANET_SPRITE, C = S / 2, R = PLANET_R;
-  const base = kind === "slipping" ? [242, 166, 90] : kind === "dust" ? [118, 116, 120] : hexRgb(color);
-  const body = kind === "dark" ? mix(base, [18, 21, 30], 0.78) : kind === "lit" ? mix(base, [150, 156, 172], 0.18) : base;
+  const grey = [84, 84, 109]; // a planet you haven't started (sumiInk6)
+  const base = hexRgb(color);
+  const body = kind === "bright" ? base : kind === "dust" ? [54, 54, 70] : kind === "dark" ? grey : mix(base, grey, 0.45);
   const c = canvas(S);
   const g = c.getContext("2d");
-  g.save();
-  g.beginPath(); g.arc(C, C, R, 0, Math.PI * 2); g.clip();
   g.fillStyle = rgba(body);
-  g.fillRect(0, 0, S, S);
-  // Cloud bands, faint, a little tilted.
-  const rand = rng(hexRgb(color).reduce((n, v) => n * 31 + v, kind.length));
-  for (let i = 0; i < 7; i++) {
-    const y = C + (rand() - 0.5) * R * 1.8, hh = R * (0.05 + rand() * 0.16);
-    g.fillStyle = rgba(rand() < 0.5 ? mix(body, [255, 255, 255], 0.35) : mix(body, [0, 0, 0], 0.35), kind === "dust" ? 0.05 : 0.13);
-    g.beginPath(); g.ellipse(C, y, R * 1.3, hh, -0.12 + rand() * 0.08, 0, Math.PI * 2); g.fill();
-  }
-  // Darker towards the edge, like any lit sphere.
-  const edge = g.createRadialGradient(C, C, R * 0.35, C, C, R);
-  edge.addColorStop(0, "rgba(0, 0, 0, 0)");
-  edge.addColorStop(1, "rgba(0, 0, 0, 0.42)");
-  g.fillStyle = edge;
-  g.fillRect(0, 0, S, S);
-  g.restore();
-  // Not started: a faint outline, so dark worlds can still be found.
-  if (kind === "dark") {
-    g.strokeStyle = rgba(base, 0.5);
-    g.lineWidth = 1.6;
-    g.beginPath(); g.arc(C, C, R - 0.8, 0, Math.PI * 2); g.stroke();
-  }
+  g.beginPath(); g.arc(C, C, R, 0, Math.PI * 2); g.fill();
   bodyCache.set(key, c);
   return c;
 }
@@ -195,37 +91,9 @@ export function planetBody(color, kind) {
 let shadeSprite = null;
 /** Light and shadow for any planet, lit from the left; turn it to face the sun. */
 export function planetShade() {
-  if (shadeSprite) return shadeSprite;
-  const S = PLANET_SPRITE, C = S / 2, R = PLANET_R;
-  const c = canvas(S);
-  const g = c.getContext("2d");
-  g.save();
-  g.beginPath(); g.arc(C, C, R, 0, Math.PI * 2); g.clip();
-  // The day side: a soft highlight towards the sun.
-  let gr = g.createRadialGradient(C - R * 0.55, C - R * 0.12, 0, C - R * 0.4, C, R * 1.05);
-  gr.addColorStop(0, "rgba(255, 252, 240, .5)");
-  gr.addColorStop(0.5, "rgba(255, 250, 235, .12)");
-  gr.addColorStop(1, "rgba(255, 250, 235, 0)");
-  g.fillStyle = gr;
-  g.fillRect(0, 0, S, S);
-  // The night side.
-  gr = g.createLinearGradient(C - R, 0, C + R, 0);
-  gr.addColorStop(0, "rgba(2, 3, 8, 0)");
-  gr.addColorStop(0.5, "rgba(2, 3, 8, 0.05)");
-  gr.addColorStop(0.78, "rgba(2, 3, 8, 0.78)");
-  gr.addColorStop(1, "rgba(2, 3, 8, 0.94)");
-  g.fillStyle = gr;
-  g.fillRect(0, 0, S, S);
-  g.restore();
-  // A thin bright rim where the sunlight grazes the edge (an atmosphere).
-  gr = g.createLinearGradient(C - R, 0, C + R * 0.15, 0);
-  gr.addColorStop(0, "rgba(255, 250, 235, .85)");
-  gr.addColorStop(1, "rgba(255, 250, 235, 0)");
-  g.strokeStyle = gr;
-  g.lineWidth = 2;
-  g.beginPath(); g.arc(C, C, R - 1, Math.PI * 0.5, Math.PI * 1.5); g.stroke();
-  shadeSprite = c;
-  return c;
+  // Flat discs: nothing to shade (kept so the map draws the same way).
+  if (!shadeSprite) shadeSprite = canvas(PLANET_SPRITE);
+  return shadeSprite;
 }
 
 // ── Starfield ───────────────────────────────────────────────────────────────

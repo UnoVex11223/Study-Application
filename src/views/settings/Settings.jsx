@@ -39,7 +39,6 @@ function AiUsage() {
           </div>
         ))}
       </div>
-      <p className="muted small">Worked out from each call's token counts at list prices; your Anthropic Console bill is the exact figure. {Math.round(usage.cacheShare * 100)}% of what was sent came from the prompt cache, at a twentieth of the price.</p>
     </div>
   );
 }
@@ -205,7 +204,7 @@ export default function Settings() {
   const mix = s.mix || "even";
 
   return (
-    <Page width="narrow">
+    <Page width="narrow" className="settings-page">
       <PageHeader title="Settings"/>
 
       {update?.state === "ready" && (
@@ -219,13 +218,10 @@ export default function Settings() {
 
       <div className="settings">
         <Group title="Study">
-          <Field label="Questions per day" htmlFor="st-per-day" value={questionsPerDay(s)}
-            help="The same number every day. Reviews come first; new concepts and upcoming reviews fill the rest.">
+          <Field label="Questions per day" htmlFor="st-per-day" value={questionsPerDay(s)}>
             <input id="st-per-day" type="range" min={5} max={60} step={5} value={questionsPerDay(s)} onChange={e => set({ dailyQuestions: Number(e.target.value) })}/>
           </Field>
-          <Field label="Daily mix" help={mix === "even"
-            ? "Every course you're studying gets its turn each day. A review that's starting to slip always comes first, wherever it is."
-            : "The most urgent reviews come first, wherever they are, so a course with more material can fill the day."}>
+          <Field label="Daily mix">
             <Segmented label="Daily mix" options={MIX_OPTIONS} value={mix} onChange={(v) => set({ mix: v })}/>
           </Field>
           <Field label="New concepts per day, at most" htmlFor="st-new" value={s.maxNewPerDay}>
@@ -234,8 +230,7 @@ export default function Settings() {
           <Field label="Memory target">
             <Segmented label="Memory target" options={RETENTION_OPTIONS} value={s.retention} onChange={(v) => set({ retention: v })}/>
           </Field>
-          <Field label="Fresh versions"
-            help="Apply and distinguish questions you've answered before come back with a new example, written by Claude, so you practise the idea instead of remembering the old answer.">
+          <Field label="Fresh versions">
             <Segmented label="Fresh versions" options={ON_OFF} value={s.freshVersions !== false} onChange={(v) => set({ freshVersions: v })}/>
           </Field>
           <Field label="A new study day starts at" htmlFor="st-roll">
@@ -248,10 +243,10 @@ export default function Settings() {
         <Group title="Anthropic API key"><ApiKey/></Group>
 
         <Group title="AI and cost">
-          <Field label="Question writing" help={`${WRITERS[s.questionWriting]?.blurb ?? WRITERS.thorough.blurb} Every question passes the same review either way.`}>
+          <Field label="Question writing">
             <Segmented label="Question writing" options={WRITER_OPTIONS} value={WRITERS[s.questionWriting] ? s.questionWriting : "thorough"} onChange={(v) => set({ questionWriting: v })}/>
           </Field>
-          <Field label="Book imports and rebuilds" help="Half price sends question writing through Anthropic's Batch API: the same questions, usually a few minutes slower (sometimes up to an hour). Nobody waits on these, so it's the easiest saving.">
+          <Field label="Book imports and rebuilds">
             <Segmented label="Book imports and rebuilds" options={IMPORT_OPTIONS} value={s.batchImports !== false} onChange={(v) => set({ batchImports: v })}/>
           </Field>
           <Field label="What it has cost"><AiUsage/></Field>
