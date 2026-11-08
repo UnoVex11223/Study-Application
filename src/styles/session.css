@@ -105,11 +105,25 @@
 .lesson-example .md pre { margin: var(--space-2) 0; }
 
 /* ── Minimal session (the question, the answer, the rating; nothing else) ── */
-.q-card { position: relative; }
-.q-flag { position: absolute; top: var(--space-3); right: var(--space-3); opacity: 0; transition: opacity var(--dur-quick) var(--ease-out); }
-.q-card:hover .q-flag, .q-flag:focus-visible, .q-flag.on { opacity: 1; }
-.q-card .q-prompt { padding-right: var(--space-6); }
 .feedback-links { display: flex; justify-content: flex-end; }
 .session-done { padding-top: var(--space-8); }
 .session-done-title { margin: 0; font: 500 var(--title-lg) / var(--leading-tight) var(--serif); }
 .session-top .session-progress .bar { height: 3px; }
+
+/* ── The question, centred ──────────────────────────────────────────────────
+   What you are answering sits in the middle of the screen (higher when the
+   feedback joins it; from the top when it is longer than the screen), set as
+   plain text rather than in a box, with room between it and your answer. */
+.session-body { display: flex; flex-direction: column; }
+.session-inner { width: 100%; margin: auto; padding: var(--space-8) var(--space-6) var(--space-16); }
+.task { gap: var(--space-6); }
+.task > .q-card { margin-bottom: var(--space-6); }
+.q-card { position: relative; gap: var(--space-5); padding: 0; border-radius: 0; background: none; }
+.q-card .q-prompt { font-size: var(--title-md); line-height: 1.45; }
+.q-card .q-prompt > .md > p { padding-right: var(--space-8); } /* room for the flag; code spans the full width */
+/* The serif has no italic, so emphasis is set in its bold rather than a fake slant. */
+.q-prompt em, .q-prompt strong { font-style: normal; font-weight: 700; }
+.q-prompt .md :not(pre) > code { font-size: .74em; padding: .1em .38em; vertical-align: .08em; }
+.q-prompt .md pre { margin: var(--space-4) 0 0; padding: var(--space-4) var(--space-5); font-size: var(--text-md); line-height: 1.55; }
+.q-flag { position: absolute; top: 0; right: 0; opacity: 0; transition: opacity var(--dur-quick) var(--ease-out); }
+.q-card:hover .q-flag, .q-flag:focus-visible, .q-flag.on { opacity: 1; }

@@ -5,8 +5,8 @@
 //                              → followup → …       (the grader wants one more detail)
 //                              → selfcheck → feedback (no API key, or grading failed)
 //
-// The screen stays bare: the question, the answer box (its placeholder says
-// what form the answer takes), Check, and I don't know. Behind it:
+// The screen stays bare: the question in the middle, an empty answer box
+// under it (no hint about the answer's form), Check, and I don't know. Behind it:
 //  - Pace: a right answer that took far longer than usual isn't fluent yet, so
 //    Hard is suggested instead of Good. (Ctrl+Shift+Enter checks as "I'm sure":
 //    a confident miss comes back a little sooner.)
@@ -158,7 +158,6 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
         <textarea
           ref={answerRef} className={cx("answer-box", code && "code", quick && "short")} value={answer} onChange={e => setAnswer(e.target.value)}
           disabled={phase !== "answer"} aria-label="Your answer" spellCheck={!code && !quick}
-          placeholder={phase === "answer" ? (item.shape ? item.shape[0].toUpperCase() + item.shape.slice(1) : "Your answer") : undefined}
           onKeyDown={code ? (e) => indentOnTab(e, setAnswer) : quick ? (e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); submit(); }
           } : undefined}
