@@ -147,7 +147,6 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
       if (followUp.answer.trim()) submit(followUp);
     } else if (phase === "feedback" && !isTyping(e) && e.target?.tagName !== "BUTTON") {
       if (e.key === "Enter") { e.preventDefault(); if (pretest) next(); else rate(suggested); }
-      else if (!pretest && ["1", "2", "3", "4"].includes(e.key)) rate(Number(e.key));
     }
   }, [phase, answer, followUp, suggested, grade, override, aided, sure, reason, pretest, took]);
 
@@ -164,12 +163,11 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
           } : undefined}
         />
         {phase === "answer" && (
-          <div className="row">
-            <button className="btn btn-primary" onClick={() => submit()} disabled={!answer.trim()}>
+          <div className="answer-actions">
+            <button className="btn btn-quiet btn-lg" onClick={giveUp}>I don't know</button>
+            <button className="btn btn-primary btn-lg" onClick={() => submit()} disabled={!answer.trim()}>
               {code ? "Run tests" : "Check"}
             </button>
-            <span className="grow"/>
-            <button className="btn btn-quiet" onClick={giveUp}>I don't know</button>
           </div>
         )}
         {(phase === "grading" || phase === "running") && <div className="busy small"><Spinner/>Checking…</div>}
@@ -195,7 +193,7 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
       {phase === "feedback" && grade && (
         <Feedback grade={grade} verdict={verdict} override={override} onOverride={setOverride}
           xp={pretest ? 0 : xpFor({ verdict, aided })}
-          item={item} pretest={pretest} suggested={suggested} onRate={rate} onNext={next}/>
+          item={item} pretest={pretest} onContinue={pretest ? next : () => rate(suggested)}/>
       )}
     </div>
   );

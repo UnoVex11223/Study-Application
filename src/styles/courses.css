@@ -20,20 +20,18 @@
 .swatch { width: var(--control-sm); height: var(--control-sm); padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--c); cursor: pointer; }
 .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
 
-/* ── A course: its name across the top, then the book (with its status under
-   it) on the left and the chapters beside it, filling the page. ── */
-.course-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: start; gap: var(--space-10); }
-.course-side { position: sticky; top: var(--space-6); display: grid; gap: var(--space-4); justify-items: start; }
+/* ── A course, on one centre line: the way back and ⋯ at the top, then the
+   name, the book and its status centred, then the chapters across the page. ── */
+.course-topbar { display: flex; align-items: center; justify-content: space-between; }
+.course-hero { display: grid; justify-items: center; gap: var(--space-5); text-align: center; }
+.course-title { max-width: 22em; }
+.course-hero .course-cover { width: 180px; }
 .course-chapters { min-width: 0; }
 .course-status { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
 .course-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
 .course-status.maintain .course-status-dot { background: var(--link); }
 .course-status.paused .course-status-dot { background: var(--ink-3); }
 .course-status.paused { color: var(--ink-3); }
-@media (max-width: 900px) {
-  .course-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
-  .course-side { position: static; grid-template-columns: 96px auto; align-items: end; }
-}
 .course-cover {
   width: 100%; aspect-ratio: 2 / 3; flex-shrink: 0; border-radius: 3px 6px 6px 3px;
   box-shadow: 0 14px 28px -10px rgba(0, 0, 0, .6), 0 2px 5px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .06);

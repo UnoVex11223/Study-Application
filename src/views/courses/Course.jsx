@@ -1,8 +1,8 @@
-// A course, kept bare: its name across the top; the book large on the left
-// with whether it's Active, Maintaining or Paused under it; and its chapters
-// beside it (each with how much is mastered), opening to show their
-// concepts. Practice happens on Today. The ⋯ menu holds only the status,
-// Edit course and Delete course (which asks first).
+// A course, kept bare and on one centre line: its name, the book under it
+// with whether it's Active, Maintaining or Paused, then its chapters across
+// the page (each with how much is mastered), opening to show their concepts.
+// Practice happens on Today. The ⋯ menu holds only the status, Edit course
+// and Delete course (which asks first).
 
 import { useEffect, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -13,7 +13,7 @@ import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import { Page, EmptyState } from "../../ui/layout.jsx";
 import { Menu, MenuItem, ConfirmDialog } from "../../ui/overlays.jsx";
-import { Bar, Spinner } from "../../ui/display.jsx";
+import { Spinner } from "../../ui/display.jsx";
 import { CoverArt } from "../../ui/Cover.jsx";
 import { cx } from "../../ui/cx.js";
 import { index, COURSE_STATUS, jobCourseIds, chapterCourse, dropJobCourse } from "../../lib/model.js";
@@ -83,18 +83,23 @@ export default function Course({ courseId }) {
 
   return (
     <Page className="course-page">
-      <header className="page-header">
+      <div className="course-topbar">
         <button className="crumb" onClick={() => nav.go("courses")}><Icon name="back"/>Courses</button>
-        <div className="page-header-row">
-          <h1 className="page-title">{course.name}</h1>
-          <Menu label="More for this course" trigger="btn btn-quiet btn-icon">
-            {Object.entries(COURSE_STATUS).map(([k, v]) => (
-              <MenuItem key={k} icon={course.status === k ? "check" : "blank"} title={v.blurb}
-                onClick={() => act("course/update", { id: course.id, patch: { status: k } })}>{v.label}</MenuItem>
-            ))}
-            <MenuItem icon="edit" onClick={() => setEditing(true)}>Edit course</MenuItem>
-            <MenuItem icon="trash" danger onClick={() => setDeleting(true)}>Delete course</MenuItem>
-          </Menu>
+        <Menu label="More for this course" trigger="btn btn-quiet btn-icon">
+          {Object.entries(COURSE_STATUS).map(([k, v]) => (
+            <MenuItem key={k} icon={course.status === k ? "check" : "blank"} title={v.blurb}
+              onClick={() => act("course/update", { id: course.id, patch: { status: k } })}>{v.label}</MenuItem>
+          ))}
+          <MenuItem icon="edit" onClick={() => setEditing(true)}>Edit course</MenuItem>
+          <MenuItem icon="trash" danger onClick={() => setDeleting(true)}>Delete course</MenuItem>
+        </Menu>
+      </div>
+
+      <header className="course-hero">
+        <h1 className="page-title course-title">{course.name}</h1>
+        <CoverArt src={shelfItem?.cover || null} title={shelfItem?.title || course.name} className="course-cover"/>
+        <div className={cx("course-status", course.status)} title={COURSE_STATUS[course.status].blurb}>
+          <span className="course-status-dot" aria-hidden="true"/>{COURSE_STATUS[course.status].label}
         </div>
       </header>
 
@@ -105,63 +110,54 @@ export default function Course({ courseId }) {
         </div>
       )}
 
-      <div className="course-layout">
-        <aside className="course-side">
-          <CoverArt src={shelfItem?.cover || null} title={shelfItem?.title || course.name} className="course-cover"/>
-          <div className={cx("course-status", course.status)} title={COURSE_STATUS[course.status].blurb}>
-            <span className="course-status-dot" aria-hidden="true"/>{COURSE_STATUS[course.status].label}
-          </div>
-        </aside>
-
-        <div className="course-chapters">
-          {sections.length === 0 && waiting.length === 0 ? (
-            <EmptyState title="Add the first chapter" actions={<>
-              <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus"/>Add material</button>
-              <button className="btn" onClick={() => nav.go("book", { courseId })}><Icon name="book"/>Import a whole book</button>
-              <button className="btn" onClick={() => setAdding({})}>Write a question yourself</button>
-            </>}>
-              {!ai && "Automatic extraction runs in the desktop app with an API key."}
-            </EmptyState>
-          ) : (
-            <Outline>
-              {sections.map(s => {
-                const sm = sectionMastery(state, s.id, now);
-                const here = ix.conceptsBySection[s.id] || [];
-                return (
-                  <OutlineItem key={s.id} id={`sec-${s.id}`} title={s.title} titleIcon={s.locked ? "lock" : null}
-                    open={open.has(s.id)} onToggle={() => toggle(s.id)}
-                    side={s.locked
-                      ? <button className="btn btn-sm" onClick={() => act("section/lock", { id: s.id, locked: false })}><Icon name="check"/>Mark as read</button>
-                      : <><span className="outline-pct num">{pct(sm.masteryPct)}</span><Bar value={sm.masteryPct} tone="good" thin/></>}>
-                    {here.map(c => (
-                      <ConceptRow key={c.id} concept={c} status={sm.per[c.id]?.status ?? "new"} onOpen={setConceptId}/>
-                    ))}
-                    <OutlineActions>
-                      <span className="grow"/>
-                      <Menu label={`More for ${s.title}`}>
-                        {!s.locked && s.pages && <MenuItem icon="lock" onClick={() => act("section/lock", { id: s.id, locked: true })}>Lock until read</MenuItem>}
-                        <MenuItem icon="trash" danger onClick={() => setRemoving(s)}>Remove chapter</MenuItem>
-                      </Menu>
-                    </OutlineActions>
-                  </OutlineItem>
-                );
-              })}
-              {waiting.map(({ job, c, i }) => (
-                <OutlineItem key={`${job.id}-${i}`} title={c.title} waiting
-                  lead={c.status === "reading" || c.status === "writing" ? <Spinner/> : <Icon name={c.status === "failed" ? "alert" : job.source === "text" ? "note" : "lock"}/>}
-                  meta={<>
-                    <span>{c.status === "pending" && job.status === "paused" ? "Paused" : c.status === "writing" && c.mode === "batch" ? "Writing questions (half-price batch)…" : CHAPTER_STATUS[c.status]}</span>
-                    {c.status === "failed" && c.error && <span className="warn">{c.error}</span>}
-                  </>}
-                  side={job.source !== "text" && (
-                    <label className="check-label" title="Unlock this chapter as soon as it's imported">
-                      <input type="checkbox" checked={Boolean(c.read)} onChange={() => importer.setRead(job.id, i, !c.read)}/>Read
-                    </label>
-                  )}/>
-              ))}
-            </Outline>
-          )}
-        </div>
+      <div className="course-chapters">
+        {sections.length === 0 && waiting.length === 0 ? (
+          <EmptyState title="Add the first chapter" actions={<>
+            <button className="btn btn-primary" onClick={() => nav.go("import", { courseId })}><Icon name="plus"/>Add material</button>
+            <button className="btn" onClick={() => nav.go("book", { courseId })}><Icon name="book"/>Import a whole book</button>
+            <button className="btn" onClick={() => setAdding({})}>Write a question yourself</button>
+          </>}>
+            {!ai && "Automatic extraction runs in the desktop app with an API key."}
+          </EmptyState>
+        ) : (
+          <Outline>
+            {sections.map(s => {
+              const sm = sectionMastery(state, s.id, now);
+              const here = ix.conceptsBySection[s.id] || [];
+              return (
+                <OutlineItem key={s.id} id={`sec-${s.id}`} title={s.title} titleIcon={s.locked ? "lock" : null}
+                  open={open.has(s.id)} onToggle={() => toggle(s.id)}
+                  side={s.locked
+                    ? <button className="btn btn-sm" onClick={() => act("section/lock", { id: s.id, locked: false })}><Icon name="check"/>Mark as read</button>
+                    : <span className="outline-pct num">{pct(sm.masteryPct)}</span>}>
+                  {here.map(c => (
+                    <ConceptRow key={c.id} concept={c} status={sm.per[c.id]?.status ?? "new"} onOpen={setConceptId}/>
+                  ))}
+                  <OutlineActions>
+                    <span className="grow"/>
+                    <Menu label={`More for ${s.title}`}>
+                      {!s.locked && s.pages && <MenuItem icon="lock" onClick={() => act("section/lock", { id: s.id, locked: true })}>Lock until read</MenuItem>}
+                      <MenuItem icon="trash" danger onClick={() => setRemoving(s)}>Remove chapter</MenuItem>
+                    </Menu>
+                  </OutlineActions>
+                </OutlineItem>
+              );
+            })}
+            {waiting.map(({ job, c, i }) => (
+              <OutlineItem key={`${job.id}-${i}`} title={c.title} waiting
+                lead={c.status === "reading" || c.status === "writing" ? <Spinner/> : <Icon name={c.status === "failed" ? "alert" : job.source === "text" ? "note" : "lock"}/>}
+                meta={<>
+                  <span>{c.status === "pending" && job.status === "paused" ? "Paused" : c.status === "writing" && c.mode === "batch" ? "Writing questions (half-price batch)…" : CHAPTER_STATUS[c.status]}</span>
+                  {c.status === "failed" && c.error && <span className="warn">{c.error}</span>}
+                </>}
+                side={job.source !== "text" && (
+                  <label className="check-label" title="Unlock this chapter as soon as it's imported">
+                    <input type="checkbox" checked={Boolean(c.read)} onChange={() => importer.setRead(job.id, i, !c.read)}/>Read
+                  </label>
+                )}/>
+            ))}
+          </Outline>
+        )}
       </div>
 
       {conceptId && <ConceptPanel conceptId={conceptId} onOpen={setConceptId} onClose={() => setConceptId(null)}/>}
