@@ -56,21 +56,21 @@
   --k6: light-dark(#B35B79, #D27E99);
   --k7: light-dark(#5A7785, #9CABCA);
 
-  /* The shelf's paper and planks (see shelf.css). */
-  --paper:          light-dark(#FBF8E4, #D3CCAD);
-  --paper-line:     light-dark(#DCD5AC, #A9A285);
-  --paper-shade:    light-dark(rgba(67, 60, 30, .14), rgba(0, 0, 0, .3));
-  --ledge-line:     light-dark(#CFC59A, #363646);
-  --ledge-face:     light-dark(#E5DDB0, #16161D);
-  --ledge-face-2:   light-dark(#DCD5AC, #121218);
-  --ledge-drop:     light-dark(rgba(67, 60, 30, .1), rgba(0, 0, 0, .45));
-  --plank-top-back: light-dark(#D5CEA3, #16161D);
-  --plank-top:      light-dark(#E4D794, #2A2A37);
-  --plank-edge-hi:  light-dark(#EDE6BE, #363646);
-  --plank-edge:     light-dark(#D5CEA3, #1A1A22);
-  --plank-edge-2:   light-dark(#C9C08F, #121218);
-  --book-shadow:    light-dark(rgba(67, 60, 30, .3), rgba(0, 0, 0, .6));
-  --book-contact:   light-dark(rgba(67, 60, 30, .45), rgba(0, 0, 0, .85));
+  /* The shelf's paper and planks (see shelf.css), in the same neutral greys. */
+  --paper:          light-dark(#FAFAF8, #D4D4D0);
+  --paper-line:     light-dark(#DEDEDA, #A8A8A3);
+  --paper-shade:    light-dark(rgba(24, 24, 27, .12), rgba(0, 0, 0, .3));
+  --ledge-line:     light-dark(#D4D4D8, #2E2E33);
+  --ledge-face:     light-dark(#EBEBED, #18181B);
+  --ledge-face-2:   light-dark(#E1E1E4, #111113);
+  --ledge-drop:     light-dark(rgba(24, 24, 27, .08), rgba(0, 0, 0, .45));
+  --plank-top-back: light-dark(#DCDCE0, #0E0E10);
+  --plank-top:      light-dark(#E9E9EC, #26262A);
+  --plank-edge-hi:  light-dark(#F4F4F5, #323237);
+  --plank-edge:     light-dark(#D4D4D8, #18181B);
+  --plank-edge-2:   light-dark(#C4C4C9, #111113);
+  --book-shadow:    light-dark(rgba(24, 24, 27, .25), rgba(0, 0, 0, .6));
+  --book-contact:   light-dark(rgba(24, 24, 27, .4), rgba(0, 0, 0, .85));
   --book-dim: brightness(.78) saturate(.85);   /* the rest of the shelf while you point at one book */
 
   /* Depth: only things that float over the page (dialogs, menus) cast a shadow. */
