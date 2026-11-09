@@ -246,7 +246,7 @@ button.list-row:hover .list-action { color: var(--ink); transform: translateX(3p
 .scrim.leaving { animation: fade-out var(--dur-quick) var(--ease-out) forwards; }
 
 .drawer {
-  position: fixed; z-index: var(--z-dialog); top: calc(var(--titlebar-h) + var(--space-2)); right: var(--space-3); bottom: var(--space-3);
+  position: fixed; z-index: var(--z-dialog); top: calc(var(--titlebar-h) + var(--frame-gap) + var(--space-2)); right: var(--space-3); bottom: var(--space-3);
   width: min(540px, 92vw); display: flex; flex-direction: column; overflow: hidden;
   border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-pop);
   animation: drawer-in var(--dur-slow) var(--ease-out);

@@ -9,11 +9,6 @@
 // no top. Rank r (0 = 10th kyu) starts at 100·r² XP, so each step takes a
 // little longer than the last (7th kyu at 900, 1st kyu at 8,100, 1st dan at
 // 10,000, 10th dan at 36,100) and there is always a next one.
-//
-// Weeks start again every Monday: your XP this week against your best week
-// is the thing to beat, again and again.
-
-import { keyToDate, addDays } from "./time.js";
 
 export const XP = { right: 10, partly: 5, test: 50 };
 export const KYU = 10; // kyu grades before the first dan
@@ -46,26 +41,4 @@ export function rankFor(xp) {
   const index = Math.floor(Math.sqrt(total / 100));
   const from = rankStart(index), to = rankStart(index + 1);
   return { index, name: rankName(index), next: rankName(index + 1), xp: total, from, to, progress: (total - from) / (to - from), toGo: to - total, dan: index >= KYU };
-}
-
-/** The Monday a day key's week starts on, as a day key. */
-export function weekOf(day) {
-  const back = (keyToDate(day).getDay() + 6) % 7; // Monday 0 … Sunday 6
-  return addDays(day, -back);
-}
-
-/** XP this week (from Monday) and in your best week so far, this one included: { thisWeek, best, bestBefore }. */
-export function weeklyXp(attempts = [], today) {
-  const byWeek = new Map();
-  for (const a of attempts) {
-    const x = xpFor(a);
-    if (!x || !a.day) continue;
-    const w = weekOf(a.day);
-    byWeek.set(w, (byWeek.get(w) || 0) + x);
-  }
-  const current = weekOf(today);
-  const thisWeek = byWeek.get(current) || 0;
-  let bestBefore = 0;
-  for (const [w, x] of byWeek) if (w !== current && x > bestBefore) bestBefore = x;
-  return { thisWeek, best: Math.max(thisWeek, bestBefore), bestBefore };
 }

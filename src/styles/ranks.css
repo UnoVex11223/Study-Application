@@ -1,28 +1,9 @@
-/* Ranks (views/ranks/): your grade in large gold, this week against your
-   best week, and the ladder from the grades above you down to 10th kyu. */
+/* Ranks (views/ranks/): your rank in large gold, the bar to the next one and
+   how far that is, in the middle of the page. */
 
-.rank-hero { display: grid; gap: var(--space-3); margin-top: var(--space-2); }
-.rank-hero-name { font: 500 64px / 1.05 var(--serif); color: var(--accent); }
+.page.ranks-page { min-height: 72vh; align-content: center; }
+.rank-hero { display: grid; gap: var(--space-4); }
+.rank-hero-name { margin: 0; font: 500 72px / 1.05 var(--serif); color: var(--accent); }
 .rank-bar { height: 10px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
 .rank-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 900ms var(--ease-out); }
-.rank-bar.thin { height: 6px; }
-.rank-hero-meta { display: flex; justify-content: space-between; gap: var(--space-4); font-size: var(--text-sm); color: var(--ink-3); }
-.rank-hero-meta span:first-child { font-weight: 700; color: var(--ink-2); }
-
-.rank-week { display: grid; gap: var(--space-3); margin-top: var(--space-10); padding: var(--space-5) var(--space-6); border-radius: var(--radius-lg); background: var(--surface); }
-.rank-week-head { display: flex; justify-content: space-between; font-weight: 700; color: var(--ink); }
-.rank-week-meta { font-size: var(--text-sm); color: var(--ink-3); }
-
-.rank-ladder { list-style: none; margin: var(--space-10) 0 0; padding: 0; }
-.rank-ladder li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); min-height: 46px; padding: 0 var(--space-4); border-radius: var(--radius-md); color: var(--ink-3); }
-.rank-ladder li + li { box-shadow: inset 0 1px 0 var(--rule); }
-.rank-ladder li.first-dan + li { box-shadow: inset 0 1px 0 var(--rule-strong); } /* where the dan grades end and the kyu grades begin */
-.rank-mark { justify-self: center; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--surface-3); }
-.rank-ladder li.done { color: var(--ink-2); }
-.rank-ladder li.done .rank-mark { border-color: transparent; background: color-mix(in srgb, var(--accent) 55%, var(--surface-2)); }
-.rank-ladder li.on, .rank-ladder li.on + li { box-shadow: none; }
-.rank-ladder li.on { background: color-mix(in srgb, var(--accent) 11%, var(--surface)); font-weight: 700; color: var(--ink); }
-.rank-ladder li.on .rank-mark { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
-.rank-ladder-xp { font-size: var(--text-sm); }
-.rank-ladder li.rank-more { display: block; min-height: 0; padding: var(--space-2) 0 var(--space-3); text-align: center; font-size: var(--text-sm); color: var(--ink-3); box-shadow: none; }
-.rank-how { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--ink-3); }
+.rank-hero-next { font-size: var(--text-sm); color: var(--ink-3); }

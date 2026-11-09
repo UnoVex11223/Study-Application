@@ -8,7 +8,7 @@
 /* The sky fills the rest of the window under the header. */
 .map-wrap {
   position: relative; overflow: hidden; min-height: 440px; border-radius: var(--radius-xl);
-  height: calc(100vh - var(--titlebar-h) - var(--space-10) - var(--control-md) - var(--space-8) - var(--space-6));
+  height: calc(100vh - var(--titlebar-h) - var(--frame-gap) - var(--space-10) - var(--control-md) - var(--space-8) - var(--space-6));
 }
 .map-wrap.space {
   color-scheme: dark; isolation: isolate; background: #1F1F28; color: var(--ink);

@@ -6,7 +6,7 @@ import { newSrs, RATING } from "../src/lib/fsrs.js";
 import { dayKey } from "../src/lib/time.js";
 import { conceptMastery } from "../src/lib/mastery.js";
 import { readyConcepts, testStatus, testTasks, testRating, lastTestAt, TEST_SIZE, TEST_EVERY_DAYS } from "../src/lib/masteryTest.js";
-import { xpFor, totalXp, rankFor, rankName, rankStart, weeklyXp, weekOf, XP } from "../src/lib/xp.js";
+import { xpFor, totalXp, rankFor, rankName, rankStart, XP } from "../src/lib/xp.js";
 import { streaks } from "../src/lib/history.js";
 import { reducer } from "../src/state/reducer.js";
 
@@ -109,15 +109,6 @@ test("ranks run from 10th kyu down to 1st kyu, then up through the dan grades wi
   // Each grade takes a little longer than the one before, forever.
   for (let i = 1; i < 60; i++) assert.ok(rankStart(i + 1) - rankStart(i) > rankStart(i) - rankStart(i - 1));
   assert.equal(rankFor(1e9).dan, true);
-});
-
-test("weeks start on Monday; this week is measured against your best week", () => {
-  assert.equal(weekOf("2026-11-08"), "2026-11-02", "a Sunday belongs to the week that began the Monday before");
-  assert.equal(weekOf("2026-11-09"), "2026-11-09");
-  const a = (day, verdict = "correct") => ({ day, verdict, mode: "session" });
-  const attempts = [a("2026-10-27"), a("2026-10-28"), a("2026-10-29"), a("2026-11-09"), a("2026-11-10", "partial")];
-  assert.deepEqual(weeklyXp(attempts, "2026-11-11"), { thisWeek: 15, best: 30, bestBefore: 30 });
-  assert.deepEqual(weeklyXp(attempts, "2026-11-17"), { thisWeek: 0, best: 30, bestBefore: 30 }, "a new week starts from nothing");
 });
 
 test("streaks count days in a row with an answer; today counts once you have answered", () => {
