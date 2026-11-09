@@ -20,9 +20,11 @@ import { typicalPace, wantsFreshVersion } from "../../lib/training.js";
 import { dayKey } from "../../lib/time.js";
 import { RATING } from "../../lib/fsrs.js";
 import { play } from "../../ui/sound.js";
+import { xpFor, totalXp, levelFor } from "../../lib/xp.js";
 import TaskView from "./TaskView.jsx";
 import LessonCard from "./LessonCard.jsx";
 import { SessionSummary, PretestSummary } from "./SessionSummary.jsx";
+import MasteryTest from "./MasteryTest.jsx";
 
 const MAX_FOUNDATION = 3;
 const MAX_REQUEUE = 2;
@@ -92,7 +94,12 @@ function summarize({ results, state, snapshot, startedAt }) {
   };
 }
 
-export default function Session({ tasks: initial, mode = "session", title = "Today's session", daily = false }) {
+/** A study session, or the mastery test (mode "test"), which has its own screen. */
+export default function Session(props) {
+  return props.mode === "test" ? <MasteryTest tasks={props.tasks}/> : <StudySession {...props}/>;
+}
+
+function StudySession({ tasks: initial, mode = "session", title = "Today's session", daily = false }) {
   const { state, act } = useStore();
   const nav = useNav();
   const [queue, setQueue] = useState(initial);
@@ -134,7 +141,12 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
   const exit = () => nav.endSession();
   // A low chime when the last question is done (if sounds are on).
   const answered = results.length > 0;
-  useEffect(() => { if (done && answered) play("chime"); }, [done, answered]);
+  // A session that took you up a level ends on the level sound instead.
+  const levelBefore = useRef(levelFor(totalXp(snapshot.attempts)).level);
+  useEffect(() => {
+    if (!done || !answered) return;
+    play(levelFor(totalXp(state.attempts)).level > levelBefore.current ? "level" : "chime");
+  }, [done, answered]); // eslint-disable-line react-hooks/exhaustive-deps
   useKey((e) => { if (e.key === "Escape" && !document.querySelector(".modal")) exit(); }, []);
 
   const onDone = (r) => {
@@ -189,7 +201,7 @@ export default function Session({ tasks: initial, mode = "session", title = "Tod
     else exit();
   };
 
-  const summary = done ? summarize({ results, state, snapshot, startedAt }) : null;
+  const summary = done ? { ...summarize({ results, state, snapshot, startedAt }), xp: results.reduce((n, r) => n + (pretest || r.reported ? 0 : xpFor({ verdict: r.verdict, aided: r.aided })), 0), xpTotal: totalXp(state.attempts) } : null;
   const more = done && daily ? Math.min(EXTRA, buildPlan(withExtra(state)).tasks.length) : 0;
   const item = task && ix.item[task.itemId];
   const concept = item && ix.concept[item.conceptId];

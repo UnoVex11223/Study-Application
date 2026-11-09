@@ -74,7 +74,8 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   const entries = useMemo(() => shelfEntries(state, nav.now), [state, nav.now]);
   // Opened from the palette: a book's panel, a textbook or course's edit form, or a new item.
   const startItem = openItem ? state.shelf.find(it => it.id === openItem) : null;
-  const [filter, setFilter] = useState("all");
+  // Opens on the first tab with something in it.
+  const [filter, setFilter] = useState(() => (SHELF_FILTERS.find(f => entries.some(e => !e.hidden && f.test(e))) ?? SHELF_FILTERS[0]).id);
   const [showHidden, setShowHidden] = useState(false);
   const [editing, setEditing] = useState(() => (adding ? { entry: null }
     : startItem && startItem.kind !== "reading" ? { entry: entries.find(e => e.item?.id === startItem.id) || null } : null)); // null | { entry } (entry null = new)
@@ -92,8 +93,7 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
   const hidden = entries.filter(e => e.hidden);
   const counts = Object.fromEntries(SHELF_FILTERS.map(f => [f.id, visible.filter(f.test).length]));
   const open = state.shelf.find(it => it.id === openId && it.kind === "reading" && !it.courseId) || null;
-  const withAdd = filter === "all" || Boolean(tab.kind);
-  const addLabel = tab.kind ? `Add a ${SHELF_KINDS[tab.kind].label.toLowerCase()}` : "Add to shelf";
+  const addLabel = `Add a ${SHELF_KINDS[tab.kind].label.toLowerCase()}`;
   const add = () => setEditing({ entry: null });
   const edit = (e) => setEditing({ entry: e });
   // Empty places that carry the last row's plank to the end of the row.
@@ -126,7 +126,7 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
     <>
       {open && <BookPanel key={open.id} item={open} now={nav.now} onClose={() => setOpenId(null)}
         onEdit={() => edit(entries.find(e => e.item?.id === open.id))} onRecall={() => setRecallQueue([open.id])}/>}
-      {editing && <ShelfForm entry={editing.entry} startKind={tab.kind || "reading"} onClose={() => setEditing(null)}
+      {editing && <ShelfForm entry={editing.entry} startKind={tab.kind} onClose={() => setEditing(null)}
         onSaved={(item, created) => {
           setEditing(null);
           if (item.kind !== "reading") setOpenId(null);
@@ -171,11 +171,10 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
       <div className="shelf" ref={shelfRef}>
         <div className="shelf-grid" key={filter}>
           {shown.map((e, i) => card(e, i))}
-          {withAdd && <AddCard label={addLabel} index={shown.length} onAdd={add}/>}
-          <Fillers count={fill(shown.length + (withAdd ? 1 : 0))} from={shown.length + 1}/>
+          <AddCard label={addLabel} index={shown.length} onAdd={add}/>
+          <Fillers count={fill(shown.length + 1)} from={shown.length + 1}/>
         </div>
       </div>
-      {shown.length === 0 && !withAdd && <p className="shelf-none">Nothing here yet.</p>}
 
       {hidden.length > 0 && (
         <div className="shelf-hidden">

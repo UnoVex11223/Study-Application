@@ -250,14 +250,36 @@ function attempt(concept, item, dayOffset, verdict, extra = {}) {
   return { ts, day: dayKey(ts, 4), itemId: item.id, conceptId: concept.id, courseId: concept.courseId, ability: item.ability, verdict, rating: verdict === "correct" ? 3 : 1, aided: false, mode: "session", ms: 20000, ...extra };
 }
 
-test("mastery needs unaided success on two different days", () => {
+test("a concept is ready for the test after unaided success on two days, held for a week", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
   c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
   s.attempts.push(attempt(c, it, -1, "correct"), attempt(c, it, -1, "correct"));
-  assert.equal(conceptMastery(s, c.id, NOW).status, "practiced");
+  assert.equal(conceptMastery(s, c.id, NOW).ready, false, "one day isn't enough");
   const s2 = { ...s, attempts: [...s.attempts, attempt(c, it, 0, "correct")] };
-  assert.equal(conceptMastery(s2, c.id, NOW).status, "mastered");
+  assert.equal(conceptMastery(s2, c.id, NOW).ready, false, "two days, but not held for a week yet");
+  const s3 = { ...s, attempts: [attempt(c, it, -8, "correct"), attempt(c, it, -1, "correct"), attempt(c, it, 0, "correct")] };
+  const m = conceptMastery(s3, c.id, NOW);
+  assert.equal(m.ready, true);
+  assert.equal(m.status, "practiced", "ready isn't mastered: that takes the test");
+});
+
+test("passing the mastery test masters a concept; missing it later takes that away", () => {
+  const s = world({ conceptsPer: 1 });
+  const [c] = s.concepts; const [it] = s.items;
+  c.srs = { ...newSrs(), state: "review", stability: 9, difficulty: 5, lastReview: NOW, due: NOW + 9 * DAY, reps: 3 };
+  s.attempts.push(attempt(c, it, -9, "correct"), attempt(c, it, -2, "correct"), attempt(c, it, -1, "correct"));
+  const tested = { ...s, attempts: [...s.attempts, attempt(c, it, 0, "correct", { mode: "test" })] };
+  const m = conceptMastery(tested, c.id, NOW);
+  assert.equal(m.status, "mastered");
+  assert.equal(m.ready, false);
+  assert.ok(m.passedAt);
+  const failedTest = { ...s, attempts: [...s.attempts, attempt(c, it, 0, "incorrect", { mode: "test" })] };
+  assert.notEqual(conceptMastery(failedTest, c.id, NOW).status, "mastered");
+  const later = { ...tested, attempts: [...tested.attempts, attempt(c, it, 30, "incorrect")] };
+  assert.equal(conceptMastery(later, c.id, NOW + 31 * DAY).status, "slipping", "a later miss: it has to be proven again");
+  const back = { ...later, attempts: [...later.attempts, attempt(c, it, 31, "correct"), attempt(c, it, 32, "correct")] };
+  assert.equal(conceptMastery(back, c.id, NOW + 33 * DAY).ready, true, "and it's ready for a later test once it's right again");
 });
 
 test("hints and revealed answers never count as mastery evidence", () => {
@@ -274,22 +296,23 @@ test("concepts with an application task need a correct application to be mastere
   const s = world({ conceptsPer: 1, abilities: ["recall", "apply"] });
   const [c] = s.concepts; const [rec, app] = s.items;
   c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 2 };
-  s.attempts.push(attempt(c, rec, -2, "correct"), attempt(c, rec, -1, "correct"));
-  assert.equal(conceptMastery(s, c.id, NOW).status, "practiced");
+  s.attempts.push(attempt(c, rec, -9, "correct"), attempt(c, rec, -1, "correct"));
+  assert.equal(conceptMastery(s, c.id, NOW).ready, false);
   s.attempts.push(attempt(c, app, 0, "correct"));
   const s2 = { ...s, attempts: [...s.attempts] };
-  assert.equal(conceptMastery(s2, c.id, NOW).status, "mastered");
+  assert.equal(conceptMastery(s2, c.id, NOW).ready, true);
 });
 
-test("one good day after a miss isn't mastery; two good days in a row are", () => {
+test("one good day after a miss isn't ready; two good days in a row are", () => {
   const s = world({ conceptsPer: 1 });
   const [c] = s.concepts; const [it] = s.items;
   c.srs = { ...newSrs(), state: "review", stability: 3, difficulty: 5, lastReview: NOW, due: NOW + 3 * DAY, reps: 5, lapses: 2 };
-  s.attempts.push(attempt(c, it, -5, "correct"), attempt(c, it, -4, "correct"), attempt(c, it, -2, "incorrect"), attempt(c, it, -1, "correct"));
+  s.attempts.push(attempt(c, it, -12, "correct"), attempt(c, it, -11, "correct"), attempt(c, it, -2, "incorrect"), attempt(c, it, -1, "correct"));
   const m = conceptMastery(s, c.id, NOW);
   assert.equal(m.status, "practiced");
+  assert.equal(m.ready, false);
   const s2 = { ...s, attempts: [...s.attempts, attempt(c, it, 0, "correct")] };
-  assert.equal(conceptMastery(s2, c.id, NOW).status, "mastered");
+  assert.equal(conceptMastery(s2, c.id, NOW).ready, true);
 });
 
 test("a miss after success marks a concept as slipping", () => {

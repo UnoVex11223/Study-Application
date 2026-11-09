@@ -557,7 +557,7 @@ A question or lesson can carry one diagram when a picture is the clearest way to
 // What every ladder question is: the writer, the reviewer and rewrites share it.
 const ONE_TARGET = `ONE ANSWER TARGET
 - Every question asks for exactly one thing. "…, and why?", "…and how does this…", "describe the two…" are two questions: make them two steps or drop one. The why belongs in model_answer, which the learner reads after answering.
-- shape says what form the answer takes, in 1–4 words ("one word", "a number", "what it prints", "one line of code", "one sentence", "the value of out"). It's shown beside the question, so the prompt needn't repeat it.
+- shape says what form the answer takes, in 1–4 words ("one word", "a number", "what it prints", "one line of code", "one sentence", "the value of out"). The learner doesn't see it, so when the form isn't obvious the prompt says it in its own words ("Which number…", "What does this print?", "Write the line that…").
 - When the answer is a term, number, value, expression, printed output or one line of code, accept lists every acceptable way of writing it (synonyms, abbreviations, with or without units, equivalent spellings of the same code). An answer matching accept is marked right instantly, so include every correct form and nothing wrong. For code and output, exact characters matter.
 - required_points: exactly one for steps 1–4 (what a right answer must say, short and checkable); step 5 may have two. Recall: one point naming the answer.
 - The answer is determinable from the prompt alone: if two different answers could be right, tighten the prompt.`;
@@ -578,7 +578,7 @@ If a concept lists current_questions, you are rebuilding it: write its whole lad
 ${ONE_TARGET}
 
 SIMPLE AND PRECISE
-- Short prompts: one or two sentences, plus a code block or diagram when the step needs one. Plain words, no preamble.
+- Short prompts: one or two sentences, plus a code block or diagram when the step needs one. Plain words, no preamble. No bold or italics in the prompt (the wording carries any stress); inline code only for identifiers, values and snippets.
 - Work out every answer before writing it: trace code line by line, evaluate circuits. Prefer a simpler example you are certain of over a clever one you aren't.
 - misconceptions: only for a question graded by meaning (accept is empty): 0–2 realistic wrong beliefs that make an answer wrong even when it uses the right words. Leave it empty when accept is filled: an exact answer is checked against accept.
 - model_answer: the answer, then the why, in 1–3 sentences or a short code block. This is where the explanation lives.

@@ -16,7 +16,7 @@ export default function QuestionRow({ q, onToggle, dropped = false }) {
       <div className="stack gap-2">
         <div className="row small">
           <strong>Step {levelOf(q)} · {levelLabel(q)}</strong>
-          <span className="muted">{abilityLabel(q.ability)}{q.shape ? ` · answer: ${q.shape}` : ""}</span>
+          <span className="muted">{abilityLabel(q.ability)}</span>
           {q.revised && <span className="tag sky">Improved by the reviewer</span>}
           {q.score != null && <span className="muted" title={dimText}>Quality {q.score.toFixed(1)}</span>}
         </div>

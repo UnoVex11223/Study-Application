@@ -4,6 +4,8 @@
 // they go round. Links between books are drawn as one soft stream between
 // their suns; a planet's own links appear when you point at it. Names come in
 // as you zoom in. A single course can also be shown as its prerequisite chart.
+// Planets aren't clickable: the map is for seeing how things connect ("Show on
+// map" from a course lights one up and brings it to the middle).
 //
 // Drawn on a canvas: hundreds of moving planets and links redraw in a couple
 // of milliseconds, where SVG would repaint the whole map on every frame.
@@ -13,9 +15,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import { Page, EmptyState } from "../../ui/layout.jsx";
-import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import { MapHeader, ZoomControls, MapLegend } from "./MapChrome.jsx";
-import { transition } from "../../ui/motion.js";
 import { index } from "../../lib/model.js";
 import { conceptMastery } from "../../lib/mastery.js";
 import { layeredLayout } from "../../lib/graph.js";
@@ -203,13 +203,12 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
     if (v) glideTo(v, 750);
   }, [viewFor, glideTo]);
 
-  /** Bring a planet to the middle of what's left beside the panel, following it as the sky slows. */
+  /** Bring a planet to the middle of the map, following it as the sky slows. */
   const centerOn = useCallback((id) => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const r = wrap.getBoundingClientRect();
-    const panel = Math.min(520, window.innerWidth * 0.92) + 20;
-    const visible = Math.min(r.width, Math.max(r.width * 0.4, window.innerWidth - panel - r.left));
+    const visible = r.width;
     const k = Math.min(1.8, Math.max(cam.current.k, 1.2));
     glideTo(() => {
       const p = sceneRef.current?.byId.get(id);
@@ -218,28 +217,6 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
       return { k, x: visible / 2 - q.x * k, y: r.height / 2 - q.y * k };
     }, 820);
   }, [glideTo]);
-  // Opening a planet grows it into its panel: a small lit disc is put where the
-  // planet is, and a "sheet" view transition (ui/motion.js) morphs it into the
-  // panel. With the panel already open, the panel just changes.
-  const choose = useCallback((id) => {
-    const p = sceneRef.current?.byId.get(id);
-    const canvas = canvasRef.current;
-    if (!selectedRef.current && p && canvas) {
-      const r = canvas.getBoundingClientRect(), { x, y, k } = cam.current;
-      const rad = Math.max(7, p.r * k * 1.5);
-      const ghost = document.createElement("div");
-      ghost.className = "planet-ghost";
-      Object.assign(ghost.style, {
-        left: `${r.left + p.x * k + x - rad}px`, top: `${r.top + p.y * k + y - rad}px`, width: `${rad * 2}px`, height: `${rad * 2}px`,
-        background: `radial-gradient(circle at 36% 36%, #fff 0, ${p.color} 38%, ${withAlpha(p.color, 0.35)} 62%, transparent 72%)`,
-        viewTransitionName: "sheet",
-      });
-      document.body.appendChild(ghost);
-      transition(() => { ghost.remove(); setSelected(id); }, "sheet");
-    } else setSelected(id);
-    clock.current.hold = true;
-    centerOn(id);
-  }, [centerOn]);
 
   // Fit the view when what's shown changes (once the canvas has a size).
   useEffect(() => {
@@ -680,9 +657,9 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
     }
     const { wx, wy } = toMap(e);
     const id = planetAtPoint(wx, wy)?.id ?? null;
-    e.currentTarget.style.cursor = id ? "pointer" : sunAtPoint(wx, wy) ? "zoom-in" : "grab";
+    e.currentTarget.style.cursor = !id && sunAtPoint(wx, wy) ? "zoom-in" : "grab";
     if (id === pointerOn.current) return;
-    // Pointing at a planet slows the sky to a stop right away, so it's easy to click;
+    // Pointing at a planet slows the sky to a stop right away, so its links are easy to follow;
     // the highlight follows after a short pause, so sweeping across the map doesn't flash.
     pointerOn.current = id;
     clock.current.hold = Boolean(id) || Boolean(selectedRef.current);
@@ -695,8 +672,7 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
     e.currentTarget.style.cursor = "grab";
     if (d?.moved) return;
     const { wx, wy } = toMap(e);
-    const p = planetAtPoint(wx, wy);
-    if (p) { choose(p.id); return; }
+    if (planetAtPoint(wx, wy)) return; // planets show their links on hover; clicking does nothing
     const sys = sunAtPoint(wx, wy);
     if (sys) { focusSystem(sys); return; }
     setSelected(null);
@@ -758,11 +734,6 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
         </div>
       )}
 
-      {selected && ix.concept[selected] && (
-        <ConceptPanel modeless enter={false} conceptId={selected}
-          onOpen={(id) => (scene.byId.has(id) ? choose(id) : setSelected(id))}
-          onClose={() => setSelected(null)}/>
-      )}
     </Page>
   );
 }

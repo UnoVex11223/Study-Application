@@ -151,13 +151,11 @@ export function shelfStats(entries) {
 }
 
 /** The shelf's tabs. The kind tabs also set what "Add" starts with. */
+/** The shelf's tabs: one per kind of thing on it. */
 export const SHELF_FILTERS = [
-  { id: "all", label: "All", test: () => true },
-  { id: "reading", label: "Reading", kind: "reading", test: (e) => e.kind === "reading" },
   { id: "textbook", label: "Textbooks", kind: "textbook", test: (e) => e.kind === "textbook" },
+  { id: "reading", label: "Reading", kind: "reading", test: (e) => e.kind === "reading" },
   { id: "course", label: "Courses", kind: "course", test: (e) => e.kind === "course" },
-  { id: "active", label: "In progress", test: (e) => !e.finished && !e.want },
-  { id: "done", label: "Finished", test: (e) => e.finished },
 ];
 
 /**

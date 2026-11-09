@@ -1,6 +1,7 @@
 // The question being asked, and nothing else: the question itself (with its
 // diagram), and a flag for reporting a bad question that only shows when you
-// point at the card (on a fresh version, it offers the original instead).
+// point at the card (on a fresh version, it offers the original instead; in
+// the mastery test there's no flag).
 
 import { useState } from "react";
 import Icon from "../../ui/Icon.jsx";
@@ -11,14 +12,14 @@ import { FLAG_REASONS } from "../../lib/quality.js";
 
 const REPORT_REASONS = ["unclear", "wrong", "trivial", "other"];
 
-export default function QuestionCard({ item, fresh, canUseOriginal, onUseOriginal, onReport }) {
+export default function QuestionCard({ item, fresh, canUseOriginal, onUseOriginal, onReport, flag = true }) {
   const [reporting, setReporting] = useState(false);
   return (
     <article className="q-card">
-      <button className={cx("btn btn-quiet btn-sm btn-icon q-flag", reporting && "on")} onClick={() => setReporting(r => !r)}
+      {flag && <button className={cx("btn btn-quiet btn-sm btn-icon q-flag", reporting && "on")} onClick={() => setReporting(r => !r)}
         title="Report this question" aria-label="Report this question" aria-expanded={reporting}>
         <Icon name="flag"/>
-      </button>
+      </button>}
       <div className="q-prompt"><Markdown>{item.prompt}</Markdown></div>
       {item.diagram && <Diagram spec={item.diagram}/>}
       {reporting && (

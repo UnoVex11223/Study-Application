@@ -87,10 +87,11 @@ const SUN_FS = /* glsl */`
 // ── The engine ─────────────────────────────────────────────────────────────
 
 export class Sky {
-  constructor(host, { onHover, onSelect, onSun, still = false } = {}) {
+  constructor(host, { onHover, onSelect, onSun, still = false, selectable = true } = {}) {
     this.host = host;
     this.onHover = onHover;
     this.onSelect = onSelect;
+    this.selectable = selectable; // false: planets light up their connections on hover but can't be clicked
     this.onSun = onSun;
     this.still = still;
     this.clock = { t: (Date.now() / 1000) % 1e5, speed: still ? 0 : 1, hold: false };
@@ -156,7 +157,7 @@ export class Sky {
           return;
         }
         const p = this.pick(e);
-        el.style.cursor = p ? "pointer" : this.pickSun(e) ? "zoom-in" : "grab";
+        el.style.cursor = p && this.selectable ? "pointer" : this.pickSun(e) ? "zoom-in" : "grab";
         this.setHover(p?.id ?? null);
       },
       up: (e) => {
@@ -164,6 +165,7 @@ export class Sky {
         this.down = null;
         if (!d || d.moved || e.button !== 0) return;
         const p = this.pick(e);
+        if (p && !this.selectable) return;
         if (p) { this.onSelect?.(p.id); return; }
         const s = this.pickSun(e);
         if (s) { this.flyToSystem(s.id); this.onSun?.(s.id); return; }

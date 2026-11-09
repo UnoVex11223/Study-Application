@@ -175,7 +175,6 @@ export default function ConceptPanel({ conceptId, onOpen, onClose, modeless = fa
               {it.flag && <div className="error-text">{FLAG_REASONS[it.flag.reason] ?? "Flagged"}</div>}
               <Markdown>{it.prompt}</Markdown>
               {it.diagram && <Diagram spec={it.diagram} className="small"/>}
-              {it.shape && <div className="small muted">Answer: {it.shape}</div>}
               {it.flag && <FixQuestion item={it} concept={c}/>}
               <details className="disclosure">
                 <summary>Answer and key points</summary>

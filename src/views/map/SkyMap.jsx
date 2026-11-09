@@ -1,26 +1,25 @@
 // The knowledge map as a 3D sky (ui/sky3d.js draws it). This page works out
 // what's in it (layout from lib/orbits.js, each planet's status and memory
 // fog from the store) and adds the controls around it:
-//   - pick a planet: it grows into its concept panel and the camera flies to it
-//   - Learning path: what that concept builds on, drawn as a constellation
+//   - point at a planet: it and its connections light up (planets aren't
+//     clickable: the map is for seeing how things connect; "Show on map"
+//     from a course lights one up and flies to it)
 //   - Time-lapse: replay the sky from your first day to today
 // Drag to move across the sky, scroll to zoom, right-drag (or Shift-drag) to turn it.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import { Page } from "../../ui/layout.jsx";
 import { cx } from "../../ui/cx.js";
-import { transition, stillMotion } from "../../ui/motion.js";
+import { stillMotion } from "../../ui/motion.js";
 import { index } from "../../lib/model.js";
 import { conceptMastery } from "../../lib/mastery.js";
 import { orbitalLayout, seeded, bridgesBetween } from "../../lib/orbits.js";
-import { prereqPath } from "../../lib/graph.js";
 import { lapseTimeline, statusOn, lapseDay } from "../../lib/timelapse.js";
 import { keyToDate } from "../../lib/time.js";
 import { fullDate } from "../../lib/format.js";
-import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import { MapHeader, ZoomControls, MapLegend } from "./MapChrome.jsx";
 import { Sky } from "./sky3d.js";
 import { varyColor } from "./sky.js";
@@ -29,7 +28,6 @@ const RADIUS = { core: 6.4, supporting: 4.8, detail: 3.7 };
 const MAX_LABEL = 30;
 const LAPSE_SECONDS = 16; // the whole history plays in about this long
 const short = (n) => (n.length > MAX_LABEL ? `${n.slice(0, MAX_LABEL - 1)}…` : n);
-const panelWidth = () => Math.min(520, window.innerWidth * 0.92) + 20;
 
 function planetKind(status, locked) {
   if (locked) return "dust";
@@ -47,7 +45,6 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
   const nav = useNav();
   const ix = index(state);
   const [selected, setSelected] = useState(focusConceptId ?? null);
-  const [pathOn, setPathOn] = useState(false);
   const [lapse, setLapse] = useState(null); // null | { t (days from the start), playing }
   const hostRef = useRef(null);
   const skyRef = useRef(null);
@@ -91,9 +88,9 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
   }, [data, state, ix, nav.now]);
 
   // ── The engine ──────────────────────────────────────────────────────────
-  const chooseRef = useRef(null);
   useEffect(() => {
-    const sky = new Sky(hostRef.current, { onSelect: (id) => chooseRef.current?.(id), still: stillMotion() });
+    // Clicking empty sky clears a highlighted planet; planets themselves can't be picked.
+    const sky = new Sky(hostRef.current, { onSelect: (id) => { if (!id) setSelected(null); }, still: stillMotion(), selectable: false });
     skyRef.current = sky;
     hostRef.current.sky = sky; // for the interface tests
     return () => { sky.dispose(); skyRef.current = null; };
@@ -141,60 +138,24 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
     return () => cancelAnimationFrame(raf);
   }, [lapse?.playing, timeline]);
 
-  // ── Choosing a planet ───────────────────────────────────────────────────
-  const selectedRefCurrent = useRef(selected);
-  // With no panel open, the planet grows into it (a "sheet" view transition from a disc where it is).
-  const choose = useCallback((id) => {
-    const sky = skyRef.current;
-    if (!id) { setSelected(null); return; }
-    const at = sky.project(id), host = hostRef.current?.getBoundingClientRect();
-    if (!selectedRefCurrent.current && at && host) {
-      const rad = Math.max(8, at.r * 1.6);
-      const p = data.planets.find(x => x.id === id);
-      const ghost = document.createElement("div");
-      ghost.className = "planet-ghost";
-      Object.assign(ghost.style, {
-        left: `${host.left + at.x - rad}px`, top: `${host.top + at.y - rad}px`, width: `${rad * 2}px`, height: `${rad * 2}px`,
-        background: `radial-gradient(circle at 34% 32%, color-mix(in srgb, ${p?.color || "#8F9BD6"} 55%, #fff) 0, ${p?.color || "#8F9BD6"} 42%, #000 86%)`, viewTransitionName: "sheet",
-      });
-      document.body.appendChild(ghost);
-      transition(() => { ghost.remove(); setSelected(id); }, "sheet");
-    } else setSelected(id);
-    sky.flyToPlanet(id, panelWidth());
-  }, [data]);
-  useEffect(() => { selectedRefCurrent.current = selected; chooseRef.current = choose; }, [selected, choose]);
+  // ── A highlighted planet ("Show on map") ────────────────────────────────
   useEffect(() => { skyRef.current?.setFocus({ selected }); }, [selected]);
-  // Opened at a concept ("Show on map"): fly to it once the sky is there.
   useEffect(() => {
     if (!focusConceptId) return undefined;
-    const t = setTimeout(() => skyRef.current?.flyToPlanet(focusConceptId, panelWidth()), 250);
+    const t = setTimeout(() => skyRef.current?.flyToPlanet(focusConceptId), 250);
     return () => clearTimeout(t);
   }, [focusConceptId]);
-
-  // ── The learning path ───────────────────────────────────────────────────
-  const path = useMemo(() => {
-    if (!selected) return null;
-    const p = prereqPath(state.edges, selected);
-    const nodes = p.nodes.filter(id => data.inSky.has(id));
-    return { ...p, nodes, links: p.links.filter(l => data.inSky.has(l.from) && data.inSky.has(l.to)) };
-  }, [selected, state.edges, data]);
-  const hasPath = Boolean(path && path.nodes.length > 1);
-  useEffect(() => {
-    const sky = skyRef.current;
-    if (pathOn && hasPath) { sky.setPath(path); sky.flyToPlanets(path.nodes, panelWidth()); }
-    else sky.setPath(null);
-  }, [pathOn, hasPath, path]);
 
   // Starting a time-lapse shows the whole sky from the beginning.
   const toggleLapse = () => {
     if (lapse) { setLapse(null); return; }
-    setSelected(null); setPathOn(false);
+    setSelected(null);
     skyRef.current?.fit();
     setLapse({ t: 0, playing: true });
   };
 
   const lapseLabel = lapseDayKey ? fullDate(keyToDate(lapseDayKey)) : "";
-  const pickScope = (v) => { setSelected(null); setPathOn(false); onView({ scope: v, mode: "orbits" }); };
+  const pickScope = (v) => { setSelected(null); onView({ scope: v, mode: "orbits" }); };
 
   return (
     <Page width="full" className="map-page">
@@ -204,14 +165,6 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
       <div className="map-wrap space sky3d">
         <div className="sky3d-host" ref={hostRef}/>
         <ZoomControls onIn={() => skyRef.current?.zoom(1.3)} onOut={() => skyRef.current?.zoom(0.77)} onFit={() => skyRef.current?.fit()}/>
-        {selected && (
-          <div className="map-chips">
-            <button className={cx("map-chip", pathOn && hasPath && "on")} onClick={() => setPathOn(v => !v)} disabled={!hasPath}
-              title={hasPath ? "" : "Nothing comes before this concept"}>
-              <Icon name="map"/>{pathOn && hasPath ? `Learning path, ${path.nodes.length} steps` : "Learning path"}
-            </button>
-          </div>
-        )}
         {lapse && timeline && (
           <div className="lapse-bar">
             <button className="btn btn-icon btn-sm" onClick={() => setLapse(l => ({ t: l.t >= timeline.days - 1 ? 0 : l.t, playing: !l.playing }))} aria-label={lapse.playing ? "Pause" : "Play"}>
@@ -225,9 +178,6 @@ export default function SkyMap({ scope, focusConceptId, onView }) {
         <MapLegend unread={ix.lockedConcepts.size > 0} bridges={data.bridges.length > 0}/>
       </div>
 
-      {selected && ix.concept[selected] && (
-        <ConceptPanel modeless enter={false} conceptId={selected} onOpen={(id) => (data.inSky.has(id) ? choose(id) : setSelected(id))} onClose={() => { setSelected(null); setPathOn(false); }}/>
-      )}
     </Page>
   );
 }
