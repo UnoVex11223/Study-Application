@@ -1,9 +1,14 @@
-/* Ranks (views/ranks/): your rank in large gold, the bar to the next one and
-   how far that is, in the middle of the page. */
+/* Ranks (views/ranks/): your rank inside a thin ring that fills toward the
+   next one, and how far that is, on the page's centre line. */
 
-.page.ranks-page { min-height: 72vh; align-content: center; }
-.rank-hero { display: grid; gap: var(--space-4); }
-.rank-hero-name { margin: 0; font: 500 72px / 1.05 var(--serif); color: var(--accent); }
-.rank-bar { height: 10px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
-.rank-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 900ms var(--ease-out); }
+.page.ranks-page { min-height: 72vh; align-content: center; justify-items: center; }
+.rank-hero { display: grid; justify-items: center; gap: var(--space-6); }
+.rank-ring { position: relative; width: 264px; height: 264px; }
+.rank-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.rank-ring circle { fill: none; stroke-width: 6; }
+.rank-ring-track { stroke: var(--surface-2); }
+.rank-ring-fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 900ms var(--ease-out); }
+.rank-ring-label { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: var(--space-1); }
+.rank-ring-name { font: 500 26px / 1.1 var(--serif); color: var(--ink); }
+.rank-ring-tier { font: 500 var(--title-md) / 1 var(--serif); color: var(--accent); }
 .rank-hero-next { font-size: var(--text-sm); color: var(--ink-3); }

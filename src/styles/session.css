@@ -227,3 +227,35 @@
 .session:has(> .feedback-sheet) .session-inner { padding-bottom: calc(var(--sheet-h, 320px) + var(--space-8)); }
 /* Code inside a session (lessons, answers) as the same light tint as in the question. */
 .session .md :not(pre) > code { padding: .06em .32em; border-radius: 5px; background: color-mix(in srgb, var(--ink) 9%, transparent); }
+
+/* ── Clean and symmetrical (2.21) ───────────────────────────────────────────
+   One spacing scale, one accent, the main action always bottom right. */
+.answer-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+.answer-actions .btn-primary { min-width: 140px; justify-content: center; }
+
+/* Feedback: status icon and word on the left (with the right answer when you
+   missed), one Continue button on the right, all on the column's grid. */
+.feedback-sheet { background: var(--surface); box-shadow: inset 0 2px 0 var(--tone), 0 -16px 40px rgb(0 0 0 / .22); }
+.feedback-sheet-inner { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-4) var(--space-5); padding: var(--space-6) var(--space-6) var(--space-8); }
+.feedback-icon {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  background: color-mix(in oklch, var(--tone) 16%, transparent); color: var(--tone);
+}
+.feedback-icon svg { width: 20px; height: 20px; stroke-width: 2.4; }
+.feedback-text { display: grid; gap: var(--space-2); min-width: 0; padding-top: 6px; }
+.feedback-verdict { display: flex; align-items: baseline; gap: var(--space-3); font: 700 var(--text-lg) / 1.2 var(--sans); color: var(--tone); }
+.feedback-verdict .xp-gain { font-size: var(--text-sm); }
+.feedback-answer { font-size: var(--text-md); line-height: 1.6; color: var(--ink); }
+.feedback-overrule { justify-self: start; font-size: var(--text-sm); color: var(--ink-3); }
+.feedback-overrule:hover { color: var(--ink-2); }
+.feedback-continue { min-width: 140px; justify-content: center; align-self: center; }
+@media (max-width: 640px) {
+  .feedback-sheet-inner { grid-template-columns: auto minmax(0, 1fr); }
+  .feedback-continue { grid-column: 1 / -1; width: 100%; }
+}
+
+/* The rank after a session: words only. */
+.rank-line { display: flex; align-items: baseline; gap: var(--space-3); font-size: var(--text-sm); color: var(--ink-3); }
+.rank-line-xp { font-weight: 700; color: var(--accent); }
+.rank-line.up .rank-line-name { color: var(--accent); font-weight: 700; }
+.answer-actions .btn-quiet { margin-left: calc(var(--space-5) * -1); } /* its words line up with the column edge */

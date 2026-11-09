@@ -10,7 +10,7 @@ import { useNav } from "../../ui/nav.js";
 import { useKey, isTyping } from "../../ui/hooks.js";
 import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
-import { Bar, Spinner, Notice } from "../../ui/display.jsx";
+import { Spinner, Notice } from "../../ui/display.jsx";
 import { cx } from "../../ui/cx.js";
 import { index } from "../../lib/model.js";
 import { matchesAccepted, plainlyWrong, verdictFromChecks } from "../../lib/grade.js";
@@ -99,13 +99,12 @@ export default function MasteryTest({ tasks }) {
   const right = tasks.filter((_, i) => marks[i]?.verdict === "correct");
   const missed = tasks.map((t, i) => ({ t, i })).filter(({ i }) => phase === "results" && marks[i]?.verdict !== "correct");
   const gained = tasks.reduce((n, _, i) => n + xpFor({ verdict: marks[i]?.verdict, mode: "test" }), 0);
-  const progress = phase === "intro" ? 0 : phase === "answer" ? idx / tasks.length : 1;
 
   return (
     <div className="session" role="dialog" aria-label="Mastery test">
       <div className="session-top">
         <button className="btn btn-quiet btn-icon" onClick={exit} aria-label={phase === "results" ? "Close" : "Leave the test"} title={phase === "results" ? "Close" : "Leave the test"}><Icon name="x"/></button>
-        <div className="session-progress" aria-label={`${Math.min(idx + 1, tasks.length)} of ${tasks.length}`}><Bar value={progress}/></div>
+        <span/>
         <span/>
       </div>
       <div className="session-body">
@@ -126,12 +125,11 @@ export default function MasteryTest({ tasks }) {
                 <textarea ref={boxRef} className={cx("answer-box", quick && "short")} value={answer} autoFocus
                   onChange={e => setAnswer(e.target.value)} aria-label="Your answer" spellCheck={!quick}
                   onKeyDown={quick ? (e) => { if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (answer.trim()) next(); } } : undefined}/>
-                <div className="row">
-                  <button className="btn btn-primary" onClick={() => next()} disabled={!answer.trim()}>
+                <div className="answer-actions">
+                  <button className="btn btn-quiet btn-lg" onClick={() => next("")}>Skip</button>
+                  <button className="btn btn-primary btn-lg" onClick={() => next()} disabled={!answer.trim()}>
                     {idx + 1 < tasks.length ? "Next" : "Finish"}
                   </button>
-                  <span className="grow"/>
-                  <button className="btn btn-quiet" onClick={() => next("")}>Skip</button>
                 </div>
               </div>
             </div>

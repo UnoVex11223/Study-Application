@@ -97,18 +97,18 @@ test("XP: 10 for a right answer, 5 for partly right, 50 for a concept proven in 
   assert.equal(totalXp([{ verdict: "correct" }, { verdict: "partial" }, { verdict: "correct", mode: "test" }]), 65);
 });
 
-test("ranks run from 10th kyu down to 1st kyu, then up through the dan grades with no top", () => {
-  assert.deepEqual([0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 20, 30].map(rankName),
-    ["10th kyu", "9th kyu", "8th kyu", "7th kyu", "2nd kyu", "1st kyu", "1st dan", "2nd dan", "3rd dan", "4th dan", "11th dan", "21st dan"]);
-  assert.deepEqual([0, 99, 100, 900, 1340, 8100, 10000, 12100].map(x => rankFor(x).name),
-    ["10th kyu", "10th kyu", "9th kyu", "7th kyu", "7th kyu", "1st kyu", "1st dan", "2nd dan"]);
+test("ranks climb Novice, Apprentice, Scholar, Expert, Master and Sage in three tiers, and Sage never ends", () => {
+  assert.deepEqual([0, 1, 2, 3, 6, 9, 12, 14, 15, 17, 18, 24, 35].map(rankName),
+    ["Novice I", "Novice II", "Novice III", "Apprentice I", "Scholar I", "Expert I", "Master I", "Master III", "Sage I", "Sage III", "Sage IV", "Sage X", "Sage XXI"]);
+  assert.deepEqual([0, 99, 100, 900, 1340, 3600, 8100, 22500].map(x => rankFor(x).name),
+    ["Novice I", "Novice I", "Novice II", "Apprentice I", "Apprentice I", "Scholar I", "Expert I", "Sage I"]);
   const r = rankFor(1340);
-  assert.equal(r.next, "6th kyu");
+  assert.equal(r.next, "Apprentice II");
   assert.equal(r.toGo, 1600 - 1340);
   assert.equal(r.progress, (1340 - 900) / (1600 - 900));
-  // Each grade takes a little longer than the one before, forever.
+  // Each rank takes a little longer than the one before, forever.
   for (let i = 1; i < 60; i++) assert.ok(rankStart(i + 1) - rankStart(i) > rankStart(i) - rankStart(i - 1));
-  assert.equal(rankFor(1e9).dan, true);
+  assert.match(rankFor(1e9).name, /^Sage [IVXLCDM]+$/);
 });
 
 test("streaks count days in a row with an answer; today counts once you have answered", () => {

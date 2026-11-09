@@ -9,7 +9,6 @@ import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import { useKey } from "../../ui/hooks.js";
 import Icon from "../../ui/Icon.jsx";
-import { Bar } from "../../ui/display.jsx";
 import { EmptyState } from "../../ui/layout.jsx";
 import { index, ABILITY_KEYS } from "../../lib/model.js";
 import { conceptMastery } from "../../lib/mastery.js";
@@ -205,7 +204,6 @@ function StudySession({ tasks: initial, mode = "session", title = "Today's sessi
   const more = done && daily ? Math.min(EXTRA, buildPlan(withExtra(state)).tasks.length) : 0;
   const item = task && ix.item[task.itemId];
   const concept = item && ix.concept[item.conceptId];
-  const position = Math.min(idx + (done ? 0 : 1), queue.length);
   // Teach, then test: a new concept's lesson comes before its first question.
   const teach = Boolean(!done && concept && !pretest && task.kind === "new" && !taught.has(concept.id) && (concept.lesson || concept.summary));
 
@@ -213,9 +211,7 @@ function StudySession({ tasks: initial, mode = "session", title = "Today's sessi
     <div className="session" role="dialog" aria-label={title}>
       <div className="session-top">
         <button className="btn btn-quiet btn-icon" onClick={exit} aria-label={done ? "Close" : "End session"} title={done ? "Close" : "End session"}><Icon name="x"/></button>
-        <div className="session-progress" aria-label={`${position} of ${queue.length}`}>
-          <Bar value={queue.length ? Math.min(idx, queue.length) / queue.length : 1}/>
-        </div>
+        <span/>
         <span/>
       </div>
       <div className="session-body">
