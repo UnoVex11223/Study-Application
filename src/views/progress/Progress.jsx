@@ -1,5 +1,7 @@
-// Progress, kept bare: a year of study days, one square per day, darker for
-// more answers. How each course is going is on its own page.
+// Progress: three figures about showing up (your streak, your best streak,
+// how many days you have studied), then the last six months of study days,
+// one square per day, warmer for more answers, filling the page. How each
+// course is going is on its own page; XP and ranks are on Ranks.
 
 import { useMemo } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -7,13 +9,14 @@ import { useNav } from "../../ui/nav.js";
 import { Page, PageHeader } from "../../ui/layout.jsx";
 import { cx } from "../../ui/cx.js";
 import { dayKey, keyToDate } from "../../lib/time.js";
+import { streaks } from "../../lib/history.js";
 import { plural } from "../../lib/format.js";
 
-const WEEKS = 53;
+const WEEKS = 26;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const heatLevel = (n) => (n === 0 ? 0 : n < 8 ? 1 : n < 20 ? 2 : n < 40 ? 3 : 4);
 
-/** A year of study days, a column per week (Sunday at the top), with the months along the top. */
+/** Study days, a column per week (Sunday at the top), with the months along the top. */
 function Activity({ counts, today }) {
   const end = keyToDate(today);
   const start = new Date(end);
@@ -51,6 +54,15 @@ function Activity({ counts, today }) {
   );
 }
 
+function Figure({ value, label }) {
+  return (
+    <div className="progress-figure">
+      <span className="progress-figure-n num">{value}</span>
+      <span className="progress-figure-label">{label}</span>
+    </div>
+  );
+}
+
 export default function Progress() {
   const { state } = useStore();
   const nav = useNav();
@@ -60,9 +72,15 @@ export default function Progress() {
     for (const a of state.attempts) out[a.day] = (out[a.day] || 0) + 1;
     return out;
   }, [state.attempts]);
+  const st = streaks(counts, today);
   return (
     <Page>
       <PageHeader title="Progress"/>
+      <div className="progress-figures">
+        <Figure value={st.current} label="day streak"/>
+        <Figure value={st.best} label="best streak"/>
+        <Figure value={st.days} label={st.days === 1 ? "day studied" : "days studied"}/>
+      </div>
       <Activity counts={counts} today={today}/>
     </Page>
   );

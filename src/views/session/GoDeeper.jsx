@@ -77,7 +77,7 @@ export default function GoDeeper({ item, concept, course, answer, onResult }) {
           <textarea ref={inputRef} className="answer-box short" value={input} onChange={e => setInput(e.target.value)} aria-label="Your answer to the follow-up"
             onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); submit(); } }}/>
           <div className="row">
-            <button className="btn btn-sm btn-primary" disabled={busy || !input.trim()} onClick={() => submit()}>Answer<span className="kbd">Ctrl ↵</span></button>
+            <button className="btn btn-sm btn-primary" disabled={busy || !input.trim()} onClick={() => submit()}>Answer</button>
             <button className="btn btn-sm btn-quiet" disabled={busy} onClick={() => submit("I don't know")}>I don't know</button>
             <span className="grow"/>
             <span className="small muted num">{turns.length + 1} of {MAX_DEPTH}</span>

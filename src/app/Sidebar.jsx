@@ -18,6 +18,7 @@ const NAV_GROUPS = [
   ],
   [
     { id: "progress", label: "Progress", icon: "progress" },
+    { id: "ranks", label: "Ranks", icon: "rank" },
     { id: "map", label: "Knowledge map", icon: "map" },
   ],
   [

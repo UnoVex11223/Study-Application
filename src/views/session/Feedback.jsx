@@ -23,7 +23,7 @@ export default function Feedback({ grade, verdict, override, onOverride, item, p
         {grade.source === "tests" && grade.run.output && !grade.run.passed && <pre className="run-output">{grade.run.output}</pre>}
         <div className="quote"><Markdown>{item.answer}</Markdown></div>
         {pretest ? (
-          <div><button className="btn btn-primary" onClick={onNext} autoFocus>Next <span className="kbd">↵</span></button></div>
+          <div><button className="btn btn-primary" onClick={onNext} autoFocus>Next</button></div>
         ) : (
           <div className="rate-row" role="group" aria-label="Rate how well you knew it">
             {[1, 2, 3, 4].map(r => (

@@ -32,5 +32,4 @@
 }
 .today-test-title { font: 500 var(--title-sm) / var(--leading-tight) var(--serif); color: var(--ink); }
 .today-test-text { margin-top: 2px; font-size: var(--text-sm); color: var(--ink-3); }
-.today-next-test { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--ink-3); }
-.today-level { margin-top: var(--space-10); }
+.today-next-test { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--ink-3); }

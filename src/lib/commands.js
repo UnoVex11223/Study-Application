@@ -13,6 +13,7 @@ export const PAGES = [
   { id: "courses", label: "Courses", icon: "courses" },
   { id: "notes", label: "Notes", icon: "note" },
   { id: "progress", label: "Progress", icon: "progress" },
+  { id: "ranks", label: "Ranks", icon: "rank" },
   { id: "map", label: "Knowledge map", icon: "map" },
   { id: "shelf", label: "Shelf", icon: "shelf" },
   { id: "settings", label: "Settings", icon: "settings" },
