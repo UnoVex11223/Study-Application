@@ -15,7 +15,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import { Page, EmptyState } from "../../ui/layout.jsx";
-import { MapHeader, ZoomControls, MapLegend } from "./MapChrome.jsx";
+import { MapHeader, MapLegend } from "./MapChrome.jsx";
 import { index } from "../../lib/model.js";
 import { conceptMastery } from "../../lib/mastery.js";
 import { layeredLayout } from "../../lib/graph.js";
@@ -65,17 +65,14 @@ function planetKind(status, locked) {
   return "dark";
 }
 
-// The flat map: the Prerequisites chart for a course, and the whole sky drawn
-// in 2D on computers that can't show the 3D one (see SkyMap.jsx). onView tells
-// the map page when you switch course or view, so it can swap the 3D sky back in.
-export default function FlatMap({ focusCourseId, focusConceptId, initialScope, initialMode = "orbits", onView }) {
+// The flat map: the whole sky drawn in 2D on computers that can't show the 3D
+// one (see SkyMap.jsx), or one course's when opened from it.
+export default function FlatMap({ focusCourseId, focusConceptId }) {
   const { state } = useStore();
   const nav = useNav();
   const ix = index(state);
-  const [scope, setScopeState] = useState(initialScope ?? focusCourseId ?? "all");
-  const [mode, setModeState] = useState(initialMode);
-  const setScope = (v) => { setScopeState(v); onView?.({ scope: v, mode: v === "all" ? "orbits" : mode }); };
-  const setMode = (v) => { setModeState(v); onView?.({ scope, mode: v }); };
+  const scope = focusCourseId ?? "all";
+  const mode = "orbits";
   const [selected, setSelected] = useState(focusConceptId ?? null);
 
   const wrapRef = useRef(null);
@@ -197,7 +194,6 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
     const k = Math.min(maxK, Math.max(0.12, Math.min(w / (b.x1 - b.x0), h / (b.y1 - b.y0)) * 0.94));
     return { k, x: w / 2 - ((b.x0 + b.x1) / 2) * k, y: h / 2 - ((b.y0 + b.y1) / 2) * k };
   }, []);
-  const fit = () => { const v = viewFor(bounds); if (v) glideTo(v, 480); };
   const focusSystem = useCallback((s) => {
     const v = viewFor({ x0: s.x - s.radius, x1: s.x + s.radius, y0: s.y - s.radius * TILT - 30, y1: s.y + s.radius * TILT + 30 }, 2);
     if (v) glideTo(v, 750);
@@ -707,18 +703,9 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
     return () => { canvas.removeEventListener("wheel", onWheel); cancelAnimationFrame(frame); };
   }, [setCam, hasPlanets]);
 
-  const zoom = (f) => {
-    const { w, h } = size.current, v = cam.current;
-    const k = Math.min(4, Math.max(0.12, v.k * f));
-    glideTo({ k, x: w / 2 - ((w / 2 - v.x) / v.k) * k, y: h / 2 - ((h / 2 - v.y) / v.k) * k }, 260);
-  };
-
-  const pickScope = (v) => { setScope(v); setSelected(null); if (v === "all") setModeState("orbits"); };
-  const pickMode = (m) => { setMode(m); if (m === "prereq") setSelected(null); };
-
   return (
     <Page width="full" className="map-page">
-      <MapHeader scope={scope} onScope={pickScope} mode={mode} onMode={pickMode}/>
+      <MapHeader/>
 
       {!hasPlanets ? (
         <EmptyState title="Nothing to map yet" actions={<button className="btn btn-primary" onClick={() => nav.go("courses")}>Go to courses</button>}>
@@ -729,8 +716,7 @@ export default function FlatMap({ focusCourseId, focusConceptId, initialScope, i
           <div className="space-bg" ref={spaceRef}/>
           <canvas ref={canvasRef} className="map-canvas" role="img" aria-label="Knowledge map"
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerLeave}/>
-          <ZoomControls onIn={() => zoom(1.25)} onOut={() => zoom(0.8)} onFit={fit}/>
-          <MapLegend unread={ix.lockedConcepts.size > 0} bridges={scope === "all" && scene.bridges.length > 0}/>
+          <MapLegend/>
         </div>
       )}
 

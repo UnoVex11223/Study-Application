@@ -55,7 +55,7 @@ export default function Today({ plan }) {
       <Page width="narrow" className="today">
         <PageHeader title={dayDate(now)}/>
         <EmptyState title="Add what you're studying" actions={<>
-          <button className="btn btn-primary" onClick={() => nav.go("new", { at: Date.now() })}><Icon name="plus"/>Create a course</button>
+          <button className="btn btn-primary" onClick={() => nav.go("new", { at: Date.now() })}><Icon name="plus"/>Import course</button>
           {sync?.status && !sync.status.enabled && <button className="btn" onClick={() => nav.go("settings")}>Sync from another computer</button>}
         </>}>
           A course is a book, class or subject. Each day brings the same number of questions from everything you study.
@@ -90,7 +90,6 @@ export default function Today({ plan }) {
               <li key={b.courseId}>
                 <CourseDot color={ix.course[b.courseId]?.color}/>
                 <span className="grow ell">{ix.course[b.courseId]?.name}</span>
-                {b.fresh > 0 && <span className="today-new">{b.fresh} new</span>}
                 <span className="today-n num">{b.count}</span>
               </li>
             ))}

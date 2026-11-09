@@ -29,7 +29,7 @@ export function pageFor(route, { plan }) {
         recall={Boolean(route.recall)} openItem={route.open} adding={Boolean(route.add)} year={route.year ?? null}/>
     );
     case "import": return <AddMaterial courseId={route.courseId}/>;
-    case "book": return <ImportBook key={route.at ?? "book"} courseId={route.courseId}/>;
+    case "book": return <ImportBook key={route.at ?? "book"} courseId={route.courseId} file={route.file}/>;
     case "new": return <NewCourse key={route.at ?? "new"}/>;
     case "teach": return <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>;
     case "map": return <KnowledgeMap focusCourseId={route.courseId} focusConceptId={route.conceptId}/>;
