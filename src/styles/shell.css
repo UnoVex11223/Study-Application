@@ -17,26 +17,23 @@
 /* ── Title bar ──────────────────────────────────────────────────────────────
    The window has no frame: this bar is where you drag it, and the system
    draws its own buttons over the right end (on a Mac, traffic lights at the
-   left). Its three columns are equal at the sides, so the search box sits in
-   the middle of the window. */
+   left). The mark sits at the left and Settings at the right, just inside the
+   system's buttons: titlebar-area-* is the part of the bar they leave free
+   (Window Controls Overlay), with room for Windows' three buttons if it's
+   missing. */
 .titlebar {
   position: relative; z-index: var(--z-titlebar); flex: 0 0 var(--titlebar-h); height: var(--titlebar-h);
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px) minmax(0, 1fr); align-items: center; gap: var(--space-4);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+  padding-right: max(150px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + var(--space-3)));
   -webkit-app-region: drag; user-select: none;
 }
+.titlebar.mac { padding-right: var(--space-3); }
 /* Lines up with the sidebar's icons: sidebar padding + item padding. */
 .titlebar-brand { display: flex; align-items: center; gap: var(--space-3); padding-left: var(--space-6); font: 500 var(--text-lg) / 1 var(--serif); letter-spacing: .02em; }
 .titlebar.mac .titlebar-brand { padding-left: 80px; }
 .brand-mark { display: block; flex-shrink: 0; }
-.titlebar-search {
-  -webkit-app-region: no-drag; display: flex; align-items: center; gap: var(--space-2); width: 100%; height: var(--control-sm);
-  padding: 0 var(--space-1) 0 var(--space-3); border: 0; border-radius: var(--radius-md);
-  background: var(--surface); color: var(--ink-3); font-size: var(--text-sm); cursor: pointer;
-  transition: color var(--dur-quick) var(--ease-out), background var(--dur-quick) var(--ease-out);
-}
-.titlebar-search > svg { width: var(--icon-sm); height: var(--icon-sm); }
-.titlebar-search > .grow { text-align: left; }
-.titlebar-search:hover { color: var(--ink-2); background: var(--surface-2); }
+.titlebar-settings { -webkit-app-region: no-drag; width: 32px; height: 32px; color: var(--ink-2); }
+.titlebar-settings:hover, .titlebar-settings.on { color: var(--ink); background: var(--select); }
 
 /* ── Sidebar ──────────────────────────────────────────────────────────────
    Compact rows; the groups are told apart by a little space, not by lines. */

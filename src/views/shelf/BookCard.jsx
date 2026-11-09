@@ -1,18 +1,17 @@
 // A book standing on the shelf, in CSS 3D (a cover with real thickness, page
-// edges and a spine), and what's written under it: title, author or how it's
-// going in Tenax, and progress. Pointing at a book lifts it and turns it
+// edges and a spine), and under it only how far along it is (the title is on
+// the cover; author, rating and the rest are in its panel or form). Pointing at a book lifts it and turns it
 // toward you; logging a chapter swings its cover open. See styles/shelf.css.
 
 import { useEffect, useRef, useState } from "react";
 import Icon from "../../ui/Icon.jsx";
 import { Menu, MenuItem } from "../../ui/overlays.jsx";
-import { Stars } from "../../ui/display.jsx";
 import { CoverArt, useCoverInfo } from "../../ui/Cover.jsx";
 import { stillMotion } from "../../ui/motion.js";
 import { play } from "../../ui/sound.js";
 import { cx } from "../../ui/cx.js";
 import { clothFor, bookThickness } from "../../lib/cover.js";
-import { SHELF_KINDS, SHELF_STATUS } from "../../lib/shelf.js";
+import { SHELF_STATUS } from "../../lib/shelf.js";
 import { pct, monthYear } from "../../lib/format.js";
 
 const TILT_VARS = ["--ry", "--rx", "--gx", "--gy"];
@@ -89,8 +88,8 @@ function progressText(e) {
 }
 
 /**
- * A book with everything under it. Its parts are rows of the shelf's grid
- * (subgrid), so titles, authors and progress line up across a row.
+ * A book with its progress under it. Its parts are rows of the shelf's grid
+ * (subgrid), so the progress lines up across a row.
  * `hidden`: shown among the books hidden from the shelf (dimmed, to put back).
  */
 export function BookCard({ entry: e, index, hidden = false, onOpen, onEdit, onBump, onHide, onRemove }) {
@@ -113,22 +112,6 @@ export function BookCard({ entry: e, index, hidden = false, onOpen, onEdit, onBu
     <article className={cx("book-card", hidden && "dim", menuOpen && "menu-open")} style={{ "--i": index }}>
       <div className="book-slot"><Book entry={e} opening={opening} onOpen={onOpen} menu={menu}/></div>
       <Ledge/>
-      <button className="book-title" onClick={(ev) => onOpen(ev.currentTarget)} tabIndex={-1}>{e.title}</button>
-      <div className="book-sub">
-        {reading ? (
-          <>
-            {e.author && <span>{e.author}</span>}
-            {e.rating > 0 && <Stars value={e.rating} size={10}/>}
-          </>
-        ) : e.linked ? (
-          <span className="book-linked" title="Chapters read and mastery in Tenax">
-            <Icon name="link" size={11}/>{e.read > 0 && e.mastery != null ? `${pct(e.mastery)} mastered` : "In Tenax"}
-          </span>
-        ) : (
-          <span>{SHELF_KINDS[e.kind]?.label}</span>
-        )}
-        {e.recallDue && !hidden && <span className="book-due">Recall</span>}
-      </div>
       <div className="book-progress">
         <div className="book-prog">
           <span className="ell">{progressText(e)}</span>
@@ -153,13 +136,12 @@ export function BookCard({ entry: e, index, hidden = false, onOpen, onEdit, onBu
   );
 }
 
-/** The empty place at the end of the shelf, to add the next book. */
+/** The empty place at the start of the shelf, to add the next book. */
 export function AddCard({ label, index, onAdd }) {
   return (
-    <button className="book-card add" onClick={onAdd} style={{ "--i": index }}>
+    <button className="book-card add" onClick={onAdd} style={{ "--i": index }} aria-label={label} title={label}>
       <div className="book-slot"><div className="book-hold"><div className="book-ghost"><Icon name="plus" size={20}/></div></div></div>
       <Ledge/>
-      <span className="book-add-label">{label}</span>
     </button>
   );
 }

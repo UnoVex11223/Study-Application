@@ -28,7 +28,6 @@ body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.005em; }
 
 /* ── Frame: title bar, sidebar, page ────────────────────────────────────── */
 .titlebar-brand { font: 600 15px / 1 var(--sans); letter-spacing: -0.01em; }
-.titlebar-search { height: 32px; box-shadow: inset 0 0 0 1px var(--rule); background: var(--surface); }
 .main { box-shadow: inset 0 0 0 1px var(--rule); }
 .nav-item { color: var(--ink-2); font-weight: 500; }
 .nav-item.on { color: var(--ink); }

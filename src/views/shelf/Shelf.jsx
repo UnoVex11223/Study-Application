@@ -1,7 +1,8 @@
 // The shelf: books you read for their own sake, textbooks and courses, each
 // with its own tab (Tenax courses are on it automatically, see lib/shelf.js).
-// They stand on shelves as books, covers out (BookCard.jsx); the year
-// (YearView.jsx) opens from search.
+// They stand on shelves as books, covers out (BookCard.jsx), with an empty
+// place first on each tab to add the next one; the year (YearView.jsx) opens
+// from search.
 // Reading books also keep notes, a rating and recalls (BookPanel.jsx,
 // RecallSession.jsx). Covers are shaped by lib/cover.js.
 
@@ -9,7 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
-import { Page, PageHeader } from "../../ui/layout.jsx";
+import { Page } from "../../ui/layout.jsx";
 import { ConfirmDialog } from "../../ui/overlays.jsx";
 import { transition } from "../../ui/motion.js";
 import { shelfEntries, SHELF_FILTERS, SHELF_KINDS, makeShelfItem } from "../../lib/shelf.js";
@@ -159,10 +160,10 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
 
   return (
     <Page className="shelf-page">
-      <PageHeader title="Shelf" actions={<>
-        {due.length > 0 && <button className="btn" onClick={() => setRecallQueue(due.map(it => it.id))}><Icon name="play"/>Recall {due.length}</button>}
-        <button className="btn btn-primary" onClick={add}><Icon name="plus"/>Add to shelf</button>
-      </>}/>
+      <header className="shelf-head">
+        <h1 className="page-title shelf-title">Shelf</h1>
+        {due.length > 0 && <button className="btn btn-sm" onClick={() => setRecallQueue(due.map(it => it.id))}><Icon name="play"/>Recall {due.length}</button>}
+      </header>
 
       <div className="shelf-bar">
         <Tabs tabs={SHELF_FILTERS} value={filter} onChange={setFilter} counts={counts}/>
@@ -170,8 +171,8 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
 
       <div className="shelf" ref={shelfRef}>
         <div className="shelf-grid" key={filter}>
-          {shown.map((e, i) => card(e, i))}
-          <AddCard label={addLabel} index={shown.length} onAdd={add}/>
+          <AddCard label={addLabel} index={0} onAdd={add}/>
+          {shown.map((e, i) => card(e, i + 1))}
           <Fillers count={fill(shown.length + 1)} from={shown.length + 1}/>
         </div>
       </div>

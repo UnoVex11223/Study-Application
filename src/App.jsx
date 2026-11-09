@@ -64,7 +64,7 @@ function Shell() {
 
   if (!state) {
     if (!storage.loadError) return <div className="app-loading"/>;
-    return <div className="window"><TitleBar onSearch={() => {}}/><LoadError message={storage.loadError} onRetry={retryLoad}/></div>;
+    return <div className="window"><TitleBar/><LoadError message={storage.loadError} onRetry={retryLoad}/></div>;
   }
 
   const counts = {
@@ -76,7 +76,7 @@ function Shell() {
   return (
     <NavCtx.Provider value={nav}>
       <div className="window">
-        <TitleBar onSearch={() => setPalette(true)}/>
+        <TitleBar onSettings={() => nav.go("settings")} settingsOn={route.view === "settings"}/>
         <div className="app">
           <Sidebar active={navItemFor(route)} counts={counts}/>
           <main className="main">{pageFor(route, { plan })}</main>

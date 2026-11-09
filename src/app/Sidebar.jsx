@@ -9,7 +9,8 @@ import Icon from "../ui/Icon.jsx";
 import { Bar } from "../ui/display.jsx";
 import { cx } from "../ui/cx.js";
 
-// Studying first, then looking back, then the shelf and Settings, all in one compact list.
+// Studying first, then looking back, then the shelf, all in one compact list
+// (Settings is the gear at the right of the title bar).
 const NAV_GROUPS = [
   [
     { id: "today", label: "Today", icon: "today", count: "today", hint: "Questions left today" },
@@ -23,7 +24,6 @@ const NAV_GROUPS = [
   ],
   [
     { id: "shelf", label: "Shelf", icon: "shelf", count: "shelf", hint: "Books to recall" },
-    { id: "settings", label: "Settings", icon: "settings" },
   ],
 ];
 

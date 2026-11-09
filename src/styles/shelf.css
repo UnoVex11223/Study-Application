@@ -1,8 +1,12 @@
 /* The shelf (views/shelf/): tabs, books standing on planks in CSS 3D, the
    spine view, a year on the shelf, the book panel, the recall and the form. */
 
-/* ── Tabs, with how many each holds, and a line that slides to the chosen one ── */
-.shelf-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--rule); }
+/* ── The title, centred and larger, then the tabs centred under it ──────── */
+.shelf-head { display: grid; justify-items: center; gap: var(--space-4); }
+.shelf-title { font-size: 40px; letter-spacing: -0.03em; }
+
+/* ── Tabs, and a line that slides to the chosen one ─────────────────────── */
+.shelf-bar { display: flex; align-items: flex-end; justify-content: center; gap: var(--space-4); border-bottom: 1px solid var(--rule); }
 .shelf-tabs { position: relative; display: flex; gap: var(--space-6); min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .shelf-tabs::-webkit-scrollbar { display: none; }
 .shelf-tabs button {
@@ -24,13 +28,12 @@
 .shelf-hidden .shelf { justify-self: stretch; }
 
 /* ── The shelf: a grid of books, each on its own length of plank ────────────
-   A card's parts (book, plank, title, byline, progress) are five rows of the
-   shelf's grid (subgrid), so in every row the titles start together and the
-   progress bars line up, however long a title runs. The book sizes here match
+   A card's parts (book, plank, progress) are three rows of the shelf's grid
+   (subgrid), so the progress bars in a row line up. The book sizes here match
    BOOK_MIN and BOOK_GAP in Shelf.jsx. */
 .shelf { --book-min: 132px; --book-gap: 36px; padding-top: var(--space-2); }
 .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--book-min), 1fr)); column-gap: var(--book-gap); }
-.book-card { position: relative; display: grid; grid-row: span 5; grid-template-rows: subgrid; row-gap: 0; min-width: 0; }
+.book-card { position: relative; display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; min-width: 0; }
 .book-card.add { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .book-card.add:focus-visible { box-shadow: none; }
 .book-card.menu-open { z-index: 10; }
@@ -46,14 +49,7 @@
 }
 .ledge::after { content: ""; position: absolute; left: 0; right: 0; top: 13px; height: 13px; background: linear-gradient(var(--ledge-drop), transparent); }
 
-/* Under the book: title, byline, progress. */
-.book-title {
-  align-self: start; margin-top: var(--space-2); padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: var(--ink);
-  font: 500 var(--text-lg) / 1.3 var(--serif); text-wrap: pretty;
-}
-.book-sub { display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; gap: 2px var(--space-2); min-width: 0; margin-top: 2px; font-size: var(--text-sm); line-height: 1.35; color: var(--ink-3); }
-.book-linked { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; }
-.book-due { flex-shrink: 0; font-weight: 600; color: var(--warn); }
+/* Under the book: how far along it is. */
 .book-progress { display: grid; gap: var(--space-1); align-content: start; padding: var(--space-2) 0 var(--space-10); }
 .book-prog { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); height: 24px; font-size: var(--text-xs); color: var(--ink-3); }
 .book-end { position: relative; display: inline-flex; align-items: center; justify-content: flex-end; flex-shrink: 0; min-width: 32px; height: 24px; }
@@ -70,15 +66,15 @@
 .book-bar > span { display: block; height: 100%; background: var(--link); transform-origin: left center; transform: scaleX(var(--p, 0)); transition: transform .9s var(--ease-out); }
 .book-bar.good > span { background: var(--good); }
 
-/* The empty place at the end of the shelf, to add the next one. */
+/* The empty place at the start of the shelf, to add the next one. */
 .book-ghost { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 3px; border: 1px dashed var(--rule-strong); color: var(--ink-3); transition: border-color .2s, color .2s, background .2s; }
+/* Nothing stands there yet, so it casts no shadow on the plank. */
+.book-card.add .book-hold::before, .book-card.add .book-hold::after { display: none; }
 .book-card.add:hover .book-ghost, .book-card.add:focus-visible .book-ghost { border-color: var(--link); color: var(--ink); background: var(--surface); }
-.book-add-label { margin-top: var(--space-2); font-size: var(--text-sm); font-weight: 600; color: var(--ink-3); transition: color .2s; }
-.book-card.add:hover .book-add-label { color: var(--ink); }
 
 /* Books are set down on the shelf one after another when it opens. */
 .book-card .book-slot { transform-origin: 50% 100%; animation: book-place .7s cubic-bezier(.22, .9, .3, 1) backwards; animation-delay: calc(min(var(--i, 0), 14) * 45ms); }
-.book-card :is(.book-title, .book-sub, .book-progress) { animation: book-info-in .5s ease backwards; animation-delay: calc(min(var(--i, 0), 14) * 45ms + 140ms); }
+.book-card .book-progress { animation: book-info-in .5s ease backwards; animation-delay: calc(min(var(--i, 0), 14) * 45ms + 140ms); }
 .book-card .book-bar > span { animation: book-bar-in 1s var(--ease-out) backwards; animation-delay: calc(min(var(--i, 0), 14) * 45ms + 280ms); }
 .book-card.filler .book-slot { animation: none; }
 @keyframes book-place { 0% { opacity: 0; transform: translateY(-24px); } 60% { opacity: 1; transform: translateY(2px); } 100% { opacity: 1; transform: none; } }

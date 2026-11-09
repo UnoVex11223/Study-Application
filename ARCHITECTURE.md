@@ -27,7 +27,7 @@ src/
   App.jsx             providers + the shell: which page shows, the study session, the palette
   app/                the frame around every page
     routes.jsx          which page shows for each route, and which sidebar item is lit
-    TitleBar.jsx        the Tenax mark and the search box
+    TitleBar.jsx        the Tenax mark and the Settings gear
     Sidebar.jsx         the pages, their counts, background work
     Palette.jsx         Ctrl+K search and commands
     StorageNotice.jsx   says when saving fails or the library was restored, and the can't-open screen
