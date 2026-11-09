@@ -22,3 +22,15 @@
 /* Questions to fix (FixPanel), one after another in the drawer. */
 .fix-item { display: grid; gap: var(--space-3); }
 .fix-item + .fix-item { padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+
+/* The mastery test, when one is due: one calm row. */
+.today-test {
+  display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-8);
+  padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.today-test-title { font: 500 var(--title-sm) / var(--leading-tight) var(--serif); color: var(--ink); }
+.today-test-text { margin-top: 2px; font-size: var(--text-sm); color: var(--ink-3); }
+.today-next-test { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--ink-3); }
+.today-level { margin-top: var(--space-10); }

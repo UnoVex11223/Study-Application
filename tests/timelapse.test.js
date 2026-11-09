@@ -20,7 +20,8 @@ function world() {
   return {
     ...s, courses: [c], sections: [sec], concepts: ks,
     items: ks.map(k => makeItem({ id: `i${k.id}`, conceptId: k.id, ability: "recall" })),
-    attempts: [att("a", 2, true), att("a", 5, true), att("b", 3, true), att("b", 6, false)],
+    // a is proven in a mastery test on day 8.
+    attempts: [att("a", 2, true), att("a", 5, true), { ...att("a", 8, true), id: "a8t", mode: "test" }, att("b", 3, true), att("b", 6, false)],
   };
 }
 

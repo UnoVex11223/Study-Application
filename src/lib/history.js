@@ -3,7 +3,7 @@
 
 import { addDays } from "./time.js";
 import { index } from "./model.js";
-import { isEvidence, conceptMastery } from "./mastery.js";
+import { conceptMastery } from "./mastery.js";
 
 /** The last n day keys, oldest first, ending with today. */
 export const lastDays = (today, n) => Array.from({ length: n }, (_, i) => addDays(today, i - n + 1));
@@ -31,8 +31,7 @@ export function runningTotal(eventDays, days) {
 
 /**
  * When each concept was started (the day of its first answer) and, for the
- * ones mastered now, the day they got there (the second day with an unaided
- * correct answer, which is when the rule can first be met).
+ * ones mastered now, the day they got there (the mastery test they passed).
  */
 export function milestones(state, concepts, now = Date.now()) {
   const ix = index(state);
@@ -41,9 +40,10 @@ export function milestones(state, concepts, now = Date.now()) {
     const atts = ix.attemptsByConcept[c.id] || [];
     if (!atts.length) continue;
     started.push(atts.reduce((m, a) => (a.day < m ? a.day : m), atts[0].day));
-    if (conceptMastery(state, c.id, now).status !== "mastered") continue;
-    const days = [...new Set(atts.filter(isEvidence).map(a => a.day))].sort();
-    if (days.length >= 2) mastered.push(days[1]);
+    const m = conceptMastery(state, c.id, now);
+    if (m.status !== "mastered") continue;
+    const passed = atts.find(a => a.ts === m.passedAt);
+    if (passed) mastered.push(passed.day);
   }
   return { started, mastered };
 }

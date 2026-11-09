@@ -3,18 +3,24 @@
 //   mastery   — which concepts meet explicit evidence requirements
 //   memory    — how likely you are to recall them right now (FSRS estimate)
 //
-// A concept counts as MASTERED when all of these hold:
+// A concept is READY for the mastery test (lib/masteryTest.js) when all of
+// these hold:
 //   • answered correctly without hints on at least 2 different days
 //   • the two most recent study days with this concept both ended in a
 //     correct, unaided answer (so the most recent attempt was correct)
 //   • if it has an application-type task (apply / distinguish / connect),
 //     at least one of those was answered correctly without help
+//   • the first of those answers is at least a week old (it has held)
+// It is MASTERED once its question in a mastery test is answered right, and
+// stays mastered until it's missed again (it still comes back for reviews,
+// further and further apart; a miss means proving it in a later test).
 // Aided answers (hint used or answer revealed) never count.
 
 import { index, IMPORTANCE, ABILITY_KEYS } from "./model.js";
 import { retrievability } from "./fsrs.js";
 
-const EVIDENCE_MODES = new Set(["review", "session", "practice", "teachback"]);
+const EVIDENCE_MODES = new Set(["review", "session", "practice", "teachback", "test"]);
+export const HOLD_DAYS = 7; // how long a concept's first unaided right answer must have held before the test
 export const TRANSFER = new Set(["apply", "distinguish", "connect"]);
 
 export const isEvidence = (a) => a.verdict === "correct" && !a.aided && EVIDENCE_MODES.has(a.mode);
@@ -32,7 +38,7 @@ export const STATUS = {
  * evidence behind it. Shared by conceptMastery and the map's time-lapse (which
  * replays the answers up to each day).
  */
-export function statusFrom(attempts, { started = attempts.length > 0, hasTransferItem = false } = {}) {
+export function statusFrom(attempts, { started = attempts.length > 0, hasTransferItem = false, now = Date.now() } = {}) {
   const graded = attempts.filter(a => a.verdict !== "ungraded");
   const evidence = graded.filter(isEvidence);
   const days = new Set(evidence.map(a => a.day));
@@ -45,14 +51,20 @@ export function statusFrom(attempts, { started = attempts.length > 0, hasTransfe
   const recentDays = Object.keys(dayEnd).sort().slice(-2);
   const recentOk = recentDays.length === 2 && recentDays.every(d => dayEnd[d].verdict === "correct" && !dayEnd[d].aided);
   const transferOk = evidence.some(a => TRANSFER.has(a.ability));
+  const firstOk = evidence.reduce((m, a) => Math.min(m, a.ts), Infinity);
+  // The latest test it passed, and whether anything since went wrong.
+  const passedAt = evidence.filter(a => a.mode === "test").reduce((m, a) => Math.max(m, a.ts), 0) || null;
+  const missedSince = Boolean(passedAt && graded.some(a => a.ts > passedAt && a.verdict !== "correct"));
+  const mastered = Boolean(started && passedAt && !missedSince);
+  const ready = !mastered && days.size >= 2 && lastOk && recentOk && (!hasTransferItem || transferOk) && now - firstOk >= HOLD_DAYS * 864e5;
 
   let status;
   if (!started) status = "new";
+  else if (mastered) status = "mastered";
   else if (last && last.verdict !== "correct" && days.size >= 1) status = "slipping";
-  else if (days.size >= 2 && lastOk && recentOk && (!hasTransferItem || transferOk)) status = "mastered";
   else if (days.size >= 1) status = "practiced";
   else status = "learning";
-  return { status, days, last, lastOk, recentOk, transferOk };
+  return { status, days, last, lastOk, recentOk, transferOk, ready, passedAt: mastered ? passedAt : null, heldSince: Number.isFinite(firstOk) ? firstOk : null };
 }
 
 /** Detailed evidence for one concept. */
@@ -67,11 +79,11 @@ export function conceptMastery(state, conceptId, now = Date.now()) {
   const lapses = srs?.lapses || 0;
   const scheduled = Boolean(srs && srs.state !== "new");
   const started = scheduled || attempts.length > 0;
-  const { status, days, last, lastOk, recentOk, transferOk } = statusFrom(attempts, { started, hasTransferItem });
+  const { status, days, last, lastOk, recentOk, transferOk, ready, passedAt, heldSince } = statusFrom(attempts, { started, hasTransferItem, now });
 
   const due = scheduled && srs.due != null && srs.due <= now;
   return {
-    status, memory, lapses, due, started,
+    status, memory, lapses, due, started, ready, passedAt, heldSince,
     correctDays: days.size, needsTransfer: hasTransferItem && !transferOk, recentOk,
     lastVerdict: last ? (lastOk ? "correct" : last.verdict === "correct" ? "aided" : last.verdict) : null,
     lastTs: last?.ts ?? null,
@@ -81,7 +93,8 @@ export function conceptMastery(state, conceptId, now = Date.now()) {
 /** Human explanation of a concept's status, listing what's still missing. */
 export function explainMastery(m) {
   if (m.status === "new") return "Not introduced yet. It will appear in a daily session when its prerequisites are in place.";
-  if (m.status === "mastered") return `Mastered: answered correctly without help on ${m.correctDays} different days${m.needsTransfer ? "" : ", including applying it"}.`;
+  if (m.status === "mastered") return "Mastered: proven in a mastery test, and not missed since.";
+  if (m.ready) return "Ready for the next mastery test.";
   const missing = [];
   if (m.correctDays < 2) missing.push(`${2 - m.correctDays} more day${2 - m.correctDays === 1 ? "" : "s"} with a correct unaided answer`);
   if (m.needsTransfer) missing.push("a correct answer on an application question");

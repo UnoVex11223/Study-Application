@@ -9,12 +9,15 @@ import { cx } from "../../ui/cx.js";
 import { VERDICT } from "../../lib/grade.js";
 import { RATING_LABEL } from "../../lib/fsrs.js";
 
-export default function Feedback({ grade, verdict, override, onOverride, item, pretest, suggested, onRate, onNext }) {
+export default function Feedback({ grade, verdict, override, onOverride, item, pretest, suggested, onRate, onNext, xp = 0 }) {
   const missed = verdict !== "correct";
   return (
     <div className="feedback enter">
       <div className="feedback-body">
-        <span className={`verdict ${VERDICT[verdict].tone}`}>{VERDICT[verdict].label}</span>
+        <div className="verdict-row">
+          <span className={`verdict ${VERDICT[verdict].tone}`}>{VERDICT[verdict].label}</span>
+          {xp > 0 && <span className="xp-gain num" key={xp}>+{xp} XP</span>}
+        </div>
         {grade.note && <Notice tone="warn" icon="alert">{grade.note}</Notice>}
         {missed && grade.feedback && !override && <p className="muted">{grade.feedback}</p>}
         {grade.source === "tests" && grade.run.output && !grade.run.passed && <pre className="run-output">{grade.run.output}</pre>}

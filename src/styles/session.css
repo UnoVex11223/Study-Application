@@ -123,7 +123,41 @@
 .q-card .q-prompt > .md > p { padding-right: var(--space-8); } /* room for the flag; code spans the full width */
 /* The serif has no italic, so emphasis is set in its bold rather than a fake slant. */
 .q-prompt em, .q-prompt strong { font-style: normal; font-weight: 700; }
-.q-prompt .md :not(pre) > code { font-size: .74em; padding: .1em .38em; vertical-align: .08em; }
+.q-prompt .md :not(pre) > code { font-size: .74em; padding: .1em .38em; vertical-align: .08em; white-space: nowrap; }
 .q-prompt .md pre { margin: var(--space-4) 0 0; padding: var(--space-4) var(--space-5); font-size: var(--text-md); line-height: 1.55; }
 .q-flag { position: absolute; top: 0; right: 0; opacity: 0; transition: opacity var(--dur-quick) var(--ease-out); }
 .q-card:hover .q-flag, .q-flag:focus-visible, .q-flag.on { opacity: 1; }
+
+/* ── Progress across the top ────────────────────────────────────────────────
+   As wide as the column below it, and solid enough to see at a glance. */
+.session-top { grid-template-columns: minmax(0, 1fr) minmax(0, var(--measure)) minmax(0, 1fr); }
+.session-top .session-progress .bar { height: 8px; background: var(--surface-2); }
+.session-top .session-progress .bar > span {
+  min-width: 8px; background: var(--accent);
+  transition: width var(--dur-slow) var(--ease-spring, var(--ease-out));
+}
+
+/* ── XP ─────────────────────────────────────────────────────────────────── */
+.verdict-row { display: flex; align-items: baseline; gap: var(--space-3); }
+.xp-gain { font-size: var(--text-sm); font-weight: 700; color: var(--accent); animation: xp-rise 600ms var(--ease-out) both; }
+@keyframes xp-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Your level: a name, a thin bar to the next one, and your XP (ui/Level.jsx). */
+.level-line { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: var(--space-3); font-size: var(--text-sm); color: var(--ink-3); }
+.level-name { font-weight: 700; color: var(--ink-2); }
+.level-track { height: 4px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
+.level-track > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 900ms var(--ease-out); }
+.level-line.up .level-name { color: var(--accent); }
+
+/* ── The mastery test ───────────────────────────────────────────────────── */
+.test-intro, .test-results { gap: var(--space-5); }
+.test-title { margin: 0; font: 500 var(--title-lg) / var(--leading-tight) var(--serif); color: var(--ink); }
+.test-lead { font-size: var(--text-lg); line-height: var(--leading-body); color: var(--ink-2); }
+.test-score { display: flex; align-items: baseline; gap: var(--space-3); }
+.test-score-n { font: 500 72px / 1 var(--serif); color: var(--ink); }
+.test-score-of { font: 500 var(--title-md) / 1 var(--serif); color: var(--ink-3); }
+.test-list { margin: var(--space-3) 0 0; padding-left: var(--space-5); color: var(--ink-2); line-height: 1.8; }
+.test-missed { display: grid; gap: var(--space-2); }
+.test-miss { padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface); }
+.test-miss > summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+.test-miss[open] > summary { margin-bottom: var(--space-3); }

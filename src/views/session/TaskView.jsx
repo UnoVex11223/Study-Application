@@ -24,6 +24,7 @@ import { gradeWithAI, rubricFor } from "../../lib/ai.js";
 import { isSlow } from "../../lib/training.js";
 import { hasTests, runCode } from "../../lib/code.js";
 import { play } from "../../ui/sound.js";
+import { xpFor } from "../../lib/xp.js";
 import QuestionCard from "./QuestionCard.jsx";
 import SelfCheck from "./SelfCheck.jsx";
 import Feedback from "./Feedback.jsx";
@@ -68,8 +69,8 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
   const stamp = () => { const t = Date.now() - started.current; setTook(v => v || t); };
   const finishWith = (g) => {
     setGrade(g); setPhase("feedback");
-    if (g.verdict === "correct") play("correct");
-    else if (g.misconceptionsFound?.length) setReason("misconception");
+    play(g.verdict === "correct" ? "correct" : "miss");
+    if (g.verdict !== "correct" && g.misconceptionsFound?.length) setReason("misconception");
   };
   const selfCheck = (why = "") => { setError(why); setPhase("selfcheck"); };
 
@@ -193,6 +194,7 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
 
       {phase === "feedback" && grade && (
         <Feedback grade={grade} verdict={verdict} override={override} onOverride={setOverride}
+          xp={pretest ? 0 : xpFor({ verdict, aided })}
           item={item} pretest={pretest} suggested={suggested} onRate={rate} onNext={next}/>
       )}
     </div>
