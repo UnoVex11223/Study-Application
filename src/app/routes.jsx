@@ -16,6 +16,7 @@ import Notes from "../views/notes/Notes.jsx";
 import Shelf from "../views/shelf/Shelf.jsx";
 import KnowledgeMap from "../views/map/KnowledgeMap.jsx";
 import Progress from "../views/progress/Progress.jsx";
+import Ranks from "../views/ranks/Ranks.jsx";
 import Settings from "../views/settings/Settings.jsx";
 
 export function pageFor(route, { plan }) {
@@ -33,6 +34,7 @@ export function pageFor(route, { plan }) {
     case "teach": return <TeachBack courseId={route.courseId} sectionId={route.sectionId}/>;
     case "map": return <KnowledgeMap focusCourseId={route.courseId} focusConceptId={route.conceptId}/>;
     case "progress": return <Progress/>;
+    case "ranks": return <Ranks/>;
     case "settings": return <Settings/>;
     default: return <Today key={route.fix ?? "today"} plan={plan}/>;
   }

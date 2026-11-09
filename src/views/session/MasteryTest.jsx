@@ -20,7 +20,7 @@ import { xpFor, totalXp } from "../../lib/xp.js";
 import { plural } from "../../lib/format.js";
 import { play } from "../../ui/sound.js";
 import QuestionCard from "./QuestionCard.jsx";
-import { LevelLine } from "../../ui/Level.jsx";
+import { RankLine } from "../../ui/Rank.jsx";
 
 const ctrlEnter = (e) => (e.ctrlKey || e.metaKey) && e.key === "Enter";
 
@@ -115,7 +115,7 @@ export default function MasteryTest({ tasks }) {
               <h2 className="test-title">Mastery test</h2>
               <p className="test-lead">{plural(tasks.length, "question")}, one for each concept that's ready. No hints, and no answers until the end. A right answer masters the concept.</p>
               {aiReady === false && <Notice tone="warn" icon="alert">Marking the test needs your Anthropic API key (Settings).</Notice>}
-              <div className="row"><button className="btn btn-primary btn-lg" onClick={begin} disabled={aiReady === false} autoFocus>Begin<span className="kbd">↵</span></button></div>
+              <div className="row"><button className="btn btn-primary btn-lg" onClick={begin} disabled={aiReady === false} autoFocus>Begin</button></div>
             </div>
           )}
 
@@ -128,7 +128,7 @@ export default function MasteryTest({ tasks }) {
                   onKeyDown={quick ? (e) => { if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (answer.trim()) next(); } } : undefined}/>
                 <div className="row">
                   <button className="btn btn-primary" onClick={() => next()} disabled={!answer.trim()}>
-                    {idx + 1 < tasks.length ? "Next" : "Finish"}<span className="kbd">{quick ? "↵" : "Ctrl ↵"}</span>
+                    {idx + 1 < tasks.length ? "Next" : "Finish"}
                   </button>
                   <span className="grow"/>
                   <button className="btn btn-quiet" onClick={() => next("")}>Skip</button>
@@ -155,7 +155,7 @@ export default function MasteryTest({ tasks }) {
                 <span className="test-score-of">of {tasks.length}</span>
               </div>
               <p className="test-lead">{right.length ? `${plural(right.length, "concept")} mastered.` : "Nothing mastered this time."}{missed.length > 0 && " The rest go back into your reviews."}</p>
-              <LevelLine xp={xpBefore + gained} gained={gained}/>
+              <RankLine xp={xpBefore + gained} gained={gained}/>
               {right.length > 0 && (
                 <details className="disclosure">
                   <summary>Mastered</summary>

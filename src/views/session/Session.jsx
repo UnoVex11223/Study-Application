@@ -20,7 +20,7 @@ import { typicalPace, wantsFreshVersion } from "../../lib/training.js";
 import { dayKey } from "../../lib/time.js";
 import { RATING } from "../../lib/fsrs.js";
 import { play } from "../../ui/sound.js";
-import { xpFor, totalXp, levelFor } from "../../lib/xp.js";
+import { xpFor, totalXp, rankFor } from "../../lib/xp.js";
 import TaskView from "./TaskView.jsx";
 import LessonCard from "./LessonCard.jsx";
 import { SessionSummary, PretestSummary } from "./SessionSummary.jsx";
@@ -141,11 +141,11 @@ function StudySession({ tasks: initial, mode = "session", title = "Today's sessi
   const exit = () => nav.endSession();
   // A low chime when the last question is done (if sounds are on).
   const answered = results.length > 0;
-  // A session that took you up a level ends on the level sound instead.
-  const levelBefore = useRef(levelFor(totalXp(snapshot.attempts)).level);
+  // A session that took you up a rank ends on the rank-up sound instead.
+  const rankBefore = useRef(rankFor(totalXp(snapshot.attempts)).index);
   useEffect(() => {
     if (!done || !answered) return;
-    play(levelFor(totalXp(state.attempts)).level > levelBefore.current ? "level" : "chime");
+    play(rankFor(totalXp(state.attempts)).index > rankBefore.current ? "level" : "chime");
   }, [done, answered]); // eslint-disable-line react-hooks/exhaustive-deps
   useKey((e) => { if (e.key === "Escape" && !document.querySelector(".modal")) exit(); }, []);
 

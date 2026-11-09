@@ -56,3 +56,17 @@ export function sparkPoints(values, w, h, pad = 2) {
   const step = values.length > 1 ? (w - pad * 2) / (values.length - 1) : 0;
   return values.map((v, i) => [pad + i * step, h - pad - ((v - min) / span) * (h - pad * 2)]);
 }
+
+/** Your current streak (counting today once you have answered something, yesterday until then), your best, and how many days you have studied. */
+export function streaks(counts, today) {
+  const days = Object.keys(counts).filter(k => counts[k] > 0).sort();
+  let best = 0, run = 0, prev = null;
+  for (const d of days) {
+    run = prev && addDays(prev, 1) === d ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = d;
+  }
+  let current = 0;
+  for (let d = counts[today] ? today : addDays(today, -1); counts[d] > 0; d = addDays(d, -1)) current++;
+  return { current, best, days: days.length };
+}

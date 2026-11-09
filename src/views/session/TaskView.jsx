@@ -166,7 +166,7 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
         {phase === "answer" && (
           <div className="row">
             <button className="btn btn-primary" onClick={() => submit()} disabled={!answer.trim()}>
-              {code ? "Run tests" : "Check"}<span className="kbd">{quick ? "↵" : "Ctrl ↵"}</span>
+              {code ? "Run tests" : "Check"}
             </button>
             <span className="grow"/>
             <button className="btn btn-quiet" onClick={giveUp}>I don't know</button>
@@ -183,7 +183,7 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
             <textarea className="answer-box short" autoFocus value={followUp.answer} aria-label="Follow-up answer"
               onChange={e => setFollowUp(f => ({ ...f, answer: e.target.value }))}/>
             <div className="row">
-              <button className="btn btn-primary" disabled={!followUp.answer.trim()} onClick={() => submit(followUp)}>Submit<span className="kbd">Ctrl ↵</span></button>
+              <button className="btn btn-primary" disabled={!followUp.answer.trim()} onClick={() => submit(followUp)}>Submit</button>
               <button className="btn btn-quiet" onClick={() => selfCheck()}>Check it myself instead</button>
             </div>
           </div>

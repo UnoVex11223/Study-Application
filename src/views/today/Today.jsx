@@ -1,8 +1,7 @@
 // Today: the day's questions as a row of marks, one per question (filled as
 // you answer them, coloured by course until then), the courses they come
 // from, and a button to start. Under it, the mastery test when one is due
-// (lib/masteryTest.js) and your level. Nothing else to read: how long you
-// study is up to you.
+// (lib/masteryTest.js). Nothing else to read: how long you study is up to you.
 
 import { useMemo, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -16,8 +15,6 @@ import { buildPlan } from "../../lib/planner.js";
 import { index, courseInk } from "../../lib/model.js";
 import { dayDate, shortDate } from "../../lib/format.js";
 import { testStatus, testTasks, TEST_SIZE } from "../../lib/masteryTest.js";
-import { totalXp } from "../../lib/xp.js";
-import { LevelLine } from "../../ui/Level.jsx";
 import FixPanel from "./FixPanel.jsx";
 
 const EXTRA = 5; // "5 more" after the day's questions are done
@@ -46,7 +43,6 @@ export default function Today({ plan }) {
 
   const start = (tasks = plan.tasks) => nav.startSession({ tasks, mode: "session", daily: true });
   const test = useMemo(() => testStatus(state, now), [state, now]);
-  const xp = useMemo(() => totalXp(state.attempts), [state.attempts]);
   const takeTest = () => nav.startSession({ tasks: testTasks(state, Date.now()), mode: "test", title: "Mastery test" });
   const keepGoing = () => {
     const next = buildPlan(withExtra(state, plan.today), { now });
@@ -116,8 +112,6 @@ export default function Today({ plan }) {
       {!test.available && test.ready >= TEST_SIZE && test.nextAt && (
         <p className="today-next-test">Next mastery test {shortDate(test.nextAt)}</p>
       )}
-
-      {state.attempts.length > 0 && <LevelLine xp={xp} className="today-level"/>}
 
       {fixing && <FixPanel onClose={() => setFixing(false)}/>}
     </Page>

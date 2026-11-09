@@ -1,7 +1,7 @@
 // What a finished session (or pretest) did, in a line, and the button to finish.
 
 import { plural } from "../../lib/format.js";
-import { LevelLine } from "../../ui/Level.jsx";
+import { RankLine } from "../../ui/Rank.jsx";
 
 export function PretestSummary({ summary, onDone }) {
   return (
@@ -22,7 +22,7 @@ export function SessionSummary({ summary, more, onDone, onMore }) {
         {s.count ? `${s.unaided} of ${plural(s.count, "question")} right` : "Nothing was answered this time"}
         {s.steps > 0 ? `, ${plural(s.steps, "step")} climbed.` : "."}
       </p>
-      <LevelLine xp={s.xpTotal} gained={s.xp}/>
+      <RankLine xp={s.xpTotal} gained={s.xp}/>
       <div className="row">
         <button className="btn btn-primary btn-lg" onClick={onDone} autoFocus>Close</button>
         {more > 0 && <button className="btn btn-quiet btn-lg" onClick={onMore}>{more} more</button>}

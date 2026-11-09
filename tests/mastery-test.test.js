@@ -6,7 +6,8 @@ import { newSrs, RATING } from "../src/lib/fsrs.js";
 import { dayKey } from "../src/lib/time.js";
 import { conceptMastery } from "../src/lib/mastery.js";
 import { readyConcepts, testStatus, testTasks, testRating, lastTestAt, TEST_SIZE, TEST_EVERY_DAYS } from "../src/lib/masteryTest.js";
-import { xpFor, totalXp, levelFor, XP } from "../src/lib/xp.js";
+import { xpFor, totalXp, rankFor, rankName, rankStart, weeklyXp, weekOf, XP } from "../src/lib/xp.js";
+import { streaks } from "../src/lib/history.js";
 import { reducer } from "../src/state/reducer.js";
 
 const DAY = 864e5;
@@ -85,7 +86,7 @@ test("a right test answer masters the concept and schedules it as a good review"
   assert.equal(conceptMastery(missed, c.id, NOW).ready, false, "back to reviews before another try");
 });
 
-test("XP: 10 for a right answer, 5 for partly right, 50 for a concept proven in the test; levels get longer", () => {
+test("XP: 10 for a right answer, 5 for partly right, 50 for a concept proven in the test", () => {
   assert.equal(xpFor({ verdict: "correct" }), XP.right);
   assert.equal(xpFor({ verdict: "partial" }), XP.partly);
   assert.equal(xpFor({ verdict: "incorrect" }), 0);
@@ -94,8 +95,34 @@ test("XP: 10 for a right answer, 5 for partly right, 50 for a concept proven in 
   assert.equal(xpFor({ verdict: "partial", mode: "test" }), 0, "the test is right or not");
   assert.equal(xpFor({ verdict: "correct", mode: "pretest" }), 0);
   assert.equal(totalXp([{ verdict: "correct" }, { verdict: "partial" }, { verdict: "correct", mode: "test" }]), 65);
-  assert.deepEqual([0, 49, 50, 199, 200, 800, 4050].map(x => levelFor(x).level), [1, 1, 2, 2, 3, 5, 10]);
-  const l = levelFor(125);
-  assert.equal(l.level, 2);
-  assert.equal(l.progress, (125 - 50) / (200 - 50));
+});
+
+test("ranks run from 10th kyu down to 1st kyu, then up through the dan grades with no top", () => {
+  assert.deepEqual([0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 20, 30].map(rankName),
+    ["10th kyu", "9th kyu", "8th kyu", "7th kyu", "2nd kyu", "1st kyu", "1st dan", "2nd dan", "3rd dan", "4th dan", "11th dan", "21st dan"]);
+  assert.deepEqual([0, 99, 100, 900, 1340, 8100, 10000, 12100].map(x => rankFor(x).name),
+    ["10th kyu", "10th kyu", "9th kyu", "7th kyu", "7th kyu", "1st kyu", "1st dan", "2nd dan"]);
+  const r = rankFor(1340);
+  assert.equal(r.next, "6th kyu");
+  assert.equal(r.toGo, 1600 - 1340);
+  assert.equal(r.progress, (1340 - 900) / (1600 - 900));
+  // Each grade takes a little longer than the one before, forever.
+  for (let i = 1; i < 60; i++) assert.ok(rankStart(i + 1) - rankStart(i) > rankStart(i) - rankStart(i - 1));
+  assert.equal(rankFor(1e9).dan, true);
+});
+
+test("weeks start on Monday; this week is measured against your best week", () => {
+  assert.equal(weekOf("2026-11-08"), "2026-11-02", "a Sunday belongs to the week that began the Monday before");
+  assert.equal(weekOf("2026-11-09"), "2026-11-09");
+  const a = (day, verdict = "correct") => ({ day, verdict, mode: "session" });
+  const attempts = [a("2026-10-27"), a("2026-10-28"), a("2026-10-29"), a("2026-11-09"), a("2026-11-10", "partial")];
+  assert.deepEqual(weeklyXp(attempts, "2026-11-11"), { thisWeek: 15, best: 30, bestBefore: 30 });
+  assert.deepEqual(weeklyXp(attempts, "2026-11-17"), { thisWeek: 0, best: 30, bestBefore: 30 }, "a new week starts from nothing");
+});
+
+test("streaks count days in a row with an answer; today counts once you have answered", () => {
+  const counts = { "2026-11-01": 3, "2026-11-02": 5, "2026-11-03": 1, "2026-11-05": 9, "2026-11-06": 2, "2026-11-07": 4 };
+  assert.deepEqual(streaks(counts, "2026-11-08"), { current: 3, best: 3, days: 6 }, "today not studied yet: the streak still stands");
+  assert.deepEqual(streaks({ ...counts, "2026-11-08": 1 }, "2026-11-08"), { current: 4, best: 4, days: 7 });
+  assert.equal(streaks(counts, "2026-11-09").current, 0, "a missed day ends it");
 });
