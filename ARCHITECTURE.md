@@ -125,12 +125,12 @@ export default function Example() {
 
 ## The design system
 
-All visual decisions live in **`src/styles/tokens.css`**. Components use those names, never raw values, so changing a token changes it everywhere.
+All visual decisions live in **`src/styles/tokens.css`**. Components use those names, never raw values, so changing a token changes it everywhere. **`src/styles/system.css`** is imported last and applies the shared rules on top of each page's styles: type weights, hairline borders on buttons, inputs and panels, the title bar and the session. The palette is neutral; `--accent` is the text colour, and the only hues are `--good`, `--warn`, `--bad` and the course colours `--k0`…`--k7` (used on the knowledge map).
 
 | | Tokens | Use |
 |---|---|---|
 | Colour | `--bg` `--surface` `--surface-2` `--inset` `--ink` `--ink-2` `--ink-3` `--select` `--accent` `--link` `--good` `--warn` `--bad`, course pigments `--k0`…`--k7` | Each is written once as `light-dark(light, dark)`. |
-| Type | `--text-xs` 12, `--text-sm` 13, `--text-md` 14, `--text-lg` 16 (sans); `--title-sm` 20, `--title-md` 24, `--title-lg` 32 (serif) | Sans for the interface, serif for titles, names and questions. |
+| Type | `--text-xs` 12, `--text-sm` 13, `--text-md` 14, `--text-lg` 15; `--title-sm` 17, `--title-md` 21, `--title-lg` 26 | One family (Inter) for everything; `--serif` is an alias of `--sans`. Geist Mono (`--mono`) for code. |
 | Space | `--space-1` 4 … `--space-16` 64 | Everything sits on a 4px grid. |
 | Shape | `--radius-xs` 4 … `--radius-xl` 16 | Small things get small corners, dialogs the largest. |
 | Controls | `--control-sm` 28, `--control-md` 36, `--control-lg` 44 | Buttons, inputs, selects and segmented controls share these, so they line up in a row. |

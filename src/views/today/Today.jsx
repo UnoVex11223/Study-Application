@@ -9,7 +9,6 @@ import { useSync } from "../../state/sync.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import { Page, PageHeader, EmptyState } from "../../ui/layout.jsx";
-import { CourseDot } from "../../ui/display.jsx";
 import { cx } from "../../ui/cx.js";
 import { buildPlan } from "../../lib/planner.js";
 import { index, courseInk } from "../../lib/model.js";
@@ -88,7 +87,6 @@ export default function Today({ plan }) {
           <ul className="today-courses">
             {plan.byCourse.map(b => (
               <li key={b.courseId}>
-                <CourseDot color={ix.course[b.courseId]?.color}/>
                 <span className="grow ell">{ix.course[b.courseId]?.name}</span>
                 <span className="today-n num">{b.count}</span>
               </li>

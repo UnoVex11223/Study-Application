@@ -177,8 +177,8 @@ export function stripColor(px, w, box, from = 0, to = 0.08) {
   return mean(px, idx).map(Math.round);
 }
 
-// Cloth for books without a picture: the deep tones of the Kanagawa palette
-// (the colour scheme the app is drawn in), and one paper-white.
+// Cloth for books without a picture: a few deep, muted bookcloth tones and
+// one paper-white, so a shelf of them still looks like real books.
 export const CLOTH = [
   { bg: "#2A2A37", ink: "#DCD7BA" }, // sumi ink
   { bg: "#43242B", ink: "#E8D9C8" }, // winter red

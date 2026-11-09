@@ -11,7 +11,7 @@
   height: calc(100vh - var(--titlebar-h) - var(--frame-gap) - var(--space-10) - var(--control-md) - var(--space-8) - var(--space-6));
 }
 .map-wrap.space {
-  color-scheme: dark; isolation: isolate; background: #1F1F28; color: var(--ink);
+  color-scheme: dark; isolation: isolate; background: #141416; color: var(--ink);
   --btn-bg: color-mix(in srgb, var(--inset) 72%, transparent);
   --btn-bg-hover: color-mix(in srgb, var(--surface) 95%, transparent);
 }
@@ -34,10 +34,10 @@
 /* The legend's planets: flat discs, like the ones on the map. */
 .orb { --c: var(--k0); display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
 .orb.mastered { --c: var(--k0); }
-.orb.learning { --c: color-mix(in srgb, var(--k0) 55%, #54546D); }
-.orb.new { --c: #54546D; }
-.orb.unread { --c: #363646; width: 7px; height: 7px; margin: 0 1.5px; }
-.legend-line { flex-shrink: 0; width: 18px; height: 1px; background: rgba(210, 215, 228, .7); }
+.orb.learning { --c: color-mix(in srgb, var(--k0) 55%, #52525B); }
+.orb.new { --c: #52525B; }
+.orb.unread { --c: #34343A; width: 7px; height: 7px; margin: 0 1.5px; }
+.legend-line { flex-shrink: 0; width: 18px; height: 1px; background: rgba(228, 228, 231, .6); }
 
 /* A chosen concept's Learning path, at the top left. */
 .map-chips { position: absolute; z-index: 3; left: var(--space-3); top: var(--space-3); display: flex; gap: var(--space-2); animation: enter var(--dur-base) var(--ease-out) both; }

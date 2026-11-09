@@ -15,7 +15,7 @@
 .today-courses li { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; font-size: var(--text-lg); }
 .today-courses li + li { border-top: 1px solid var(--rule); }
 .today-new { flex-shrink: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink-3); }
-.today-n { flex-shrink: 0; min-width: 2ch; text-align: right; font-weight: 700; }
+.today-n { flex-shrink: 0; min-width: 2ch; text-align: right; font-weight: 500; color: var(--ink-3); }
 
 .today-status { color: var(--ink-3); }
 
@@ -32,4 +32,4 @@
 }
 .today-test-title { font: 500 var(--title-sm) / var(--leading-tight) var(--serif); color: var(--ink); }
 .today-test-text { margin-top: 2px; font-size: var(--text-sm); color: var(--ink-3); }
-.today-next-test { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--ink-3); }
+.today-next-test { margin-top: var(--space-8); font-size: var(--text-sm); color: var(--ink-3); }

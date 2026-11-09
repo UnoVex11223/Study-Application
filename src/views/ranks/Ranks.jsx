@@ -22,8 +22,7 @@ export default function Ranks() {
             <circle className="rank-ring-fill" cx="120" cy="120" r={R} strokeDasharray={C} strokeDashoffset={C * (1 - Math.max(0.01, r.progress))}/>
           </svg>
           <div className="rank-ring-label">
-            <span className="rank-ring-name">{r.name.replace(/ [IVXLCDM]+$/, "")}</span>
-            <span className="rank-ring-tier">{r.name.match(/[IVXLCDM]+$/)?.[0]}</span>
+            <span className="rank-ring-name">{r.name}</span>
           </div>
         </div>
         <div className="rank-hero-next num">{r.toGo.toLocaleString()} XP to {r.next}</div>

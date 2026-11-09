@@ -18,7 +18,7 @@ export function useCoverInfo(src) {
 function clothTitleSize(title) {
   const t = String(title || "Untitled");
   const longest = Math.max(...t.split(/\s+/).map(w => w.length), 1);
-  // Shippori Mincho runs about 0.6em a letter, and the cloth leaves 75% of the width for the title.
+  // The title font runs about 0.6em a letter, and the cloth leaves 75% of the width for the title.
   return Math.max(6, Math.min(12.5, 90 / Math.sqrt(t.length), 116 / longest)).toFixed(2);
 }
 
