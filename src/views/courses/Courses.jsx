@@ -16,17 +16,16 @@ export default function Courses() {
 
   const courses = [...state.courses]
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || fromNotes(a) - fromNotes(b) || a.createdAt - b.createdAt);
-  const importBook = <button className="btn" onClick={() => nav.go("book")}><Icon name="book"/>Import a book</button>;
-  // A new course starts from a paste (which can make several); an empty one is a link on that page.
-  const newCourse = <button className="btn btn-primary" onClick={() => nav.go("new")}><Icon name="plus"/>New course</button>;
+  // One way in: your notes or a guide (sorted into courses), or a book's PDF.
+  const importCourse = <button className="btn btn-primary" onClick={() => nav.go("new")}><Icon name="plus"/>Import course</button>;
 
   return (
     <Page>
-      <PageHeader title="Courses" actions={<>{importBook}{newCourse}</>}/>
+      <PageHeader title="Courses" actions={importCourse}/>
 
       {courses.length === 0 ? (
-        <EmptyState title="No courses yet" actions={<>{importBook}{newCourse}</>}>
-          A course is a book, class or subject. Paste a guide or notes and Tenax sorts them into courses, or import a book's PDF.
+        <EmptyState title="No courses yet" actions={importCourse}>
+          Import your notes or a guide (Tenax sorts them into courses), or a book's PDF.
         </EmptyState>
       ) : (
         <div className="list">

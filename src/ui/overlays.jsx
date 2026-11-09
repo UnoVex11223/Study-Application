@@ -64,11 +64,12 @@ export function Modal({ title, footer, size = "md", onClose, children }) {
 }
 
 /** Asks before something that can't be undone: what will happen, then Cancel and the action. */
+// Cancel has the focus, so a stray Enter never confirms something you can't undo.
 export function ConfirmDialog({ title, action, onConfirm, onClose, children }) {
   return (
     <Modal title={title} size="sm" onClose={onClose} footer={<>
-      <button className="btn btn-quiet" onClick={onClose}>Cancel</button>
-      <button className="btn btn-danger" onClick={() => { onConfirm(); onClose(); }} autoFocus>{action}</button>
+      <button className="btn btn-quiet" onClick={onClose} autoFocus>Cancel</button>
+      <button className="btn btn-danger" onClick={() => { onConfirm(); onClose(); }}>{action}</button>
     </>}>
       <p>{children}</p>
     </Modal>

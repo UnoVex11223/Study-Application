@@ -1,5 +1,6 @@
 // Import a whole book from its PDF: pick the chapters, say which you've read,
-// and the rest happens in the background (see lib/bookRunner.js).
+// and the rest happens in the background (see lib/bookRunner.js). Import
+// course hands a dropped PDF straight here (`file`).
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -27,7 +28,7 @@ function makeJob({ courseId, book, title, baseOrder, device, chapters }) {
   };
 }
 
-export default function ImportBook({ courseId: presetCourse }) {
+export default function ImportBook({ courseId: presetCourse, file: handed = null }) {
   const { state, act } = useStore();
   const nav = useNav();
   const ix = index(state);
@@ -46,6 +47,13 @@ export default function ImportBook({ courseId: presetCourse }) {
   const device = useSync()?.device ?? null;
 
   useEffect(() => { aiAvailable().then(setHasKey); }, []);
+  // A PDF dropped on Import course opens as soon as the page does.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!handed || opened.current || !bridge) return;
+    opened.current = true;
+    open(handed); // eslint-disable-line react-hooks/immutability
+  }, [handed]); // eslint-disable-line react-hooks/exhaustive-deps
   // Leaving without importing deletes the saved copy of the PDF.
   useEffect(() => () => { if (!started.current && saved.current) bookBridge()?.remove(saved.current); }, []);
 

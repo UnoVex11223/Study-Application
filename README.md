@@ -34,7 +34,7 @@
 - **Whole books from a PDF.** Tenax reads the table of contents, imports every chapter in the background, and keeps unread chapters locked until you mark them read.
 - **Notes.** Jot down things you learn outside a course. Claude files each new idea under a broad area (Web development, Security…) that becomes a course of its own, leaves out what you already study, and skips what isn't worth remembering. Delete a note and what it made goes with it.
 - **Shelf.** Your reading, textbooks and courses standing on shelves as 3D books, each kind with its own tab, or spine-out like a real bookcase with every title in full. Tenax courses show up on their own; anything else you add by hand, and **Find a cover** fetches its cover from Open Library. A year view stacks up what you finished that year. Books you read for fun also get star ratings and a few notes in your own words (what it's about, what you thought, ideas worth keeping), and every so often Tenax asks what you remember before showing your notes again: a few days later, then further apart each time it sticks.
-- **Knowledge map.** A 3D orrery of your books (three.js): each book is a star, its chapters are orbits, and its concepts are planets (rocky worlds, gas giants, ice giants, ocean worlds) lit by their star, in full colour once you master them and greying out as you start to forget them. Books that share ideas are joined by a line with how many links they share. Point at a concept to light up its connections, or play a time-lapse of your sky from your first day to today.
+- **Knowledge map.** A 3D orrery of your books (three.js): each book is a star, its chapters are orbits, and its concepts are planets (rocky worlds, gas giants, ice giants, ocean worlds) lit by their star, in full colour once you master them and greying out as you start to forget them. Books that share ideas are joined by a line with how many links they share. Point at a concept to light up its connections.
 - **A calm, quick interface.** A frameless window with search in the title bar: Ctrl+K finds any course, chapter, concept, book or note, or runs an action. Pages glide into each other, a book flies off the shelf into its course, and sessions slide up over everything. It's drawn in Kanagawa, the Neovim colour scheme after Hokusai's woodblock print: ink-blue, flat colour, titles in Shippori Mincho and everything else in Atkinson Hyperlegible Next, with a dark theme and a light one. Soft sounds are there if you want them.
 - **Every computer, one library.** Sync through a folder your cloud drive already syncs (OneDrive, Dropbox, Google Drive). No server, no account.
 
@@ -47,7 +47,7 @@
 
 1. Download `Tenax-Setup-<version>.exe` from the [latest release](https://github.com/UnoVex11223/Study-Application/releases/latest) and run it. The app isn't code-signed, so Windows SmartScreen asks the first time: choose **More info → Run anyway**.
 2. Paste an Anthropic API key in **Settings → Anthropic API key** (the **Create a key** button there opens the Anthropic Console). It's encrypted with your Windows account and never leaves your computer except in calls to the API.
-3. **New course**: paste a guide or notes (one paste can make several courses), or import a book's PDF.
+3. **Import course**: paste your notes or a guide (one paste can make several courses), or drop a book's PDF.
 
 Tenax updates itself: new releases download in the background and install the next time you close it.
 

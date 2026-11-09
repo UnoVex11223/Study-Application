@@ -1,8 +1,8 @@
-// A new course from a paste: drop in a guide or a set of notes, Claude sorts
-// it into courses and chapters (one paste can make several courses, or add
-// chapters to ones you have), you look the split over, and the rest happens
+// Import course: paste or drop your notes or a guide, and Claude sorts it
+// into courses and chapters (one paste can make several courses, or add
+// chapters to ones you have); you look the split over, and the rest happens
 // in the background like a book import (lib/paste.js, lib/bookRunner.js).
-// An empty course is still a click away.
+// Drop a book's PDF instead and it goes to the book import (ImportBook.jsx).
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -13,11 +13,9 @@ import Icon from "../../ui/Icon.jsx";
 import { Page, PageHeader } from "../../ui/layout.jsx";
 import { Notice, Spinner } from "../../ui/display.jsx";
 import { cx } from "../../ui/cx.js";
-import { makeCourse } from "../../lib/model.js";
 import { aiAvailable, writerOf } from "../../lib/ai.js";
 import { planPaste, pasteEstimate, pasteJob } from "../../lib/paste.js";
 import { plural } from "../../lib/format.js";
-import CourseForm from "../courses/CourseForm.jsx";
 
 const money = (x) => (x < 0.995 ? `${Math.max(1, Math.round(x * 100))}¢` : `$${Math.round(x)}`);
 
@@ -31,7 +29,6 @@ export default function NewCourse() {
   const [error, setError] = useState("");
   const [hasKey, setHasKey] = useState(null);
   const [drag, setDrag] = useState(false);
-  const [empty, setEmpty] = useState(false);
   const fileRef = useRef(null);
   const bridge = bookBridge();
 
@@ -40,8 +37,8 @@ export default function NewCourse() {
   const readFiles = (list) => {
     setError("");
     for (const f of list) {
-      if (/\.pdf$/i.test(f.name)) { setError(`${f.name} is a PDF: use Import a book on the Courses page for it.`); continue; }
-      if (!/\.(md|markdown|txt|text)$/i.test(f.name)) { setError(`${f.name} isn't a text or markdown file. Paste its text instead.`); continue; }
+      if (/\.pdf$/i.test(f.name)) { nav.go("book", { file: f, at: Date.now() }); return; }
+      if (!/\.(md|markdown|txt|text)$/i.test(f.name)) { setError(`${f.name} isn't a PDF, text or markdown file. Paste its text instead.`); continue; }
       const reader = new FileReader();
       reader.onload = () => setText(t => [t.trim(), String(reader.result).trim()].filter(Boolean).join("\n\n"));
       reader.readAsText(f);
@@ -74,12 +71,6 @@ export default function NewCourse() {
     else nav.go("courses");
   };
 
-  const createEmpty = (fields) => {
-    const course = makeCourse(fields, state.courses.length);
-    act("course/add", { course });
-    nav.go("course", { courseId: course.id, fresh: true });
-  };
-
   const back = { label: "Courses", onClick: () => (plan ? setPlan(null) : nav.go("courses")) };
   const chapters = plan ? plan.courses.flatMap(c => c.parts) : [];
   const est = pasteEstimate(chapters, { writer: writerOf(state), batch: state.settings.batchImports !== false });
@@ -88,7 +79,7 @@ export default function NewCourse() {
 
   return (
     <Page width="narrow">
-      <PageHeader title="New course" back={back}/>
+      <PageHeader title="Import course" back={back}/>
 
       {!bridge && <Notice>Making courses from a paste works in the desktop app.</Notice>}
       {bridge && hasKey === false && <Notice tone="warn" icon="alert">Add an Anthropic API key in Settings first. It's used to sort the paste and write the questions.</Notice>}
@@ -98,21 +89,19 @@ export default function NewCourse() {
         <div className="panel panel-pad form">
           <textarea className="textarea source-text paste-text" value={text} onChange={e => setText(e.target.value)} autoFocus
             aria-label="What you want to learn"
-            placeholder="Paste a guide, notes or a transcript. Tenax sorts it into courses and writes the questions."/>
+            placeholder="Paste your notes, a guide or a transcript. Tenax sorts it into courses and writes the questions."/>
           <div className={cx("dropzone", drag && "over")} role="button" tabIndex={0}
             onClick={() => fileRef.current?.click()}
             onKeyDown={e => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}
             onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
             onDrop={e => { e.preventDefault(); setDrag(false); readFiles(e.dataTransfer.files); }}>
-            <Icon name="upload"/><span>Or drop .md / .txt files</span>
-            <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text" multiple hidden onChange={e => { readFiles(e.target.files); e.target.value = ""; }}/>
+            <Icon name="upload"/><span>Or drop notes (.md, .txt) or the book's PDF</span>
+            <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,.pdf" multiple hidden onChange={e => { readFiles(e.target.files); e.target.value = ""; }}/>
           </div>
           <div className="row">
             <button className="btn btn-primary" disabled={!text.trim() || busy || !bridge || hasKey === false} onClick={sort}>
               {busy ? <Spinner/> : <Icon name="sparkle"/>}{busy ? "Sorting…" : "Sort into courses"}
             </button>
-            <span className="grow"/>
-            <button className="link small" onClick={() => setEmpty(true)}>Start an empty course</button>
           </div>
         </div>
       )}
@@ -155,7 +144,6 @@ export default function NewCourse() {
         </>
       )}
 
-      {empty && <CourseForm onSave={createEmpty} onClose={() => setEmpty(false)}/>}
     </Page>
   );
 }
