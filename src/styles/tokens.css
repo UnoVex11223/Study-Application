@@ -128,7 +128,8 @@
 
   /* ── Layout ────────────────────────────────────────────────────────────── */
   --titlebar-h: 40px;  /* also TITLEBAR_H in electron.cjs */
-  --sidebar-w: 232px;
+  --frame-gap: 12px;   /* between the title bar and the sidebar and page below it */
+  --sidebar-w: 216px;
   --page-max: 1040px;  /* the page column, padding included: every page's title starts at the same place */
   --page-pad-x: var(--space-12);
   --measure: 760px;    /* narrow pages and the study session: a comfortable line length */

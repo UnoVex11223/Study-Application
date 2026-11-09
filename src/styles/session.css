@@ -2,7 +2,7 @@
    question, your answer, and the feedback, in one column down the middle. */
 
 .session {
-  position: fixed; inset: var(--titlebar-h) 0 0 0; z-index: var(--z-session); display: flex; flex-direction: column;
+  position: fixed; inset: calc(var(--titlebar-h) + var(--frame-gap)) 0 0 0; z-index: var(--z-session); display: flex; flex-direction: column;
   background: var(--bg) var(--grain-img); border-top-left-radius: var(--radius-xl); border-top-right-radius: var(--radius-xl);
 }
 /* Three columns with equal sides, so the progress bar is centred over the question. */

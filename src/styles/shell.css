@@ -3,7 +3,7 @@
    frame in the darker tone; the page sits in it as a sheet with a rounded corner. */
 
 .window { display: flex; flex-direction: column; height: 100%; background: var(--chrome); }
-.app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); margin-top: var(--frame-gap); }
 .app-loading { height: 100%; background: var(--chrome); }
 
 /* The library on disk (app/StorageNotice.jsx): a notice in the corner, or a screen if it can't be opened. */
@@ -38,22 +38,23 @@
 .titlebar-search > .grow { text-align: left; }
 .titlebar-search:hover { color: var(--ink-2); background: var(--surface-2); }
 
-/* ── Sidebar ────────────────────────────────────────────────────────────── */
-.sidebar { display: flex; flex-direction: column; padding: var(--space-2) var(--space-3) var(--space-3); overflow-y: auto; }
-.nav-group { display: flex; flex-direction: column; gap: 2px; }
-.nav-group + .nav-group { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--rule); }
+/* ── Sidebar ──────────────────────────────────────────────────────────────
+   Compact rows; the groups are told apart by a little space, not by lines. */
+.sidebar { display: flex; flex-direction: column; padding: 0 var(--space-3) var(--space-3); overflow-y: auto; }
+.nav-group { display: flex; flex-direction: column; gap: 1px; }
+.nav-group + .nav-group { margin-top: var(--space-4); }
 .nav-spacer { flex: 1; }
 .nav-spacer + .nav-group { margin-top: 0; padding-top: 0; border-top: 0; }
 .nav-item {
-  position: relative; isolation: isolate; display: flex; align-items: center; width: 100%; height: var(--control-md);
+  position: relative; isolation: isolate; display: flex; align-items: center; width: 100%; height: 32px;
   padding: 0 var(--space-3); border: 0; border-radius: var(--radius-md); background: transparent;
   color: var(--ink-2); font: 500 var(--text-md) / 1 var(--sans); text-align: left; cursor: pointer;
   transition: background var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out);
 }
 .nav-item:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); color: var(--ink); }
 .nav-item.on { color: var(--select-ink); }
-.nav-inner { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; view-transition-class: nav-label; }
-.nav-inner > svg { flex-shrink: 0; width: var(--icon-lg); height: var(--icon-lg); color: var(--ink-3); transition: color var(--dur-quick) var(--ease-out); }
+.nav-inner { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; view-transition-class: nav-label; }
+.nav-inner > svg { flex-shrink: 0; width: 17px; height: 17px; color: var(--ink-3); transition: color var(--dur-quick) var(--ease-out); }
 .nav-item:hover .nav-inner > svg { color: var(--ink-2); }
 .nav-item.on .nav-inner > svg { color: var(--link); }
 .nav-count { margin-left: auto; min-width: 20px; font-size: var(--text-sm); font-weight: 600; text-align: right; color: var(--ink-3); }
