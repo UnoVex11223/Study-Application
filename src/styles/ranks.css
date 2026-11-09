@@ -9,6 +9,5 @@
 .rank-ring-track { stroke: var(--surface-2); }
 .rank-ring-fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 900ms var(--ease-out); }
 .rank-ring-label { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: var(--space-1); }
-.rank-ring-name { font: 500 26px / 1.1 var(--serif); color: var(--ink); }
-.rank-ring-tier { font: 500 var(--title-md) / 1 var(--serif); color: var(--accent); }
+.rank-ring-name { font: 600 24px / 1.1 var(--sans); color: var(--ink); white-space: nowrap; }
 .rank-hero-next { font-size: var(--text-sm); color: var(--ink-3); }

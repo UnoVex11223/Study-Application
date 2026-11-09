@@ -1,5 +1,5 @@
 // The knowledge map in 3D (three.js), drawn the way the rest of the app is:
-// flat colour, no glow, things told apart by tone (Kanagawa). Every book is a
+// flat colour, no glow, things told apart by tone. Every book is a
 // sun, a flat disc in its course's colour; its chapters are hairline orbits on
 // a slightly tilted plane; its concepts are planets going round, flat discs
 // whose colour says how well you know them (full colour mastered, softer while
@@ -19,7 +19,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { seeded } from "../../lib/orbits.js";
 
-const NIGHT = new THREE.Color("#1F1F28");       // the app's dark page (sumiInk3)
+const NIGHT = new THREE.Color("#141416");       // the app's dark page (--bg)
 const ARC = new THREE.Color(0.86, 0.84, 0.73), FAINT_ARC = new THREE.Color(0.45, 0.45, 0.42);
 const DEPTH = 1.15;            // the 2D layout is squashed for wide screens; give back some depth
 const FOV = 38;
@@ -67,9 +67,9 @@ const PLANET_FS = /* glsl */`
   varying vec3 vColor; varying vec4 vLook; varying float vDim;
   void main() {
     // Colours are linear here (three.js converts hex colours on the way in) and converted back for the screen at the end.
-    vec3 grey = vec3(0.0884, 0.0884, 0.1526);       // a planet you haven't started (#54546D, sumiInk6)
+    vec3 grey = vec3(0.0844, 0.0844, 0.1046);       // a planet you haven't started (#52525B)
     vec3 col = mix(grey, vColor, clamp(vLook.x, 0.0, 1.0)) * vLook.y;
-    gl_FragColor = vec4(mix(vec3(0.0138, 0.0138, 0.0212), col, vDim), 1.0);   // dimmed toward the night (#1F1F28)
+    gl_FragColor = vec4(mix(vec3(0.0070, 0.0070, 0.0080), col, vDim), 1.0);   // dimmed toward the night (#141416)
     #include <colorspace_fragment>
   }`;
 

@@ -1,13 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-// Type: Atkinson Hyperlegible Next for everything you read and operate,
-// Shippori Mincho for titles, names and the big numbers, Geist Mono for code.
-import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
-import "@fontsource-variable/atkinson-hyperlegible-next/wght-italic.css";
-import "@fontsource/shippori-mincho/latin-500.css";
-import "@fontsource/shippori-mincho/latin-ext-500.css";
-import "@fontsource/shippori-mincho/latin-700.css";
-import "@fontsource/shippori-mincho/latin-ext-700.css";
+// Type: one family, Inter, for everything (with its optical sizes, so titles
+// and small labels are each drawn for their size), and Geist Mono for code.
+import "@fontsource-variable/inter/opsz.css";
+import "@fontsource-variable/inter/opsz-italic.css";
 import "@fontsource-variable/geist-mono";
 import App from "./App.jsx";
 import "./styles/index.css";

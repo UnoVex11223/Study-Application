@@ -9,7 +9,7 @@ import Icon from "../ui/Icon.jsx";
 import { Bar } from "../ui/display.jsx";
 import { cx } from "../ui/cx.js";
 
-// Studying first, then looking back, then the shelf; Settings sits at the bottom.
+// Studying first, then looking back, then the shelf and Settings, all in one compact list.
 const NAV_GROUPS = [
   [
     { id: "today", label: "Today", icon: "today", count: "today", hint: "Questions left today" },
@@ -23,9 +23,9 @@ const NAV_GROUPS = [
   ],
   [
     { id: "shelf", label: "Shelf", icon: "shelf", count: "shelf", hint: "Books to recall" },
+    { id: "settings", label: "Settings", icon: "settings" },
   ],
 ];
-const SETTINGS = { id: "settings", label: "Settings", icon: "settings" };
 
 /** active: the lit item's id. counts: { today, notes, shelf } (0 hides the count). */
 export default function Sidebar({ active, counts }) {
@@ -44,8 +44,6 @@ export default function Sidebar({ active, counts }) {
     <nav className="sidebar" aria-label="Main">
       {NAV_GROUPS.map((group, i) => <div key={i} className="nav-group">{group.map(item)}</div>)}
       <BackgroundWork/>
-      <div className="nav-spacer"/>
-      <div className="nav-group">{item(SETTINGS)}</div>
     </nav>
   );
 }

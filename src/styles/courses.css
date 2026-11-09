@@ -3,17 +3,13 @@
 
 /* ── The list of courses ────────────────────────────────────────────────── */
 .course-row {
-  display: grid; grid-template-columns: 4px minmax(0, 1fr) 140px; align-items: center; gap: var(--space-6);
-  padding: var(--space-5) var(--space-6) var(--space-5) 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-6);
+  padding: var(--space-4) var(--space-5);
 }
 .course-row.paused { opacity: .6; }
-.course-swatch { width: 4px; height: 36px; border-radius: 0 var(--radius-xs) var(--radius-xs) 0; background: var(--c); }
 .course-main { display: grid; gap: var(--space-1); min-width: 0; }
-.course-name { font: 500 var(--title-sm) / var(--leading-tight) var(--serif); }
-.course-metric { display: grid; gap: var(--space-2); }
-.course-metric-label { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--text-xs); color: var(--ink-3); }
-.course-metric-label .num { color: var(--ink); font-weight: 700; }
-
+.course-name { font: 500 var(--text-lg) / var(--leading-tight) var(--sans); }
+.course-pct { font-size: var(--text-sm); color: var(--ink-3); }
 
 /* Colours to pick from in the course form. */
 .swatches { display: flex; flex-wrap: wrap; gap: var(--space-2); }

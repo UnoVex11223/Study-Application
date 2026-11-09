@@ -77,9 +77,9 @@ export function planetBody(color, kind) {
   const key = `${color}|${kind}`;
   if (bodyCache.has(key)) return bodyCache.get(key);
   const S = PLANET_SPRITE, C = S / 2, R = PLANET_R;
-  const grey = [84, 84, 109]; // a planet you haven't started (sumiInk6)
+  const grey = [82, 82, 91]; // a planet you haven't started (#52525B)
   const base = hexRgb(color);
-  const body = kind === "bright" ? base : kind === "dust" ? [54, 54, 70] : kind === "dark" ? grey : mix(base, grey, 0.45);
+  const body = kind === "bright" ? base : kind === "dust" ? [52, 52, 58] : kind === "dark" ? grey : mix(base, grey, 0.45);
   const c = canvas(S);
   const g = c.getContext("2d");
   g.fillStyle = rgba(body);

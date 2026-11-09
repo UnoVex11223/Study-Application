@@ -1203,9 +1203,9 @@ ipcMain.handle("book:delete", (_e, bookId) => {
 // (titleBarOverlay), so snapping and the rest still behave natively. On a
 // Mac the traffic lights sit inside the bar at the left. The buttons' colours
 // follow the app's theme (window:chrome).
-const TITLEBAR_H = 40;
+const TITLEBAR_H = 48;
 const IS_MAC = process.platform === "darwin";
-const THEMES = { dark: { color: "#1A1A22", symbolColor: "#BCB8A2" }, light: { color: "#E5DDB0", symbolColor: "#545464" } }; // Kanagawa Wave and Lotus, as the title bar (--chrome)
+const THEMES = { dark: { color: "#0C0C0E", symbolColor: "#A1A1AA" }, light: { color: "#F5F5F6", symbolColor: "#52525B" } }; // the title bar (--chrome)
 
 // Match the app's theme so the window doesn't flash the wrong color on launch.
 function themeColors() {
