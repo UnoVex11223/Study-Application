@@ -1,6 +1,6 @@
-// Today: the day's questions as a row of marks, one per question (filled as
-// you answer them, coloured by course until then), the courses they come
-// from, and a button to start. Under it, the mastery test when one is due
+// Today: the date, the day's questions as a row of marks, one per question
+// (filled as you answer them), the courses they come from, and under them the
+// button that begins the session. Under it, the mastery test when one is due
 // (lib/masteryTest.js). Nothing else to read: how long you study is up to you.
 
 import { useMemo, useState } from "react";
@@ -52,7 +52,7 @@ export default function Today({ plan }) {
   if (!state.courses.length) {
     return (
       <Page width="narrow" className="today">
-        <PageHeader title={dayDate(now)}/>
+        <PageHeader center title={dayDate(now)}/>
         <EmptyState title="Add what you're studying" actions={<>
           <button className="btn btn-primary" onClick={() => nav.go("new", { at: Date.now() })}><Icon name="plus"/>Import course</button>
           {sync?.status && !sync.status.enabled && <button className="btn" onClick={() => nav.go("settings")}>Sync from another computer</button>}
@@ -69,13 +69,13 @@ export default function Today({ plan }) {
     ...plan.byCourse.flatMap(b => Array.from({ length: b.count }, () => courseInk(ix.course[b.courseId]?.color))),
   ];
   let action = null;
-  if (left > 0) action = <button className="btn btn-primary" onClick={() => start()}><Icon name="play"/>{plan.done > 0 ? "Continue" : "Start"}</button>;
-  else if (finished && more > 0) action = <button className="btn" onClick={keepGoing}><Icon name="plus"/>{Math.min(EXTRA, more)} more</button>;
-  else if (!state.items.length) action = <button className="btn btn-primary" onClick={() => nav.go("courses")}><Icon name="plus"/>Add material</button>;
+  if (left > 0) action = <button className="btn btn-primary btn-lg" onClick={() => start()}>{plan.done > 0 ? "Continue session" : "Begin session"}</button>;
+  else if (finished && more > 0) action = <button className="btn btn-lg" onClick={keepGoing}>{Math.min(EXTRA, more)} more</button>;
+  else if (!state.items.length) action = <button className="btn btn-primary btn-lg" onClick={() => nav.go("courses")}>Add material</button>;
 
   return (
     <Page width="narrow" className="today">
-      <PageHeader title={dayDate(now)} actions={action}/>
+      <PageHeader center title={dayDate(now)}/>
 
       <section className="today-plan">
         {marks.length > 0 && (
@@ -95,6 +95,7 @@ export default function Today({ plan }) {
         ) : (
           <p className="today-status">{finished ? "Done for today." : state.items.length ? "Nothing to study right now." : "No questions yet."}</p>
         )}
+        {action && <div className="today-action">{action}</div>}
       </section>
 
       {test.available && (

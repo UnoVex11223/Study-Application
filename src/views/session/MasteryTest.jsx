@@ -121,13 +121,13 @@ export default function MasteryTest({ tasks }) {
           {phase === "answer" && item && (
             <div className="task enter" key={idx}>
               <QuestionCard item={item} flag={false}/>
-              <div className="stack gap-3">
+              <div className="composer">
                 <textarea ref={boxRef} className={cx("answer-box", quick && "short")} value={answer} autoFocus
                   onChange={e => setAnswer(e.target.value)} aria-label="Your answer" spellCheck={!quick}
                   onKeyDown={quick ? (e) => { if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (answer.trim()) next(); } } : undefined}/>
                 <div className="answer-actions">
-                  <button className="btn btn-quiet btn-lg" onClick={() => next("")}>Skip</button>
-                  <button className="btn btn-primary btn-lg" onClick={() => next()} disabled={!answer.trim()}>
+                  <button className="btn btn-quiet" onClick={() => next("")}>Skip</button>
+                  <button className="btn btn-primary" onClick={() => next()} disabled={!answer.trim()}>
                     {idx + 1 < tasks.length ? "Next" : "Finish"}
                   </button>
                 </div>

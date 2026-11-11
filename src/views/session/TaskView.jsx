@@ -154,7 +154,7 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
     <div className="task enter">
       <QuestionCard item={item} fresh={fresh} canUseOriginal={phase === "answer"} onUseOriginal={() => setFresh(null)} onReport={onReport}/>
 
-      <div className="stack gap-3">
+      <div className={cx("composer", phase !== "answer" && "locked")}>
         <textarea
           ref={answerRef} className={cx("answer-box", code && "code", quick && "short")} value={answer} onChange={e => setAnswer(e.target.value)}
           disabled={phase !== "answer"} aria-label="Your answer" spellCheck={!code && !quick}
@@ -164,13 +164,13 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
         />
         {phase === "answer" && (
           <div className="answer-actions">
-            <button className="btn btn-quiet btn-lg" onClick={giveUp}>I don't know</button>
-            <button className="btn btn-primary btn-lg" onClick={() => submit()} disabled={!answer.trim()}>
+            <button className="btn btn-quiet" onClick={giveUp}>I don't know</button>
+            <button className="btn btn-primary" onClick={() => submit()} disabled={!answer.trim()}>
               {code ? "Run tests" : "Check"}
             </button>
           </div>
         )}
-        {(phase === "grading" || phase === "running") && <div className="busy small"><Spinner/>Checking…</div>}
+        {(phase === "grading" || phase === "running") && <div className="answer-actions"><div className="busy small"><Spinner/>Checking…</div></div>}
       </div>
 
       {phase === "followup" && (

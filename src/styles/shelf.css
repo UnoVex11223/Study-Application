@@ -3,7 +3,7 @@
 
 /* ── The title, centred and larger, then the tabs centred under it ──────── */
 .shelf-head { display: grid; justify-items: center; gap: var(--space-4); }
-.shelf-title { font-size: 40px; letter-spacing: -0.03em; }
+.shelf-title { font-size: 36px; letter-spacing: -0.03em; }
 
 /* ── Tabs, and a line that slides to the chosen one ─────────────────────── */
 .shelf-bar { display: flex; align-items: flex-end; justify-content: center; gap: var(--space-4); border-bottom: 1px solid var(--rule); }

@@ -1,4 +1,4 @@
-// Settings: groups of controls, each group's name beside them.
+// Settings: a list of group names; click one to open its controls (one open at a time).
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -12,6 +12,7 @@ import { aiBridge, callAi, WRITERS } from "../../lib/ai.js";
 import { questionsPerDay, MIX } from "../../lib/planner.js";
 import { plural, pluralWord, shortDate, clockTime, dateTime } from "../../lib/format.js";
 import { play } from "../../ui/sound.js";
+import { cx } from "../../ui/cx.js";
 
 const MIX_OPTIONS = Object.entries(MIX).map(([v, m]) => [v, m.label]);
 const RETENTION_OPTIONS = [[0.85, "85%, lighter"], [0.9, "90%, recommended"], [0.95, "95%, thorough"]];
@@ -44,12 +45,16 @@ function AiUsage() {
 }
 const ROLLOVER_HOURS = [0, 1, 2, 3, 4, 5, 6];
 
-/** One group of settings: its name on the left, its controls on the right, a hairline between groups. */
-function Group({ title, children }) {
+/** One group of settings: its name as a row you click to open, its controls under it while open. */
+function Group({ title, open, onToggle, children }) {
   return (
-    <section className="settings-group">
-      <h2 className="settings-title">{title}</h2>
-      <div className="form">{children}</div>
+    <section className={cx("settings-group", open === title && "open")}>
+      <h2 className="settings-title">
+        <button className="settings-head" aria-expanded={open === title} onClick={() => onToggle(open === title ? null : title)}>
+          {title}<Icon name="chevron"/>
+        </button>
+      </h2>
+      {open === title && <div className="form settings-body enter">{children}</div>}
     </section>
   );
 }
@@ -202,10 +207,12 @@ export default function Settings() {
   }, []);
   const installUpdate = async () => { flush(); await window.tenax?.update?.install(); };
   const mix = s.mix || "even";
+  const [open, setOpen] = useState(null); // the open group's title
+  const group = { open, onToggle: setOpen };
 
   return (
     <Page width="narrow" className="settings-page">
-      <PageHeader title="Settings"/>
+      <PageHeader center title="Settings"/>
 
       {update?.state === "ready" && (
         <Notice icon="download">
@@ -217,7 +224,7 @@ export default function Settings() {
       )}
 
       <div className="settings">
-        <Group title="Study">
+        <Group title="Study" {...group}>
           <Field label="Questions per day" htmlFor="st-per-day" value={questionsPerDay(s)}>
             <input id="st-per-day" type="range" min={5} max={60} step={5} value={questionsPerDay(s)} onChange={e => set({ dailyQuestions: Number(e.target.value) })}/>
           </Field>
@@ -240,9 +247,9 @@ export default function Settings() {
           </Field>
         </Group>
 
-        <Group title="Anthropic API key"><ApiKey/></Group>
+        <Group title="Anthropic API key" {...group}><ApiKey/></Group>
 
-        <Group title="AI and cost">
+        <Group title="AI and cost" {...group}>
           <Field label="Question writing">
             <Segmented label="Question writing" options={WRITER_OPTIONS} value={WRITERS[s.questionWriting] ? s.questionWriting : "thorough"} onChange={(v) => set({ questionWriting: v })}/>
           </Field>
@@ -252,9 +259,9 @@ export default function Settings() {
           <Field label="What it has cost"><AiUsage/></Field>
         </Group>
 
-        <Group title="Sync across computers"><Sync/></Group>
+        <Group title="Sync across computers" {...group}><Sync/></Group>
 
-        <Group title="Look and sound">
+        <Group title="Look and sound" {...group}>
           <Field label="Theme">
             <Segmented label="Theme" options={THEME_OPTIONS} value={s.theme} onChange={(v) => set({ theme: v })}/>
           </Field>
@@ -264,7 +271,7 @@ export default function Settings() {
           </Field>
         </Group>
 
-        <Group title="Your data"><YourData/></Group>
+        <Group title="Your data" {...group}><YourData/></Group>
       </div>
 
       {version && <p className="settings-version muted small">Tenax {version}{update?.state === "downloading" ? `, downloading ${update.version}` : ""}</p>}

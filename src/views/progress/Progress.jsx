@@ -1,6 +1,5 @@
-// Progress: three figures about showing up (your streak, your best streak,
-// how many days you have studied), then the last six months of study days,
-// one square per day, warmer for more answers, filling the page. How each
+// Progress: how many days in a row you have studied, then the last six
+// months of study days, one square per day, darker for more answers. How each
 // course is going is on its own page; XP and ranks are on Ranks.
 
 import { useMemo } from "react";
@@ -54,15 +53,6 @@ function Activity({ counts, today }) {
   );
 }
 
-function Figure({ value, label }) {
-  return (
-    <div className="progress-figure">
-      <span className="progress-figure-n num">{value}</span>
-      <span className="progress-figure-label">{label}</span>
-    </div>
-  );
-}
-
 export default function Progress() {
   const { state } = useStore();
   const nav = useNav();
@@ -74,12 +64,11 @@ export default function Progress() {
   }, [state.attempts]);
   const st = streaks(counts, today);
   return (
-    <Page>
-      <PageHeader title="Progress"/>
-      <div className="progress-figures">
-        <Figure value={st.current} label="day streak"/>
-        <Figure value={st.best} label="best streak"/>
-        <Figure value={st.days} label={st.days === 1 ? "day studied" : "days studied"}/>
+    <Page width="narrow">
+      <PageHeader center title="Progress"/>
+      <div className="progress-streak">
+        <span className="progress-streak-n num">{st.current}</span>
+        <span className="progress-streak-label">{st.current === 1 ? "day in a row" : "days in a row"}</span>
       </div>
       <Activity counts={counts} today={today}/>
     </Page>

@@ -18,7 +18,7 @@ body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.005em; }
 /* ── Controls ───────────────────────────────────────────────────────────── */
 .btn { font-weight: 500; box-shadow: inset 0 0 0 1px var(--rule-strong); }
 .btn-primary { font-weight: 600; box-shadow: none; }
-.btn-primary:disabled { box-shadow: inset 0 0 0 1px var(--rule-strong); background: transparent; }
+.btn-primary:disabled { box-shadow: none; background: var(--surface-2); color: var(--ink-3); opacity: 1; }
 .btn-quiet, .btn-danger, .btn.btn-icon.btn-quiet { box-shadow: none; }
 .btn-quiet:hover { background: var(--select); }
 .input, .select, .textarea { background: var(--inset); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); }
@@ -28,14 +28,12 @@ body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.005em; }
 
 /* ── Frame: title bar, sidebar, page ────────────────────────────────────── */
 .titlebar-brand { font: 600 15px / 1 var(--sans); letter-spacing: -0.01em; }
-.main { box-shadow: inset 0 0 0 1px var(--rule); }
 .nav-item { color: var(--ink-2); font-weight: 500; }
 .nav-item.on { color: var(--ink); }
 .nav-item.on .nav-inner > svg { color: var(--ink); }
 .nav-count { font-weight: 500; }
 
 /* ── The study session ──────────────────────────────────────────────────── */
-.session { box-shadow: inset 0 0 0 1px var(--rule); }
 .q-card .q-prompt { font-size: var(--title-md); font-weight: 500; line-height: 1.5; letter-spacing: -0.012em; }
 .q-prompt .md :not(pre) > code, .session .md :not(pre) > code {
   font-size: .86em; padding: .12em .36em; border-radius: var(--radius-xs); vertical-align: 0;
@@ -49,13 +47,6 @@ body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.005em; }
 .answer-box:focus { border-color: var(--ink-3); box-shadow: 0 0 0 3px var(--select); }
 .answer-box:disabled { background: transparent; border-color: var(--rule); }
 
-/* Feedback: a full-width bar with a hairline on top; the hue is only in the icon. */
-.feedback-sheet { border-radius: 0; background: var(--bg); box-shadow: 0 -1px 0 var(--rule-strong), 0 -24px 48px -24px rgb(0 0 0 / .5); }
-.feedback-verdict { color: var(--ink); font-weight: 600; }
-.feedback-verdict .xp-gain { color: var(--ink-3); font-weight: 500; }
-.feedback-icon { width: 32px; height: 32px; background: var(--tone); color: var(--bg); }
-.feedback-icon svg { width: 16px; height: 16px; stroke-width: 3; }
-.feedback-text { padding-top: 4px; }
 
 /* Lessons: ruled lists and a quiet panel, no tints. */
 .lesson-kicker { color: var(--ink-3); }
@@ -77,3 +68,84 @@ body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.005em; }
 /* A course's status: a neutral dot. */
 .course-status-dot { background: var(--ink); }
 .course-status.maintain .course-status-dot { background: var(--ink-2); }
+
+/* ── One surface (2.24) ─────────────────────────────────────────────────────
+   The title bar, sidebar and page share one background; a single hairline
+   beside the sidebar tells the two sides apart. */
+.window, .app-loading { background: var(--bg); }
+.main, .session, .load-error { border-radius: 0; background: var(--bg); }
+.sidebar { padding: var(--space-3) var(--space-3) var(--space-4); border-right: 1px solid var(--rule-strong); }
+/* Larger rows with room between them. */
+.nav-group { gap: var(--space-1); }
+.nav-group + .nav-group { margin-top: var(--space-6); }
+.nav-item { height: 40px; padding: 0 var(--space-3); font-size: var(--text-lg); }
+.nav-inner { gap: var(--space-3); }
+.nav-inner > svg { width: 18px; height: 18px; }
+
+/* ── Centred pages ──────────────────────────────────────────────────────────
+   A top-level page's title sits in the middle in large type, its action
+   centred under it; narrow pages sit in the middle of the window. */
+.page.narrow { justify-content: center; }
+.page-header.center { justify-items: center; gap: var(--space-5); text-align: center; }
+.page-header.center .page-header-row { flex-direction: column; justify-content: center; gap: var(--space-5); }
+.page-header.center .page-title { font-size: 36px; letter-spacing: -0.03em; }
+
+/* Today: the button that begins the session, centred under the courses. */
+.today-plan { gap: var(--space-6); }
+.today-action { display: flex; justify-content: center; padding-top: var(--space-4); }
+.today-action .btn { min-width: 200px; justify-content: center; }
+.today-status { text-align: center; }
+
+/* Progress: one figure, then the grid. */
+.progress-streak { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-4) 0 var(--space-6); }
+.progress-streak-n { font: 600 72px / 1 var(--sans); letter-spacing: -0.04em; color: var(--ink); }
+.progress-streak-label { font-size: var(--text-md); color: var(--ink-3); }
+
+/* Settings: a list of headers; one opens at a time. */
+.settings-group, .settings-group:first-child { display: block; padding: 0; border-top: 1px solid var(--rule); }
+.settings-group:last-child { border-bottom: 1px solid var(--rule); }
+.settings-title { margin: 0; font: inherit; }
+.settings-head {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; height: 60px; padding: 0; border: 0; background: none;
+  color: var(--ink); font: 500 var(--title-sm) / 1 var(--sans); letter-spacing: -0.01em; text-align: left; cursor: pointer;
+}
+.settings-head > svg { width: var(--icon-sm); height: var(--icon-sm); color: var(--ink-3); transition: transform var(--dur-quick) var(--ease-out); }
+.settings-head:hover > svg { color: var(--ink); }
+.settings-group.open .settings-head > svg { transform: rotate(90deg); }
+.settings-body { padding: var(--space-2) 0 var(--space-8); }
+
+/* ── The study session ──────────────────────────────────────────────────────
+   The answer and its buttons are one box: you type in the top, the actions
+   sit in a row along its bottom (the quiet one left, the main one right).
+   After checking, the result takes the same shape under it. */
+.task > .q-card { margin-bottom: var(--space-4); }
+.q-card .q-prompt { font-size: 22px; font-weight: 500; line-height: 1.5; letter-spacing: -0.014em; }
+.composer {
+  display: grid; border: 1px solid var(--rule-strong); border-radius: var(--radius-lg); background: var(--surface);
+  transition: border-color var(--dur-quick) var(--ease-out);
+}
+.composer:focus-within { border-color: var(--ink-3); }
+.composer .answer-box, .composer .answer-box:focus, .composer .answer-box:disabled {
+  min-height: 132px; padding: var(--space-4) var(--space-5); border: 0; border-radius: var(--radius-lg); background: transparent; box-shadow: none; resize: none;
+}
+.composer .answer-box.short { min-height: 72px; }
+.composer.locked .answer-box { min-height: 0; field-sizing: content; color: var(--ink-2); }
+.composer .answer-actions { display: flex; align-items: center; justify-content: space-between; min-height: 60px; padding: var(--space-3); border-top: 1px solid var(--rule); }
+.composer .answer-actions .btn-quiet { margin-left: 0; color: var(--ink-2); }
+.composer .answer-actions .btn-primary { min-width: 112px; justify-content: center; }
+.composer .busy { padding-left: var(--space-2); color: var(--ink-3); }
+
+.result { display: grid; gap: var(--space-4); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5); border: 1px solid var(--rule-strong); border-radius: var(--radius-lg); }
+.result.good { --tone: var(--good); }
+.result.warn { --tone: var(--warn); }
+.result.bad { --tone: var(--bad); }
+.result-head { display: flex; align-items: center; gap: var(--space-3); min-height: 36px; }
+.result-icon { display: grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--tone); color: var(--bg); }
+.result-icon svg { width: 12px; height: 12px; stroke-width: 3.5; }
+.result-verdict { font-size: var(--text-lg); font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.result-xp { font-size: var(--text-sm); color: var(--ink-3); }
+.result-continue { margin-left: auto; min-width: 112px; justify-content: center; }
+.result-answer { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-2) 0 0; border-top: 1px solid var(--rule); font-size: var(--text-lg); line-height: 1.6; color: var(--ink); }
+.result-label { font-size: var(--text-xs); font-weight: 500; color: var(--ink-3); }
+.result-overrule { justify-self: start; padding-bottom: var(--space-2); font-size: var(--text-sm); color: var(--ink-3); }
+.result > .notice, .result > .run-output { margin-right: var(--space-2); }
