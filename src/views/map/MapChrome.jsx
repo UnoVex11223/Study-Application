@@ -5,7 +5,7 @@
 import { PageHeader } from "../../ui/layout.jsx";
 
 export function MapHeader() {
-  return <PageHeader title="Knowledge map"/>;
+  return <PageHeader center title="Knowledge map"/>;
 }
 
 /** What the planets' colours mean. */

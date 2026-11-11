@@ -21,7 +21,7 @@ export default function Courses() {
 
   return (
     <Page>
-      <PageHeader title="Courses" actions={importCourse}/>
+      <PageHeader center title="Courses" actions={importCourse}/>
 
       {courses.length === 0 ? (
         <EmptyState title="No courses yet" actions={importCourse}>

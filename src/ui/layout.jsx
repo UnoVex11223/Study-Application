@@ -15,10 +15,13 @@ export function Page({ width = "wide", className, children }) {
   return <div className={cx("page", width !== "wide" && width, className)}>{children}</div>;
 }
 
-/** The page's title, with an optional way back above it and actions beside it. Children go under the title row. */
-export function PageHeader({ title, back, actions, children }) {
+/**
+ * The page's title, with an optional way back above it and actions beside it. Children go under the title row.
+ * center: a top-level page's header, the title centred in large type with its actions centred under it.
+ */
+export function PageHeader({ title, back, actions, center = false, children }) {
   return (
-    <header className="page-header">
+    <header className={cx("page-header", center && "center")}>
       {back && <button className="crumb" onClick={back.onClick}><Icon name="back"/>{back.label}</button>}
       <div className="page-header-row">
         <h1 className="page-title">{title}</h1>

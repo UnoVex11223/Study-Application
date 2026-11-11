@@ -14,7 +14,7 @@
 :root {
   /* ── Colour: surfaces ──────────────────────────────────────────────────── */
   --bg:           light-dark(#FFFFFF, #141416);  /* the page */
-  --chrome:       light-dark(#F5F5F6, #0C0C0E);  /* title bar and sidebar, a step darker */
+  --chrome:       var(--bg);                     /* title bar and sidebar: the same as the page */
   --surface:      light-dark(#F4F4F5, #1A1A1D);  /* panels, cards, menus */
   --surface-2:    light-dark(#EBEBED, #222226);  /* hover, one step up */
   --surface-3:    light-dark(#DCDCE0, #2E2E33);  /* tracks and empty marks */
@@ -128,8 +128,8 @@
 
   /* ── Layout ────────────────────────────────────────────────────────────── */
   --titlebar-h: 48px;  /* also TITLEBAR_H in electron.cjs */
-  --frame-gap: 16px;   /* between the title bar and the sidebar and page below it */
-  --sidebar-w: 216px;
+  --frame-gap: 0px;    /* between the title bar and the sidebar and page below it */
+  --sidebar-w: 240px;
   --page-max: 1040px;  /* the page column, padding included: every page's title starts at the same place */
   --page-pad-x: var(--space-12);
   --measure: 760px;    /* narrow pages and the study session: a comfortable line length */

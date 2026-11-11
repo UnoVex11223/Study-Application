@@ -209,7 +209,7 @@ export default function Notes() {
 
   return (
     <Page>
-      <PageHeader title="Notes"/>
+      <PageHeader center title="Notes"/>
 
       {!aiBridge() && <Notice>Turning notes into questions runs in the desktop app. You can still collect notes here.</Notice>}
       {aiBridge() && hasKey === false && <Notice tone="warn" icon="alert">Add your Anthropic API key in <button className="link" onClick={() => nav.go("settings")}>Settings</button> to turn notes into questions.</Notice>}
