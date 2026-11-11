@@ -1,6 +1,6 @@
 // After you answer: the result, in line under your answer. One row: a small
 // status icon and word (never colour alone) with the XP on the left, and
-// Continue (Enter) on the right, where Check was. When you missed, the right
+// Next (Enter) on the right, where Check was. When you missed, the right
 // answer follows under a hairline. Tenax grades your answer itself, so it
 // schedules the review from the grade too: no rating buttons. A quiet link
 // overrules a wrong grade.
@@ -22,7 +22,7 @@ export default function Feedback({ grade, verdict, override, onOverride, item, p
         <span className="result-icon" aria-hidden="true"><Icon name={right ? "check" : "x"}/></span>
         <span className="result-verdict">{LABEL[verdict]}</span>
         {xp > 0 && <span className="result-xp num" key={xp}>+{xp} XP</span>}
-        <button className="btn btn-primary result-continue" onClick={onContinue} autoFocus>Continue</button>
+        <button className="btn btn-primary result-continue" onClick={onContinue} autoFocus>Next</button>
       </div>
       {grade.note && <Notice tone="warn" icon="alert">{grade.note}</Notice>}
       {grade.source === "tests" && grade.run.output && !grade.run.passed && <pre className="run-output">{grade.run.output}</pre>}
