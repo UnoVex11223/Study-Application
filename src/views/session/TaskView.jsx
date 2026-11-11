@@ -157,7 +157,7 @@ export default function TaskView({ item: stored, concept, aiReady, pace = null, 
       <div className={cx("composer", phase !== "answer" && "locked")}>
         <textarea
           ref={answerRef} className={cx("answer-box", code && "code", quick && "short")} value={answer} onChange={e => setAnswer(e.target.value)}
-          disabled={phase !== "answer"} aria-label="Your answer" spellCheck={!code && !quick}
+          disabled={phase !== "answer"} aria-label="Your answer" placeholder="Your answer" spellCheck={!code && !quick}
           onKeyDown={code ? (e) => indentOnTab(e, setAnswer) : quick ? (e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); submit(); }
           } : undefined}
