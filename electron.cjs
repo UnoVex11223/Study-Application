@@ -896,6 +896,10 @@ For each note, decide:
 If a note has force="true", keep it and extract the best idea you can.
 
 For a kept note, extract its concepts: usually one; split only when the note holds genuinely separate ideas (at most 3).
+A LIST OR TABLE is the exception: when a note lists parallel items that each carry their own meaning (the classes of status codes, a set of commands or flags, the kinds of something), nothing in it should go unasked, and it should stay cheap to study:
+- one concept for the set as a whole: the rule that organises it and how to tell the items apart. Its summary states the rule, not every item. Importance as you judge it.
+- one small concept per item (at most 8; if there are more, keep the 8 a practitioner most needs), named for the item ("5xx server errors"), with a one-sentence summary of what that item means. Mark each of these detail, so each is asked once or twice rather than given a full ladder.
+Don't do this for a list of steps in one procedure or of examples of one idea: that is still one concept.
 - summary: state the idea precisely and correctly, faithful to the note. If the note is terse, complete it with well-established facts so it stands on its own, and set filled_in to true. If the note is wrong or misleading, write the correct idea and say what was wrong in corrected.
 - importance: core = broadly useful fundamentals; supporting = useful specifics; detail = narrow facts.
 - area: ${BROAD_AREAS} Reuse an existing area whenever the idea fits it, even loosely, unless that area is itself a single tool or technique; start a new one only for a genuinely different field. The note's context is a hint; a project name is rarely a good area.
