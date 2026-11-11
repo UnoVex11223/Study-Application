@@ -177,3 +177,64 @@ body { font-feature-settings: "cv11", "ss01"; letter-spacing: -0.005em; }
 .result-overrule { justify-self: center; }
 .result { padding-right: var(--space-3); }
 .result-answer, .result-overrule { margin-right: var(--space-2); }
+
+/* ── Polish (2.26) ──────────────────────────────────────────────────────────
+   Nothing new on screen: the same parts, each given one consistent card
+   (panel colour, hairline, 16px corners), a line under the title bar, and
+   gentler movement on everything you press. */
+.titlebar { border-bottom: 1px solid var(--rule-strong); }
+.sidebar { padding-top: var(--space-4); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border: 3px solid var(--bg); border-radius: 999px; }
+
+/* Things you press: an even fade, and a slight give when pressed. */
+.btn { transition: background var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), box-shadow var(--dur-quick) var(--ease-out), transform 120ms var(--ease-out); }
+.btn:active:not(:disabled) { transform: scale(.98); }
+.btn-lg { border-radius: 10px; }
+.nav-item { transition: background var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out); }
+.nav-item:hover { background: var(--select); }
+
+/* Centred pages breathe a little more under the title. */
+.page:has(> .page-header.center) { row-gap: var(--space-10); padding-top: var(--space-12); }
+
+/* One card. */
+.today-plan, .activity, .settings, .list, .result, .composer .answer-box, .today-test {
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-xl); background: var(--surface); box-shadow: none;
+}
+
+/* Today: the day's session as one card: marks, courses, the button. */
+.today-plan { gap: var(--space-5); padding: var(--space-6); }
+.today-marks { gap: 5px; }
+.mark { height: 6px; border-radius: 999px; background: var(--surface-3); }
+.today-courses li { min-height: 48px; }
+.today-action { padding-top: var(--space-2); }
+.today-action .btn { width: 100%; }
+.today-status { padding: var(--space-4) 0; }
+.today-test { padding: var(--space-5) var(--space-6); }
+
+/* Courses: roomier rows that respond when you point at them. */
+.list { overflow: hidden; }
+.course-row { padding: var(--space-5) var(--space-6); transition: background var(--dur-quick) var(--ease-out); }
+.course-row:hover { background: var(--select); }
+
+/* Progress: the grid on a card, squares a step lighter than it. */
+.activity { padding: var(--space-6); }
+.heat { background: var(--surface-2); border-radius: 5px; }
+.progress-streak { padding: 0 0 var(--space-2); }
+
+/* Settings: the groups in one card. */
+.settings { padding: 0 var(--space-6); }
+.settings-group:first-child { border-top: 0; }
+.settings-group:last-child { border-bottom: 0; }
+.settings-head { transition: color var(--dur-quick) var(--ease-out); }
+.settings-group:not(.open) .settings-head { color: var(--ink-2); }
+.settings-group:not(.open) .settings-head:hover { color: var(--ink); }
+
+/* The session: a soft ring on the field while you type; the result on the same card. */
+.composer .answer-box:focus { box-shadow: 0 0 0 4px var(--select); }
+.composer.locked .answer-box { background: transparent; }
+.result { padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6); }
+.result-answer { padding-top: var(--space-5); }
+
+/* Ranks: a finer ring. */
+.rank-ring circle { stroke-width: 4; }
