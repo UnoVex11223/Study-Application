@@ -100,7 +100,6 @@ export default function Notes() {
   const skipped = history.filter(n => n.status === "skipped");
 
   const [text, setText] = useState("");
-  const [context, setContext] = useState("");
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(null);
@@ -126,8 +125,8 @@ export default function Notes() {
   const capture = () => {
     const t = text.trim();
     if (!t) return;
-    const pieces = splitNotes(t, { context: context.trim() });
-    addPieces(pieces.length ? pieces : [{ text: t, context: context.trim() }], "Captured");
+    const pieces = splitNotes(t, { context: "" });
+    addPieces(pieces.length ? pieces : [{ text: t, context: "" }], "Captured");
     setText("");
     taRef.current?.focus();
   };
@@ -223,8 +222,6 @@ export default function Notes() {
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}/>
         <div className="capture-foot">
-          <input id="note-context" className="input capture-topic" value={context} onChange={e => setContext(e.target.value)} aria-label="Project or topic"
-            placeholder="Project or topic" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); capture(); } }}/>
           <span className="grow"/>
           <button className="btn btn-quiet" onClick={() => fileRef.current?.click()} title="Upload .md or .txt notes (or drop them here)"><Icon name="upload"/>Upload notes</button>
           <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus"/>Add note</button>

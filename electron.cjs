@@ -385,6 +385,15 @@ const EXTRACT_SCHEMA = obj({
   gaps: strList("Places where extracted text seems to have lost information (figures, garbled equations, cut-off code)"),
 });
 
+// Shared by every prompt that finds concepts or writes, reviews or rewrites questions.
+const SUBJECT = `THE SUBJECT, NOT THE BOOK
+The source (a book, a course, notes) is only where the ideas were found. The learner is learning the subject itself (the language, the field, the skill), and every question must read as if a good teacher of that subject wrote it with no particular book in mind.
+- General: ask what is true of the subject everywhere, not what one book did. "In C, what does getchar return at end of input?" is right; "How does the book's word-counting program decide a word has started?" is not.
+- Never build a question on the source's own sample programs, exercises, running examples, case studies or names the author made up (its function names, variable names, constants such as IN and OUT, file names, characters). If such an example shows a real technique, ask about the technique on a fresh, self-contained example of your own, with every bit of code or data the question needs shown in the prompt.
+- Never mention or lean on the source: no "the book", "the text", "the author", "the chapter", "this section", "the program above", "the earlier example", no section or page numbers, and no title of the source.
+- A standard idiom, library function, keyword, law, theorem or term that practitioners everywhere use by that name is the subject, not the book: ask about it freely.
+- The test: someone who learned this subject well from a different book could answer the question, and would see why it is worth knowing.`;
+
 const EXTRACT_SYSTEM = `You turn study material (a book chapter, a course lesson, lecture notes) into a curriculum of concepts worth committing to long-term memory. The learner wants to be able to define, explain and apply each idea from memory months from now, so you must separate what matters from what doesn't.
 
 SECTIONS
@@ -415,8 +424,8 @@ A concept is an idea someone would explain as one unit, not a single fact. Every
 - prerequisites: only direct, genuine dependencies (B can't be understood without A). Reference a concept by its key in your output, or by the exact name of a concept in <known_concepts>.
 - Each concept is later broken into small question steps (its terms, one rule, a small problem, a twist), so a concept should be an idea with that much in it, not a single fact.
 
-THE SUBJECT, NOT THE BOOK
-Concepts are ideas of the subject that a practitioner uses, not features of the book. When the source walks through its own sample program, extract the technique or rule the program demonstrates, not the program's particular functions, variable names or steps (unless they are a standard idiom everyone uses).
+${SUBJECT}
+The same goes for concepts: a concept is an idea of the subject that a practitioner uses, not a feature of the book. When the source walks through its own sample program, extract the technique or rule the program demonstrates, named as the field names it ("State machine for scanning input", not "The IN/OUT word counter"), and write its summary in general terms. Leave out a concept that only exists inside the book's example.
 
 DUPLICATES
 If the same idea appears in several places, make one concept. If a concept means the same thing as one in <known_concepts>, don't recreate it; reference it as a prerequisite where relevant. Match on meaning, not on shared words.
@@ -585,13 +594,18 @@ SIMPLE AND PRECISE
 - hint: a few words pointing toward the right area without revealing the answer.
 - Keep every field as short as it can be while still doing its job: everything you write is reviewed and stored for years.
 
-THE SUBJECT, NOT THE BOOK
-Test ideas a practitioner uses, on fresh examples. Don't ask about the internals of the source's own sample programs (the particular functions, variable names or steps the author happened to write) unless they are a standard idiom; ask about the technique they show, on a new example.
+${SUBJECT}
+If a concept's name or summary is itself tied to the book's example, write its questions about the general technique behind it.
+
+PRACTICE THAT BUILDS SKILL
+- Most of the learning happens in steps 3 to 5: doing something with the idea on a problem the learner has not seen. Make these real, small problems with one right answer, never "describe how you would".
+- Each step should be answerable by someone who can do the steps below it and has read the lesson, and by no one who is guessing.
+- Step 5 mixes in an earlier idea on purpose, so that practising this concept also exercises what it is built on.
 
 LESSON
 For each concept also write a lesson, shown just before the learner's first question on it (teach, then test):
 - terms: the 1–3 terms the concept introduces, each defined in one plain sentence (empty if it introduces none). These are what step 1 drills.
-- worked_example: one short worked example showing the idea in action, step by step: a snippet with what it does and why, a value worked out, a circuit traced. 2–6 lines plus any code. It must not be the problem asked in steps 3–5.
+- worked_example: one short worked example showing the idea in action, step by step: a snippet with what it does and why, a value worked out, a circuit traced. 2–6 lines plus any code. Make it the same kind of problem as step 3 with different values, so it shows the method the learner is about to use; it must not be the problem asked in steps 3–5, and it must be your own example, not the source's.
 - diagram: when a picture makes the idea clearer.
 
 ${DIAGRAMS}
@@ -668,6 +682,9 @@ Score each question from 1 to 5 on:
 - gradability: a grader could mark a correct paraphrase right and a plausible wrong answer wrong. Steps 1–4 need one specific key point; accept must list every correct exact form (and no wrong one) when the answer is a term, value, output or line of code.
 - accuracy: the model answer is correct and consistent with the source excerpt. Work out code and circuits yourself; don't trust the stated answer.
 
+${SUBJECT}
+A question that breaks this rule is never a keep. If the idea behind it is a real part of the subject, revise it into a general, self-contained question on a fresh example (same step, same kind of answer); if it only makes sense inside the book's example, drop it.
+
 Then check each concept's ladder as a whole: the steps go from simplest to hardest, each adds one thing, step 1 can be answered by someone who just read the concept's summary, and no two steps test the same thing. If two questions test the same thing, keep the better one and drop the other as redundant.
 
 Verdicts:
@@ -719,6 +736,9 @@ const REWRITE_SCHEMA = obj({
 const REWRITE_SYSTEM = `A learner flagged one of their review questions as a problem. Write a better question that tests the same idea, fixing the problem they reported (or the one you see). You may change the question type if another type tests the idea better. If the idea itself isn't worth long-term review, set worth_keeping to false and explain why.
 
 The question is one step of the concept's ladder (1 term, 2 fact, 3 use, 4 twist, 5 combine): keep it on the same step, testing one piece of knowledge. A question that asks two things should become one clear question; the rest goes in the model answer.
+
+${SUBJECT}
+If the flagged question is about the book's own example, that is the problem to fix, whatever else was reported.
 
 ${ONE_TARGET}
 
@@ -876,6 +896,10 @@ For each note, decide:
 If a note has force="true", keep it and extract the best idea you can.
 
 For a kept note, extract its concepts: usually one; split only when the note holds genuinely separate ideas (at most 3).
+A LIST OR TABLE is the exception: when a note lists parallel items that each carry their own meaning (the classes of status codes, a set of commands or flags, the kinds of something), nothing in it should go unasked, and it should stay cheap to study:
+- one concept for the set as a whole: the rule that organises it and how to tell the items apart. Its summary states the rule, not every item. Importance as you judge it.
+- one small concept per item (at most 8; if there are more, keep the 8 a practitioner most needs), named for the item ("5xx server errors"), with a one-sentence summary of what that item means. Mark each of these detail, so each is asked once or twice rather than given a full ladder.
+Don't do this for a list of steps in one procedure or of examples of one idea: that is still one concept.
 - summary: state the idea precisely and correctly, faithful to the note. If the note is terse, complete it with well-established facts so it stands on its own, and set filled_in to true. If the note is wrong or misleading, write the correct idea and say what was wrong in corrected.
 - importance: core = broadly useful fundamentals; supporting = useful specifics; detail = narrow facts.
 - area: ${BROAD_AREAS} Reuse an existing area whenever the idea fits it, even loosely, unless that area is itself a single tool or technique; start a new one only for a genuinely different field. The note's context is a hint; a project name is rarely a good area.
@@ -1031,6 +1055,9 @@ Keep: the concept tested, the question type, the skill it takes, the difficulty,
 Change: the surface — a new scenario, new values, a new code snippet, a different pair of things to tell apart. It must not be answerable by remembering the old answer. If the original has a diagram, draw a new one of the same kind with new values (a new circuit or new inputs, new memory contents): never reuse the old picture.
 The answer must be determinable and correct: work it out carefully before writing the model answer. For code, trace it exactly; for a circuit, evaluate it. Prefer a simpler example you are certain about to a clever one you aren't.
 Write the same number of key points as the original, in its style; accept lists every acceptable exact form when the answer is a term, value, output or line of code (as the original's does); and the misconceptions that fit the new version.
+
+${SUBJECT}
+If the original is about the book's own example, the fresh version is the general question on a new example.
 
 ${ONE_TARGET}
 

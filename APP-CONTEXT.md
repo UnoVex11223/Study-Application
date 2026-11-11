@@ -217,7 +217,7 @@ Cost: by default (Settings → Book imports and rebuilds: **Half price**) questi
 
 **Notes** (in the sidebar, or Ctrl+Shift+N from anywhere) is for what you pick up outside a course: projects, documentation, work.
 
-- **Capture** a note in the box (with an optional project or topic), or **upload** .md/.txt files (the button beside it, or drop them on the box); each bullet or paragraph becomes a note, with its heading as context. Keep one running notes file per project and upload it whenever you've added to it: notes you've added before are recognized and skipped.
+- **Capture** a note in the box (Tenax works out where it belongs from what it says), or **upload** .md/.txt files (the button beside it, or drop them on the box); each bullet or paragraph becomes a note, with its heading as context. Keep one running notes file per project and upload it whenever you've added to it: notes you've added before are recognized and skipped.
 - **Process** the inbox: Claude checks each note against everything you study and decides:
   - *new idea* → a concept filed under an **area** (a broad field, the size of a university course: "Web development", "Security", "Databases"…) and a topic within it, the size of a chapter ("Authentication", "REST APIs"…), linked to related concepts from your courses on the map. A handful of areas is meant to hold everything, so a tool or technique is a topic, never an area of its own;
   - *something you already study* (in any course, or from an earlier note in the same batch) → left out; a note with nothing new is skipped and says what already covers it;

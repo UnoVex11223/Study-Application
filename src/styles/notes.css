@@ -10,8 +10,6 @@
 .capture-text::placeholder { color: var(--ink-3); }
 .capture-text:focus-visible { box-shadow: none; }
 .capture-foot { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); border-top: 1px solid var(--rule); }
-.capture-topic { width: 240px; border-color: transparent; background: transparent; }
-.capture-topic:hover { background: var(--inset); }
 
 /* Processing results: the note as you wrote it, then what it became. */
 .note-source { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-1) 0 var(--space-1) var(--space-3); border-left: 3px solid var(--surface-3); color: var(--ink-2); }
