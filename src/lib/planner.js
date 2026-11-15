@@ -35,6 +35,12 @@
 //  5. Order: courses take turns, new concepts are spaced between reviews, and
 //     two ideas marked "easily confused" are asked back to back, which is when
 //     contrasting them helps most (Brunmair & Richter, 2019).
+//
+// One course for the day. Today lets you choose every course (the mix above)
+// or a single one (settings.focusCourseId). With one chosen, the same day is
+// built from that course alone: its due reviews, its new concepts (the daily
+// cap still holds) and its upcoming reviews to fill the day. Reviews due in
+// your other courses wait, and the plan says how many (`elsewhere`).
 
 import { retrievability } from "./fsrs.js";
 import { index, IMPORTANCE } from "./model.js";
@@ -146,16 +152,22 @@ function dealEvenly(courseIds, counts, room, next) {
 
 /**
  * Build today's session.
- * @returns {{tasks, perDay, goal, done, deferred, slipping, newCount, early, short, throttle, byCourse, mix}}
+ * @returns {{tasks, perDay, goal, done, deferred, slipping, newCount, early, short, throttle, byCourse, mix, focus, elsewhere}}
  *   goal: questions for today (perDay plus any extra); done: answered so far;
  *   deferred: due reviews that didn't fit (slipping: how many of them are
  *   starting to slip; the rest are still well remembered and wait for the mix);
  *   early: reviews pulled forward to fill the day; short: there wasn't enough
- *   material to fill it.
+ *   material to fill it; focus: the one course the day is built from (null:
+ *   every course); elsewhere: reviews due today in the courses left out.
+ * `focus` is a course id, or null for every course; left out, it's the choice
+ * made on Today (settings.focusCourseId). A course that's gone or paused is ignored.
  */
-export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {}) {
+export function buildPlan(state, { now = Date.now(), exclude = new Set(), focus } = {}) {
   const ix = index(state);
   const s = state.settings;
+  const wanted = focus === undefined ? s.focusCourseId : focus;
+  const only = wanted && ix.course[wanted] && ix.course[wanted].status !== "paused" ? wanted : null;
+  const inScope = (c) => isEligible(ix, c) && (!only || c.courseId === only);
   const today = dayKey(now, s.rolloverHour);
   const end = dayEndTs(now, s.rolloverHour);
   const perDay = questionsPerDay(s);
@@ -178,12 +190,14 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
 
   // ── 1. Due reviews (and same-day relearning), one question per concept ─────
   const dueNow = [];
+  let elsewhere = 0;
   for (const c of state.concepts) {
     const srs = c.srs;
     if (!srs || srs.state === "new" || srs.due == null || srs.due > end) continue;
     if (!isEligible(ix, c)) continue;
     const item = pickItem(ix, c, { exclude });
     if (!item) continue;
+    if (only && c.courseId !== only) { elsewhere++; continue; }
     const learning = srs.state === "learning" || srs.state === "relearning";
     dueNow.push({ item, concept: c, learning, r: retrievability(srs, now) ?? 0 });
   }
@@ -232,7 +246,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
   // Frontier: new concepts whose (confident) prerequisites are already started.
   const frontierByCourse = {};
   for (const course of state.courses) {
-    if (course.status !== "active") continue;
+    if (course.status !== "active" || (only && course.id !== only)) continue;
     const list = [];
     for (const sec of ix.sectionsByCourse[course.id] || []) {
       for (const c of ix.conceptsBySection[sec.id] || []) {
@@ -292,7 +306,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
   };
 
   // Courses in a stable order: the ones that have had the fewest new concepts today first.
-  const courseOrder = state.courses.filter(c => c.status !== "paused").map(c => c.id)
+  const courseOrder = state.courses.filter(c => c.status !== "paused" && (!only || c.id === only)).map(c => c.id)
     .sort((a, b) => (introducedTodayByCourse[a] || 0) - (introducedTodayByCourse[b] || 0));
 
   let room = left - reviews.length;
@@ -324,7 +338,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
     const horizon = end + EARLY_DAYS * DAY_MS;
     const upcoming = state.concepts
       .filter(c => c.srs?.state === "review" && c.srs.due > end && c.srs.due <= horizon
-        && isEligible(ix, c) && !inPlan.has(c.id) && !askedToday.has(c.id))
+        && inScope(c) && !inPlan.has(c.id) && !askedToday.has(c.id))
       .sort((a, b) => a.srs.due - b.srs.due);
     const take = (c) => {
       const item = pickItem(ix, c, { exclude });
@@ -346,7 +360,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
       // due is in, the day is filled either way, so this costs nothing.
       const later = state.concepts
         .filter(c => c.srs?.state === "review" && c.srs.due > horizon
-          && isEligible(ix, c) && !inPlan.has(c.id) && !askedToday.has(c.id))
+          && inScope(c) && !inPlan.has(c.id) && !askedToday.has(c.id))
         .map(c => ({ c, r: retrievability(c.srs, now) ?? 1 }))
         .sort((a, b) => a.r - b.r)
         .map(x => x.c);
@@ -384,7 +398,7 @@ export function buildPlan(state, { now = Date.now(), exclude = new Set() } = {})
   if (!throttle && deferred > 0 && newPicks.length === 0) throttle = "backlog";
 
   return {
-    today, tasks, perDay, goal, done, deferred, slipping: urgentDeferred, throttle, mix,
+    today, tasks, perDay, goal, done, deferred, slipping: urgentDeferred, throttle, mix, focus: only, elsewhere,
     newCount: newPicks.length, early: early.length, short: tasks.length < left,
     byCourse: Object.values(byCourse).sort((a, b) => b.count - a.count),
   };

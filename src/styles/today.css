@@ -19,6 +19,32 @@
 
 .today-status { color: var(--ink-3); }
 
+/* What to study today: every course, or one. A row each, the chosen one marked
+   and in the text colour, each with the number of questions it would bring.
+   More than seven and the list scrolls inside the card. */
+/* The scrollbar's room is kept at all times and sits in the card's padding, so the numbers stay on the card's edge. */
+.today-choices { display: grid; max-height: 360px; margin-right: -10px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.today-choices::-webkit-scrollbar-thumb { border-color: var(--surface); }
+.today-choice {
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 48px; padding: 0; border: 0; background: none;
+  color: var(--ink-2); font: inherit; font-size: var(--text-lg); text-align: left; cursor: pointer;
+  transition: color var(--dur-quick) var(--ease-out);
+}
+.today-choice + .today-choice { border-top: 1px solid var(--rule); }
+.today-choice:hover, .today-choice.on { color: var(--ink); }
+.today-choice.on { font-weight: 500; }
+.today-choice.on .today-n { color: var(--ink); }
+.today-choice:focus-visible { box-shadow: none; }
+.today-choice:focus-visible .today-dot { box-shadow: inset 0 0 0 1.5px var(--ink), var(--focus-ring); }
+/* The mark: an empty ring, or a ring with a dot for the one chosen. */
+.today-dot {
+  flex-shrink: 0; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--surface-3);
+  transition: box-shadow var(--dur-quick) var(--ease-out), background var(--dur-quick) var(--ease-out);
+}
+.today-choice:hover .today-dot { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.today-choice.on .today-dot { box-shadow: inset 0 0 0 1.5px var(--ink); background: radial-gradient(circle, var(--ink) 0 4px, transparent 4.5px); }
+.today-note { text-align: center; font-size: var(--text-sm); color: var(--ink-3); }
+
 /* Questions to fix (FixPanel), one after another in the drawer. */
 .fix-item { display: grid; gap: var(--space-3); }
 .fix-item + .fix-item { padding-top: var(--space-6); border-top: 1px solid var(--rule); }
