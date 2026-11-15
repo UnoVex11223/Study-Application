@@ -96,6 +96,7 @@ export const DEFAULT_SETTINGS = {
   dailyQuestions: 20, // the same number of questions every day
   maxNewPerDay: 6,
   mix: "even", // the day is shared out between courses ("due": the most urgent first, wherever they are)
+  focusCourseId: null, // the one course today's session is built from (chosen on Today); null: every course
   rolloverHour: 4,
   retention: 0.9,
   theme: "dark",
