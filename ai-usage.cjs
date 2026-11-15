@@ -23,6 +23,7 @@ const ACTIVITY = {
   extract: "Finding concepts",
   items: "Writing questions",
   critique: "Reviewing questions",
+  solve: "Checking answers",
   rewrite: "Rewriting reported questions",
   grade: "Grading answers",
   variant: "Fresh versions",

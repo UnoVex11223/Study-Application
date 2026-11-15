@@ -2,10 +2,11 @@
 // Electron's main process (see electron.cjs) so the API key never reaches the UI.
 
 import { index, makeSection, makeConcept, makeItem, makeEdge, ABILITIES, IMPORTANCE, clampLevel, levelOf } from "./model.js";
-import { selectForConcept, lintQuestion, similarity, QUESTION_CAP } from "./quality.js";
-import { verifyPoints, normalize } from "./grade.js";
+import { selectForConcept, judge, lintQuestion, similarity, QUESTION_CAP } from "./quality.js";
+import { verifyPoints, normalize, matchesAccepted, plainlyWrong, verdictFromChecks } from "./grade.js";
 import { parseDiagram, describeDiagram } from "./diagram.js";
 import { makeLesson } from "./ladder.js";
+import { sourceIndex, groundQuote } from "./source.js";
 
 export const api = () => (typeof window !== "undefined" && window.tenax?.ai) || null;
 
@@ -69,11 +70,16 @@ export async function extractMaterial({ state, courseId, title, location, text, 
     if (!out.title && d.title) out.title = d.title;
     if (!out.summary && d.summary) out.summary = d.summary;
     const localKeys = new Set(d.sections.flatMap(s => s.concepts.map(c => c.key)));
+    // Each concept's quote is looked up in the text it came from: one that isn't
+    // there is discarded, and one that is brings the passage around it along,
+    // for the question writer and reviewer (lib/source.js).
+    const src = sourceIndex(chunks[ci]);
     for (const s of d.sections) {
       const concepts = s.concepts
         .filter(c => c.name?.trim())
         .map(c => ({
           ...c,
+          ...groundQuote(src, c.excerpt),
           key: `${ci}:${c.key}`,
           prerequisites: (c.prerequisites || []).map(p => (localKeys.has(p) ? `${ci}:${p}` : p)),
           selected: c.importance !== "detail",
@@ -131,7 +137,7 @@ export function toLessons(data) {
  * quality gate (see quality.js).
  * Returns { ok, groups: [{ section, concept, kept, dropped }], written, reviewed, partial }.
  */
-export async function generateTasks({ state, courseId, sections, onProgress, courseName: nameOverride }) {
+export async function generateTasks({ state, courseId, sections, onProgress, courseName: nameOverride, requireReview = false }) {
   const a = api();
   if (!a) return { ok: false, error: "AI features need the desktop app." };
   const courseName = nameOverride ?? index(state).course[courseId]?.name ?? "";
@@ -142,12 +148,12 @@ export async function generateTasks({ state, courseId, sections, onProgress, cou
   // side instead of one after another. Most of the wait is the model writing
   // text, so this cuts a chapter's wait roughly by the number of groups.
   const runBatch = async ({ section, concepts }, bi) => {
-    const r = await writeAndReview({ a, courseName, sectionTitle: section.title, concepts, tag: `q${bi}`, writer: writerOf(state) });
+    const r = await writeAndReview({ a, courseName, sectionTitle: section.title, concepts, tag: `q${bi}`, writer: writerOf(state), requireReview });
     if (!r.ok) return r;
     const groups = concepts.map(c => {
       // Concepts that already have questions (e.g. a note matching one you study) count those.
       const { kept, dropped } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.key), r.reviews, c.importance,
-        { existing: c.existingItems || [], extra: c.extra || 0 });
+        { existing: c.existingItems || [], extra: c.extra || 0, reviewed: r.reviewed });
       return {
         sectionTitle: section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: r.reviewed,
         lesson: r.lessons[c.key] ?? null,
@@ -233,6 +239,7 @@ export function writerConcept(c) {
   const steps = c.existingSteps ?? c.existingItems?.map(levelOf) ?? [];
   return {
     key: c.key, name: c.name, summary: c.summary, kind: c.kind, importance: c.importance, excerpt: c.excerpt,
+    ...(c.passage ? { passage: c.passage } : {}),
     ...(c.current?.length ? { current: c.current } : {}),
     ...(!c.current?.length && existing.length ? { existing, steps, want: c.want ?? 2 } : {}),
   };
@@ -244,17 +251,125 @@ export function writerConcept(c) {
  * (current: rebuilding a concept's questions as a ladder, these are the ones it has now.)
  * Returns { ok, candidates: [{ ...question, conceptKey }], reviews, reviewed, lessons }.
  */
-export async function writeAndReview({ a, courseName, sectionTitle, concepts, tag, writer = "thorough" }) {
+export async function writeAndReview({ a, courseName, sectionTitle, concepts, tag, writer = "thorough", requireReview = false }) {
   const ctx = concepts.map(writerConcept);
   const res = wrap(await a.items({ courseName, sectionTitle, concepts: ctx, writer }));
   if (!res.ok) return { ok: false, error: res.error };
   const candidates = toCandidates(res.data, concepts, tag);
-  const lessons = toLessons(res.data);
+  const r = await reviewCandidates({ a, courseName, sectionTitle, concepts: ctx, candidates, lessons: toLessons(res.data) });
+  // Where nobody looks the questions over before they're added (book imports,
+  // top-ups, rebuilds), unreviewed questions aren't added at all.
+  if (requireReview && !r.reviewed) return { ok: false, error: NO_REVIEW };
+  return { ok: true, candidates, reviews: r.reviews, reviewed: r.reviewed, lessons: r.lessons };
+}
 
-  let reviews = {};
-  const crit = a.critique ? wrap(await a.critique({ courseName, sectionTitle, concepts: ctx, questions: candidates.map(forReview) })) : { ok: false };
-  if (crit.ok) reviews = reviewsById(crit.data);
-  return { ok: true, candidates, reviews, reviewed: crit.ok, lessons };
+export const NO_REVIEW = "The quality review couldn't run, so nothing was added. Try again in a moment.";
+
+/** The lessons the reviewer checks, as it sees them. */
+export const forLessonReview = (lessons) => Object.entries(lessons || {}).map(([key, l]) => ({
+  concept_key: key, terms: l.terms || [], worked_example: l.example || "", diagram: l.diagram ? JSON.stringify(l.diagram) : "",
+}));
+
+/** Lessons with the reviewer's corrections applied (a lesson it emptied is removed). */
+export function applyLessonFixes(lessons, data) {
+  const out = { ...lessons };
+  for (const f of data?.lessons || []) {
+    if (!f?.concept_key || !out[f.concept_key]) continue;
+    const drawn = parseDiagram(f.diagram);
+    const fixed = makeLesson({ terms: f.terms, example: f.worked_example, diagram: drawn.ok ? drawn.diagram : null });
+    if (fixed) out[f.concept_key] = fixed; else delete out[f.concept_key];
+  }
+  return out;
+}
+
+/**
+ * Everything that stands between a written question and your reviews, short
+ * of the rule checks (quality.js):
+ *   1. the critic reviews every candidate and the lessons (tried twice);
+ *   2. candidates it left out are sent back once, so none slips through unseen;
+ *   3. the questions that would be kept, as revised, are solved blind by a
+ *      model that doesn't see the answers, and its answers are checked against
+ *      the answer keys (blindCheck).
+ * `reviews` given: the critic already ran (a batch); only 2 and 3 happen.
+ * Returns { reviews, reviewed, lessons }.
+ */
+export async function reviewCandidates({ a, courseName, sectionTitle, concepts, candidates, lessons = {}, reviews = null }) {
+  const critique = async (questions, taught) => {
+    if (!a.critique) return { ok: false };
+    try { return wrap(await a.critique({ courseName, sectionTitle, concepts, questions: questions.map(forReview), lessons: forLessonReview(taught) })); }
+    catch { return { ok: false }; }
+  };
+  let reviewed = Boolean(reviews) || !candidates.length;
+  let taught = lessons;
+  reviews = { ...(reviews || {}) };
+  if (!reviewed) {
+    let crit = await critique(candidates, lessons);
+    if (!crit.ok) crit = await critique(candidates, lessons);
+    if (crit.ok) { reviews = reviewsById(crit.data); taught = applyLessonFixes(lessons, crit.data); reviewed = true; }
+  }
+  if (reviewed) {
+    const missing = candidates.filter(c => !reviews[c.id]?.verdict);
+    if (missing.length) {
+      const again = await critique(missing, {});
+      const found = again.ok ? reviewsById(again.data) : {};
+      for (const c of missing) if (found[c.id]?.verdict) reviews[c.id] = found[c.id];
+    }
+  }
+  const finals = candidates
+    .filter(c => !reviewed || reviews[c.id]?.verdict)
+    .map(c => ({ id: c.id, j: judge(c, reviews[c.id] ?? null) }))
+    .filter(x => x.j.keep)
+    .map(x => ({ ...x.j.q, id: x.id }))
+    .filter(needsBlindSolve);
+  const failed = await blindCheck({ a, courseName, sectionTitle, questions: finals });
+  for (const [id, reason] of Object.entries(failed)) reviews[id] = { ...(reviews[id] || {}), blind: reason };
+  return { reviews, reviewed, lessons: taught };
+}
+
+/**
+ * Questions worth solving blind: the ones with something to work out (steps 3
+ * to 5) and facts with an exact answer. A term's name or meaning (step 1)
+ * isn't: an expert who hasn't read the lesson may well use another word.
+ */
+export const needsBlindSolve = (q) => {
+  const level = levelOf(q);
+  return level >= 3 || (level >= 2 && (q.accept || []).length > 0);
+};
+
+/**
+ * Solve questions without seeing their answers, then check each answer
+ * against the question's own answer key: an exact match with its accepted
+ * answers, or else the grader that will grade you. A question whose key marks
+ * an expert's answer wrong has a wrong key, a missing accepted form, or more
+ * than one right answer; either way it would mark you wrong for being right.
+ * Returns { [id]: reason } for the questions that didn't hold up. Anything
+ * that can't be checked (no bridge, a failed call) is left alone.
+ */
+export async function blindCheck({ a, courseName = "", sectionTitle = "", questions }) {
+  const out = {};
+  if (!a?.solve || !questions.length) return out;
+  let res;
+  try { res = wrap(await a.solve({ courseName, sectionTitle, questions: questions.map(q => ({ id: q.id, shape: q.shape || "", prompt: withDiagram(q) })) })); }
+  catch { return out; }
+  if (!res.ok) return out;
+  const byId = Object.fromEntries((res.data?.answers || []).map(s => [s.id, s]));
+  await Promise.all(questions.map(async (q) => {
+    const solved = byId[q.id];
+    const mine = String(solved?.answer || "").trim();
+    if (!mine) return;
+    const accept = q.accept || [];
+    if (accept.length && matchesAccepted(mine, accept)) return;
+    let agrees = null;
+    if (a.grade) {
+      const g = await gradeWithAI({ ...q, points: q.points?.length ? q.points : accept.length ? [accept[0]] : [] }, null, mine).catch(() => ({ ok: false }));
+      if (g.ok) agrees = g.uncertain || verdictFromChecks(g.points.map(p => p.met), g.misconceptionsFound.length) === "correct";
+    }
+    if (agrees ?? !plainlyWrong(mine, accept)) return;
+    const note = String(solved.problem || "").trim();
+    const said = mine.replace(/\s+/g, " ");
+    out[q.id] = `Solved without seeing the answer, a second model got "${said.length > 80 ? `${said.slice(0, 80)}…` : said}", which this question's answer key marks wrong${note ? ` (it noted: ${note})` : ""}.`;
+  }));
+  return out;
 }
 
 /** The critic's verdicts by question id, each with its revision attached (revisions come as a separate list). */
@@ -332,13 +447,13 @@ export async function moreQuestions({ state, conceptIds, onItems, onProgress, ex
     }));
     const r = await writeAndReview({
       a, courseName: ix.course[first.courseId]?.name ?? "", sectionTitle: ix.section[first.sectionId]?.title ?? "",
-      concepts, tag: `m${bi}`, writer: writerOf(state),
+      concepts, tag: `m${bi}`, writer: writerOf(state), requireReview: true,
     });
     if (!r.ok) return r;
     const items = [];
     const lessons = {};
     for (const { concept: c, existing } of batch) {
-      const { kept } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.id), r.reviews, c.importance, { existing });
+      const { kept } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.id), r.reviews, c.importance, { existing, reviewed: true });
       for (const q of kept) { items.push(itemFromQuestion(c.id, q, { topUp: true })); touched.add(c.id); }
       if (!c.lesson && r.lessons[c.id]) lessons[c.id] = r.lessons[c.id];
     }
@@ -385,7 +500,15 @@ export function planRebuild(concept, existing, kept) {
       add.push(itemFromQuestion(concept.id, q, { ladder: true }));
     }
   }
-  for (const i of replaceable) if (!reused.has(i.id)) remove.push(i.id);
+  // A rebuild must never leave a concept with less than it had. An old question
+  // goes when the new ladder has a question on its step, or has at least as
+  // many questions as the old set; otherwise it stays until a later rebuild
+  // covers it. (Questions already taken out of sessions always go.)
+  const covered = new Set(kept.map(levelOf));
+  const complete = kept.length >= replaceable.filter(i => !i.flag).length;
+  for (const i of replaceable) {
+    if (!reused.has(i.id) && (i.flag || complete || covered.has(levelOf(i)))) remove.push(i.id);
+  }
   return { add, keep, remove };
 }
 
@@ -421,13 +544,13 @@ export async function rebuildLadders({ state, conceptIds, onLadder, onProgress }
     }));
     const r = await writeAndReview({
       a, courseName: ix.course[first.courseId]?.name ?? "", sectionTitle: ix.section[first.sectionId]?.title ?? "", concepts, tag: `r${bi}`,
-      writer: writerOf(state),
+      writer: writerOf(state), requireReview: true,
     });
     if (!r.ok) return r;
     const ladders = [];
     for (const c of batch) {
       const existing = ix.itemsByConcept[c.id] || [];
-      const { kept } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.id), r.reviews, c.importance);
+      const { kept } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.id), r.reviews, c.importance, { reviewed: true });
       if (!kept.length) continue;
       ladders.push({ conceptId: c.id, ...planRebuild(c, existing, kept), lesson: r.lessons[c.id] ?? c.lesson ?? null, steps: kept.length });
     }
@@ -611,6 +734,10 @@ export async function freshVersion({ item, concept }) {
   if (item.diagram && !q.diagram) return { ok: false, error: "The fresh version lost its diagram." };
   if (!q.points.length || !lintQuestion(q).ok) return { ok: false, error: "The fresh version didn't pass the checks." };
   if (q.prompt.replace(/\s+/g, " ") === item.prompt.replace(/\s+/g, " ")) return { ok: false, error: "Same as the original." };
+  // A new example has a new answer nobody has checked: it is solved blind first,
+  // and a fresh version whose answer doesn't hold up is never shown (the original is asked instead).
+  const failed = await blindCheck({ a: api(), sectionTitle: concept?.name ?? "", questions: [q] });
+  if (failed[q.id]) return { ok: false, error: "The fresh version's answer didn't hold up when checked." };
   return { ok: true, question: { prompt: q.prompt, answer: q.answer, shape: q.shape || item.shape || "", accept: q.accept, points: q.points, misconceptions: q.misconceptions, hint: q.hint, diagram: q.diagram } };
 }
 
@@ -643,5 +770,11 @@ export async function rewriteQuestion({ item, concept, problem, note = "" }) {
   if (!res.ok) return res;
   const q = toQuestion({ level: levelOf(item), ...res.data.question }, item.id);
   const lint = lintQuestion(q);
-  return { ok: true, worthKeeping: res.data.worth_keeping, reason: res.data.reason, question: q, issues: lint.issues };
+  const issues = [...lint.issues];
+  // The rewrite's answer is checked the same way a new question's is.
+  if (res.data.worth_keeping !== false && lint.ok && needsBlindSolve(q)) {
+    const failed = await blindCheck({ a, sectionTitle: concept.name, questions: [q] });
+    if (failed[q.id]) issues.push({ code: "blind", severity: "block", message: failed[q.id] });
+  }
+  return { ok: true, worthKeeping: res.data.worth_keeping, reason: res.data.reason, question: q, issues };
 }

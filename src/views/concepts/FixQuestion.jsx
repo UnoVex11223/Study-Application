@@ -26,7 +26,7 @@ export default function FixQuestion({ item, concept }) {
 
   const accept = () => {
     const q = proposal.question;
-    act("item/replace", { id: item.id, fields: { ability: q.ability, prompt: q.prompt, answer: q.answer, accept: q.accept, points: q.points.length ? q.points : [q.answer], misconceptions: q.misconceptions, hint: q.hint } });
+    act("item/replace", { id: item.id, fields: { ability: q.ability, prompt: q.prompt, answer: q.answer, accept: q.accept, points: q.points.length ? q.points : [q.answer], misconceptions: q.misconceptions, hint: q.hint, shape: q.shape || item.shape || "", diagram: q.diagram ?? null } });
     setProposal(null);
   };
   const remove = () => act("item/delete", { id: item.id });

@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("tenax", {
     extract: (payload) => ipcRenderer.invoke("ai:extract", payload),
     items: (payload) => ipcRenderer.invoke("ai:items", payload),
     critique: (payload) => ipcRenderer.invoke("ai:critique", payload),
+    solve: (payload) => ipcRenderer.invoke("ai:solve", payload),
     rewrite: (payload) => ipcRenderer.invoke("ai:rewrite", payload),
     grade: (payload) => ipcRenderer.invoke("ai:grade", payload),
     link: (payload) => ipcRenderer.invoke("ai:link", payload),

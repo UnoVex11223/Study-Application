@@ -42,10 +42,31 @@ const asDecimal = (s) => {
 };
 
 /**
+ * A slip of the fingers, not a different answer: one letter dropped or doubled,
+ * or two neighbours swapped, in a longer word. Deliberately narrow, because a
+ * match is marked right on the spot: a changed letter is often another term
+ * ("propane"/"propene", "adsorption"/"absorption"), a changed first letter
+ * usually is ("synchronous"/"asynchronous"), and anything with a digit in it
+ * is a value ("4 bytes"/"8 bytes", "0x1F3A"). Those go to the grader instead.
+ */
+export function slipOf(a, b) {
+  if (b.length < 8 || /\d/.test(a) || /\d/.test(b) || a[0] !== b[0]) return false;
+  if (a.length === b.length) {
+    const i = [...a].findIndex((ch, k) => ch !== b[k]);
+    return i >= 0 && i + 1 < a.length && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+  }
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  if (long.length - short.length !== 1) return false;
+  let i = 0;
+  while (i < short.length && short[i] === long[i]) i++;
+  return short.slice(i) === long.slice(i + 1);
+}
+
+/**
  * Does a short answer match one of the accepted answers?
  * Code-like answers must match exactly (ignoring spacing); words match after
- * normalization, with a small typo allowed on longer ones. A fast path: an
- * answer that doesn't match goes to the rubric (AI or self-check).
+ * normalization, with one slip of the fingers allowed on longer ones (slipOf).
+ * A fast path: an answer that doesn't match goes to the rubric (AI or self-check).
  */
 export function matchesAccepted(answer, accepted = []) {
   const a = normalize(answer);
@@ -59,9 +80,7 @@ export function matchesAccepted(answer, accepted = []) {
     const b = normalize(acc);
     if (!b) continue;
     if (a === b) return true;
-    if (asDecimal(acc) != null) continue; // a number has no typos
-    const tolerance = b.length >= 12 ? 2 : b.length >= 6 ? 1 : 0;
-    if (tolerance && levenshtein(a, b) <= tolerance) return true;
+    if (slipOf(a, b)) return true;
   }
   return false;
 }

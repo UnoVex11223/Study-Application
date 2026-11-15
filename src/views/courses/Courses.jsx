@@ -24,9 +24,7 @@ export default function Courses() {
       <PageHeader center title="Courses" actions={importCourse}/>
 
       {courses.length === 0 ? (
-        <EmptyState title="No courses yet" actions={importCourse}>
-          Import your notes or a guide (Tenax sorts them into courses), or a book's PDF.
-        </EmptyState>
+        <EmptyState title="No courses yet"/>
       ) : (
         <div className="list">
           {courses.map(c => <CourseRow key={c.id} course={c} note={c.kind === "notes" ? "From your notes" : null}/>)}
