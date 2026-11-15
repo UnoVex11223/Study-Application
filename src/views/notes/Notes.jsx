@@ -1,31 +1,31 @@
 // Notes: capture things worth remembering from projects, docs and everyday
 // work, then have them turned into questions (see lib/notes.js). Claude files
 // each idea under a broad area, a course of its own, and leaves out what you
-// already study. Areas can be regrouped into broader ones, and a note can be
-// deleted along with everything made from it.
+// already study.
 //
-// The page stays short however many notes there are: the inbox and the
-// history are each one row that opens into a list (ui/layout.jsx Fold), and
-// what processing found is one card of ideas, a row each, that open to show
-// their questions (Review, below).
+// The page is the capture box, and nothing else once your notes are in their
+// courses: notes waiting are one row that opens into a list (ui/layout.jsx
+// Fold), what processing found is one card of ideas (Review, below), and when
+// that's saved the page is the capture box again. The areas notes made are on
+// Courses. (The list of processed notes, deleting one with what it made, and
+// regrouping areas aren't offered for now; lib/notes.js still has them.)
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
-import { Page, PageHeader, Section, Fold } from "../../ui/layout.jsx";
+import { Page, PageHeader, Fold } from "../../ui/layout.jsx";
 import { Notice, Spinner } from "../../ui/display.jsx";
-import { ConfirmDialog } from "../../ui/overlays.jsx";
 import { cx } from "../../ui/cx.js";
 import { index } from "../../lib/model.js";
 import { aiAvailable, aiBridge } from "../../lib/ai.js";
-import { splitNotes, newNotes, processNotes, buildNotesImport, noteAreas, planRegroup, madeFrom, nameKey } from "../../lib/notes.js";
+import { splitNotes, newNotes, processNotes, buildNotesImport, noteAreas, nameKey } from "../../lib/notes.js";
 import { plural, pluralWord } from "../../lib/format.js";
 import QuestionRow from "../concepts/QuestionRow.jsx";
-import CourseRow from "../courses/CourseRow.jsx";
 
 const PER_RUN = 40; // notes processed per run, so a big upload stays reviewable
+const MESSAGE_MS = 8000; // how long "3 notes added" stays before the page is plain again
 // One line of a note as you wrote it (no markdown stripping, which would eat
 // the underscores in names like foreign_keys).
 const preview = (text, max) => {
@@ -124,32 +124,12 @@ function Review({ review, ix, areaNames, chosen, onToggle, onToggleAll, onKeep, 
   );
 }
 
-/** Where a processed note went: its concepts (by area), what it found already covered, or why it was skipped. */
-function NoteOutcome({ note: n, ix, onOpen }) {
-  const exists = (id) => Boolean(ix.concept[id]);
-  const link = (id) => <button key={id} className="link" onClick={() => onOpen(id)}>{ix.concept[id].name}</button>;
-  const made = (n.result?.conceptIds || []).filter(exists);
-  const covered = (n.result?.covered || []).filter(exists);
-  const merged = (n.result?.merged || []).filter(exists); // from versions that added questions to a matching concept
-  return (
-    <div className="note-outcome small">
-      {made.map(id => <span key={id}>{ix.course[ix.concept[id].courseId]?.name} › {link(id)}</span>)}
-      {merged.map(id => <span key={id}>More questions on {link(id)}</span>)}
-      {covered.length > 0 && <span>Already covered: {covered.map(link)}</span>}
-      {n.status === "skipped" && !covered.length && <span>Skipped. {n.reason}</span>}
-      {n.status === "done" && !made.length && !merged.length && <span>What it made has since been deleted.</span>}
-    </div>
-  );
-}
-
 export default function Notes() {
   const { state, act } = useStore();
   const nav = useNav();
   const ix = index(state);
   const areas = noteAreas(state);
   const inbox = state.notes.filter(n => n.status === "inbox");
-  const history = state.notes.filter(n => n.status !== "inbox").sort((a, b) => (b.processedAt || 0) - (a.processedAt || 0));
-  const skipped = history.filter(n => n.status === "skipped");
 
   const [text, setText] = useState("");
   const [msg, setMsg] = useState("");
@@ -157,14 +137,19 @@ export default function Notes() {
   const [busy, setBusy] = useState(null);
   const [review, setReview] = useState(null); // { entries, partial }
   const [hasKey, setHasKey] = useState(null);
-  const [open, setOpen] = useState(null); // which list is open: "inbox", "history" or neither
+  const [open, setOpen] = useState(false); // the inbox's list
   const [drag, setDrag] = useState(false);
-  const [deleting, setDeleting] = useState(null); // { notes, made }: waiting for you to confirm
   const taRef = useRef(null);
   const fileRef = useRef(null);
 
   useEffect(() => { aiAvailable().then(setHasKey); }, []);
   useEffect(() => { if (nav.route.capture) taRef.current?.focus(); }, [nav.route.capture]);
+  // What just happened is said once, then the page goes back to how it was.
+  useEffect(() => {
+    if (!msg) return undefined;
+    const timer = setTimeout(() => setMsg(""), MESSAGE_MS);
+    return () => clearTimeout(timer);
+  }, [msg]);
 
   const addPieces = (pieces, source) => {
     const { notes, duplicates } = newNotes(state, pieces, { source });
@@ -237,34 +222,15 @@ export default function Notes() {
   const save = () => {
     const payload = buildNotesImport({ state, entries: review.entries });
     act("notes/import", { payload });
+    // Say where they went: the areas notes make are courses, listed on Courses.
     const fresh = payload.concepts.length;
-    const inAreas = new Set(payload.concepts.map(c => c.courseId)).size;
+    const areaName = (id) => payload.courses.find(c => c.id === id)?.name ?? ix.course[id]?.name;
+    const names = [...new Set(payload.concepts.map(c => areaName(c.courseId)).filter(Boolean))];
+    const where = names.length > 2 ? plural(names.length, "area") : names.join(" and ");
     const skippedNow = payload.noteUpdates.filter(u => u.patch.status === "skipped").length;
-    setMsg([
-      fresh && `${plural(fresh, "new concept")} in ${plural(inAreas, "area")}`,
-      payload.courses.length && `${plural(payload.courses.length, "new area")}`,
-      skippedNow && `${skippedNow} skipped`,
-    ].filter(Boolean).join(", ") + ".");
+    const left = skippedNow ? ` ${plural(skippedNow, "note")} skipped.` : "";
+    setMsg(fresh ? `${plural(fresh, "new concept")} added to ${where}, under Courses.${left}` : `Nothing new to add.${left}`);
     setReview(null);
-  };
-
-  const regroup = async () => {
-    setError(""); setMsg("");
-    setBusy({ label: "Regrouping your areas" });
-    const res = await planRegroup(state);
-    setBusy(null);
-    if (!res.ok) { setError(res.error); return; }
-    act("notes/regroup", { moves: res.moves });
-    const names = [...new Map(res.moves.map(m => [nameKey(m.area), m.area])).values()];
-    setMsg(`Your topics are now in ${plural(names.length, "area")}: ${names.join(", ")}.`);
-  };
-
-  // Notes that made concepts ask first, since those concepts (and their history) go too.
-  const remove = (notes) => {
-    const ids = notes.map(n => n.id);
-    const made = madeFrom(state, ids).length;
-    if (made) setDeleting({ notes, made });
-    else act("notes/delete", { ids });
   };
 
   const areaNames = new Set(areas.map(c => nameKey(c.name)));
@@ -306,7 +272,7 @@ export default function Notes() {
       )}
 
       {!review && !busy && inbox.length > 0 && (
-        <Fold title="Inbox" count={inbox.length} open={open === "inbox"} onToggle={(v) => setOpen(v ? "inbox" : null)} actions={
+        <Fold title="Inbox" count={inbox.length} open={open} onToggle={setOpen} actions={
           <button className="btn btn-primary" disabled={!aiBridge() || hasKey === false} onClick={process}>
             <Icon name="sparkle"/>{inbox.length > PER_RUN ? `Process next ${PER_RUN}` : "Process notes"}
           </button>
@@ -317,48 +283,13 @@ export default function Notes() {
               {n.force && <span className="tag">Keep anyway</span>}
               {n.source && n.source !== "Captured" && <span className="note-from">{n.source}</span>}
               <div className="fold-row-actions">
-                <button className="btn btn-quiet btn-sm btn-icon" title="Delete note" aria-label="Delete note" onClick={() => remove([n])}><Icon name="trash"/></button>
+                <button className="btn btn-quiet btn-sm btn-icon" title="Delete note" aria-label="Delete note" onClick={() => act("notes/delete", { ids: [n.id] })}><Icon name="trash"/></button>
               </div>
             </div>
           ))}
         </Fold>
       )}
 
-      {!reviewing && areas.length > 0 && (
-        <Section title="Areas" count={areas.length} actions={
-          <button className="btn btn-sm btn-quiet" disabled={!aiBridge() || hasKey === false || Boolean(busy || review)} onClick={regroup}
-            title="Have Claude group your topics into a few broad areas"><Icon name="sparkle"/>Regroup</button>
-        }>
-          <div className="list">{areas.map(c => <CourseRow key={c.id} course={c}/>)}</div>
-        </Section>
-      )}
-
-      {!reviewing && history.length > 0 && (
-        <Fold title="Processed" count={history.length} open={open === "history"} onToggle={(v) => setOpen(v ? "history" : null)} actions={skipped.length > 0 && (
-          <button className="btn btn-quiet" onClick={() => remove(skipped)}>Clear {plural(skipped.length, "skipped note")}</button>
-        )}>
-          {history.map(n => (
-            <div key={n.id} className="fold-row">
-              <div className="note-line">
-                <div className="note-text">{preview(n.text, 200)}</div>
-                <NoteOutcome note={n} ix={ix} onOpen={(id) => nav.go("course", { courseId: ix.concept[id].courseId, conceptId: id, at: Date.now() })}/>
-              </div>
-              {n.status === "skipped" && <button className="btn btn-sm" onClick={() => keepAnyway(n.id)}>Keep anyway</button>}
-              <div className="fold-row-actions">
-                <button className="btn btn-quiet btn-sm btn-icon" title="Delete note and what it made" aria-label="Delete note" onClick={() => remove([n])}><Icon name="trash"/></button>
-              </div>
-            </div>
-          ))}
-        </Fold>
-      )}
-
-      {deleting && (
-        <ConfirmDialog title={deleting.notes.length > 1 ? `Delete ${plural(deleting.notes.length, "note")}?` : "Delete this note?"} action="Delete"
-          onConfirm={() => act("notes/delete", { ids: deleting.notes.map(n => n.id) })} onClose={() => setDeleting(null)}>
-          The {plural(deleting.made, "concept")} made from {pluralWord(deleting.notes.length, "it", "them")} {pluralWord(deleting.made, "goes", "go")} too,
-          with {pluralWord(deleting.made, "its", "their")} questions and review history. An area left empty is removed.
-        </ConfirmDialog>
-      )}
     </Page>
   );
 }
