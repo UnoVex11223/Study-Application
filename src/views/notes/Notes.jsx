@@ -5,7 +5,9 @@
 // deleted along with everything made from it.
 //
 // The page stays short however many notes there are: the inbox and the
-// history are each one row that opens into a list (ui/layout.jsx Fold).
+// history are each one row that opens into a list (ui/layout.jsx Fold), and
+// what processing found is one card of ideas, a row each, that open to show
+// their questions (Review, below).
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -20,7 +22,6 @@ import { index } from "../../lib/model.js";
 import { aiAvailable, aiBridge } from "../../lib/ai.js";
 import { splitNotes, newNotes, processNotes, buildNotesImport, noteAreas, planRegroup, madeFrom, nameKey } from "../../lib/notes.js";
 import { plural, pluralWord } from "../../lib/format.js";
-import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import QuestionRow from "../concepts/QuestionRow.jsx";
 import CourseRow from "../courses/CourseRow.jsx";
 
@@ -32,44 +33,94 @@ const preview = (text, max) => {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 };
 
-/** What processing found for one note: new concepts with their questions to keep, and what was already covered. */
-function NoteResult({ entry: e, ix, areaNames, onToggle, onKeep }) {
-  const covered = e.covered.map(c => (c.course ? `${c.name} (${c.course})` : `${c.name} (another note)`)).join(", ");
+const selectedIn = (c) => (c.group ? [...c.group.kept, ...c.group.dropped].filter(q => q.selected).length : 0);
+
+/** One idea a note held: a row (keep it or not, its name, where it's filed, how many questions) that opens to show the rest. */
+function ReviewIdea({ entry: e, concept: c, ix, isNewArea, open, onOpen, onToggleAll, onToggle }) {
+  const n = selectedIn(c);
+  const any = Boolean(c.group && c.group.kept.length + c.group.dropped.length);
+  const covered = e.covered.map(k => (k.course ? `${k.name} (${k.course})` : `${k.name} (another note)`)).join(", ");
   return (
-    <div className="panel panel-pad stack gap-4">
-      <div className="note-source">
-        <Markdown className="small">{e.note.text}</Markdown>
-        {e.note.context && <span className="tag">{e.note.context}</span>}
+    <div className={cx("rv-idea", open && "open", !n && "off")}>
+      <div className="rv-row">
+        <input type="checkbox" checked={n > 0} disabled={!any} onChange={onToggleAll} aria-label={n ? `Leave out ${c.name}` : `Keep ${c.name}`}/>
+        <button type="button" className="rv-toggle" aria-expanded={open} onClick={onOpen}>
+          <span className="rv-name">
+            <span className="ell">{c.name}</span>
+            {(c.filledIn || c.corrected) && <span className="tag warn">Check</span>}
+          </span>
+          <span className="rv-where"><span className="ell">{c.area} › {c.topic}</span>{isNewArea && <span className="tag">New area</span>}</span>
+          <span className="rv-count num">{n ? plural(n, "question") : "Left out"}</span>
+          <Icon name="chevron" className="rv-chevron"/>
+        </button>
       </div>
-      {e.outcome !== "keep" && (
-        <div className="row small">
-          <span className={cx("grow", e.outcome === "error" ? "error-text" : "muted")}>{e.outcome === "error" ? e.reason : `Skipped. ${e.reason}`}</span>
-          {e.outcome === "skip" && <button className="btn btn-sm" onClick={onKeep}>Keep anyway</button>}
-        </div>
-      )}
-      {e.outcome === "keep" && covered && <p className="small muted">Left out, already covered: {covered}.</p>}
-      {e.concepts.map((c, ci) => (
-        <div key={c.key} className="note-concept stack gap-3">
-          <div className="row wrap small">
-            <span><span className="muted">{c.area} › {c.topic}:</span> <strong>{c.name}</strong></span>
-            {!areaNames.has(nameKey(c.area)) && <span className="tag">New area</span>}
-            {c.filledIn && <span className="tag">Filled in by Claude, check it</span>}
-            {c.related.map(l => ix.concept[l.id] && <span key={l.id} className="tag" title={l.why}>Linked to {ix.concept[l.id].name}</span>)}
-          </div>
-          <Markdown className="small muted">{c.summary}</Markdown>
+      {open && (
+        <div className="rv-more">
+          <Markdown className="muted">{c.summary}</Markdown>
           {c.corrected && <Notice tone="warn" icon="alert">Your note needed a correction: {c.corrected}</Notice>}
+          {c.filledIn && <p className="small muted">Claude filled in part of this from what it knows. Check that it's what you meant.</p>}
+          <div className="note-source">
+            <Markdown className="small">{e.note.text}</Markdown>
+            {e.note.context && <span className="tag">{e.note.context}</span>}
+          </div>
+          {(covered || c.related.some(l => ix.concept[l.id])) && (
+            <p className="small muted">
+              {covered && <>Left out of this note, already covered: {covered}. </>}
+              {c.related.filter(l => ix.concept[l.id]).map(l => `Linked to ${ix.concept[l.id].name}.`).join(" ")}
+            </p>
+          )}
           {!c.group && <p className="small muted">Questions for this one couldn't be written. It stays in your inbox if you discard.</p>}
           {c.group && c.group.kept.length === 0 && <p className="small muted">No question passed the quality check. Tick a filtered one below to keep it; otherwise this is skipped.</p>}
-          {c.group?.kept.map((q, qi) => <QuestionRow key={q.id} q={q} onToggle={() => onToggle(ci, "kept", qi)}/>)}
+          {c.group?.kept.length > 0 && (
+            <div className="rq-list">{c.group.kept.map((q, qi) => <QuestionRow key={q.id} q={q} onToggle={() => onToggle("kept", qi)}/>)}</div>
+          )}
           {c.group?.dropped.length > 0 && (
             <details className="disclosure">
               <summary>Filtered out ({c.group.dropped.length})</summary>
-              <div className="stack gap-2">{c.group.dropped.map((q, qi) => <QuestionRow key={q.id} q={q} dropped onToggle={() => onToggle(ci, "dropped", qi)}/>)}</div>
+              <div className="rq-list">{c.group.dropped.map((q, qi) => <QuestionRow key={q.id} q={q} dropped onToggle={() => onToggle("dropped", qi)}/>)}</div>
             </details>
           )}
         </div>
-      ))}
+      )}
     </div>
+  );
+}
+
+/**
+ * What processing found, as one card: an idea a row (open one to see its
+ * questions), then the notes that were skipped, and Discard and Save at the
+ * two ends of its foot. The list scrolls inside the card, so both stay in reach.
+ */
+function Review({ review, ix, areaNames, chosen, onToggle, onToggleAll, onKeep, onDiscard, onSave }) {
+  const [openKey, setOpenKey] = useState(null);
+  const ideas = review.entries.flatMap((e, ei) => e.concepts.map((c, ci) => ({ e, ei, c, ci })));
+  const others = review.entries.filter(e => !e.concepts.length);
+  return (
+    <section className="rv">
+      <header className="rv-head">
+        <h2 className="rv-title">Review<span className="rv-title-count num">{plural(ideas.length, "idea")}</span></h2>
+        <span className="small muted">Open an idea to see its questions</span>
+      </header>
+      <div className="rv-list">
+        {ideas.map(({ e, ei, c, ci }) => (
+          <ReviewIdea key={c.key} entry={e} concept={c} ix={ix} isNewArea={!areaNames.has(nameKey(c.area))}
+            open={openKey === c.key} onOpen={() => setOpenKey(k => (k === c.key ? null : c.key))}
+            onToggleAll={() => onToggleAll(ei, ci)} onToggle={(list, qi) => onToggle(ei, ci, list, qi)}/>
+        ))}
+        {others.length > 0 && <div className="rv-sub">Not kept<span className="num">{others.length}</span></div>}
+        {others.map(e => (
+          <div key={e.note.id} className="rv-row rv-other">
+            <span className="rv-name"><span className="ell">{preview(e.note.text, 160)}</span></span>
+            <span className={cx("rv-why", e.outcome === "error" && "error-text")}>{e.outcome === "error" ? e.reason : e.reason || "Skipped"}</span>
+            {e.outcome === "skip" && <button className="btn btn-sm" onClick={() => onKeep(e.note.id)}>Keep anyway</button>}
+          </div>
+        ))}
+      </div>
+      <footer className="card-foot">
+        <button className="btn" onClick={onDiscard}>Discard</button>
+        <button className="btn btn-primary" disabled={!chosen} onClick={onSave}>Save {plural(chosen, "question")}</button>
+      </footer>
+    </section>
   );
 }
 
@@ -106,7 +157,6 @@ export default function Notes() {
   const [busy, setBusy] = useState(null);
   const [review, setReview] = useState(null); // { entries, partial }
   const [hasKey, setHasKey] = useState(null);
-  const [conceptId, setConceptId] = useState(nav.route.conceptId ?? null);
   const [open, setOpen] = useState(null); // which list is open: "inbox", "history" or neither
   const [drag, setDrag] = useState(false);
   const [deleting, setDeleting] = useState(null); // { notes, made }: waiting for you to confirm
@@ -165,6 +215,19 @@ export default function Notes() {
     })),
   }));
 
+  // Keep or leave out a whole idea: all the questions that passed, or none.
+  const toggleIdea = (ei, ci) => setReview(r => ({
+    ...r,
+    entries: r.entries.map((e, i) => (i !== ei ? e : {
+      ...e,
+      concepts: e.concepts.map((c, j) => {
+        if (j !== ci || !c.group) return c;
+        const any = [...c.group.kept, ...c.group.dropped].some(q => q.selected);
+        return { ...c, group: { ...c.group, kept: c.group.kept.map(q => ({ ...q, selected: !any })), dropped: c.group.dropped.map(q => ({ ...q, selected: false })) } };
+      }),
+    })),
+  }));
+
   const keepAnyway = (id) => {
     act("notes/requeue", { id, force: true });
     setReview(r => (r ? { ...r, entries: r.entries.filter(e => e.note.id !== id) } : r));
@@ -205,7 +268,8 @@ export default function Notes() {
   };
 
   const areaNames = new Set(areas.map(c => nameKey(c.name)));
-  const chosen = review ? review.entries.reduce((n, e) => n + e.concepts.reduce((m, c) => m + (c.group ? [...c.group.kept, ...c.group.dropped].filter(q => q.selected).length : 0), 0), 0) : 0;
+  const chosen = review ? review.entries.reduce((n, e) => n + e.concepts.reduce((m, c) => m + selectedIn(c), 0), 0) : 0;
+  const reviewing = Boolean(review && !busy);
 
   return (
     <Page>
@@ -214,36 +278,31 @@ export default function Notes() {
       {!aiBridge() && <Notice>Turning notes into questions runs in the desktop app. You can still collect notes here.</Notice>}
       {aiBridge() && hasKey === false && <Notice tone="warn" icon="alert">Add your Anthropic API key in <button className="link" onClick={() => nav.go("settings")}>Settings</button> to turn notes into questions.</Notice>}
 
-      <div className={cx("capture", drag && "over")}
-        onDragOver={e => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={e => { e.preventDefault(); setDrag(false); readFiles([...e.dataTransfer.files]); }}>
-        <textarea id="note-text" ref={taRef} className="capture-text" rows={3} value={text} aria-label="Capture a note"
-          placeholder="Capture a note: something you learned, in a sentence or two"
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}/>
-        <div className="capture-foot">
-          <button className="btn" onClick={() => fileRef.current?.click()} title="Upload .md or .txt notes (or drop them here)"><Icon name="upload"/>Upload notes</button>
-          <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus"/>Add note</button>
+      {!reviewing && (
+        <div className={cx("capture", drag && "over")}
+          onDragOver={e => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={e => { e.preventDefault(); setDrag(false); readFiles([...e.dataTransfer.files]); }}>
+          <textarea id="note-text" ref={taRef} className="capture-text" rows={3} value={text} aria-label="Capture a note"
+            placeholder="Capture a note: something you learned, in a sentence or two"
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}/>
+          <div className="capture-foot">
+            <button className="btn" onClick={() => fileRef.current?.click()} title="Upload .md or .txt notes (or drop them here)"><Icon name="upload"/>Upload notes</button>
+            <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus"/>Add note</button>
+          </div>
+          <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,text/plain,text/markdown" multiple hidden onChange={e => { readFiles([...e.target.files]); e.target.value = ""; }}/>
         </div>
-        <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,text/plain,text/markdown" multiple hidden onChange={e => { readFiles([...e.target.files]); e.target.value = ""; }}/>
-      </div>
+      )}
 
       {msg && <Notice icon="check">{msg}</Notice>}
       {error && <Notice tone="warn" icon="alert">{error}</Notice>}
       {busy && <div className="panel panel-pad busy"><Spinner/>{busy.label}{busy.total > 1 ? ` (${busy.done} of ${busy.total})` : ""}…</div>}
 
-      {review && !busy && (
-        <Section title="Review" actions={<>
-          <button className="btn btn-quiet" onClick={() => setReview(null)}>Discard</button>
-          <button className="btn btn-primary" onClick={save}>Save {plural(chosen, "question")}</button>
-        </>}>
-          {review.partial && <Notice tone="warn" icon="alert">Part of this didn't go through: {review.partial}. Those notes stay in your inbox.</Notice>}
-          {review.entries.map((e, ei) => (
-            <NoteResult key={e.note.id} entry={e} ix={ix} areaNames={areaNames}
-              onKeep={() => keepAnyway(e.note.id)} onToggle={(ci, list, qi) => toggleQuestion(ei, ci, list, qi)}/>
-          ))}
-        </Section>
+      {reviewing && review.partial && <Notice tone="warn" icon="alert">Part of this didn't go through: {review.partial}. Those notes stay in your inbox.</Notice>}
+      {reviewing && (
+        <Review review={review} ix={ix} areaNames={areaNames} chosen={chosen}
+          onToggle={toggleQuestion} onToggleAll={toggleIdea} onKeep={keepAnyway} onDiscard={() => setReview(null)} onSave={save}/>
       )}
 
       {!review && !busy && inbox.length > 0 && (
@@ -265,7 +324,7 @@ export default function Notes() {
         </Fold>
       )}
 
-      {areas.length > 0 && (
+      {!reviewing && areas.length > 0 && (
         <Section title="Areas" count={areas.length} actions={
           <button className="btn btn-sm btn-quiet" disabled={!aiBridge() || hasKey === false || Boolean(busy || review)} onClick={regroup}
             title="Have Claude group your topics into a few broad areas"><Icon name="sparkle"/>Regroup</button>
@@ -274,7 +333,7 @@ export default function Notes() {
         </Section>
       )}
 
-      {history.length > 0 && (
+      {!reviewing && history.length > 0 && (
         <Fold title="Processed" count={history.length} open={open === "history"} onToggle={(v) => setOpen(v ? "history" : null)} actions={skipped.length > 0 && (
           <button className="btn btn-quiet" onClick={() => remove(skipped)}>Clear {plural(skipped.length, "skipped note")}</button>
         )}>
@@ -282,7 +341,7 @@ export default function Notes() {
             <div key={n.id} className="fold-row">
               <div className="note-line">
                 <div className="note-text">{preview(n.text, 200)}</div>
-                <NoteOutcome note={n} ix={ix} onOpen={setConceptId}/>
+                <NoteOutcome note={n} ix={ix} onOpen={(id) => nav.go("course", { courseId: ix.concept[id].courseId, conceptId: id, at: Date.now() })}/>
               </div>
               {n.status === "skipped" && <button className="btn btn-sm" onClick={() => keepAnyway(n.id)}>Keep anyway</button>}
               <div className="fold-row-actions">
@@ -293,7 +352,6 @@ export default function Notes() {
         </Fold>
       )}
 
-      {conceptId && <ConceptPanel conceptId={conceptId} onOpen={setConceptId} onClose={() => setConceptId(null)}/>}
       {deleting && (
         <ConfirmDialog title={deleting.notes.length > 1 ? `Delete ${plural(deleting.notes.length, "note")}?` : "Delete this note?"} action="Delete"
           onConfirm={() => act("notes/delete", { ids: deleting.notes.map(n => n.id) })} onClose={() => setDeleting(null)}>

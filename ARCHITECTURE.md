@@ -145,6 +145,7 @@ Buttons are `btn` plus a variant: `btn-primary` (the one thing to do next, at mo
 - Two actions on one row sit at its two ends, the same size, the main one at the right (`.capture-foot`). A destructive button keeps its outline; only `btn-quiet` goes without.
 - A column beside a picture is as tall as the picture: first row level with its top, last row with its foot (`.shelf-form`, `.book-head`).
 - A long list you rarely read (an inbox, a history) is a `<Fold>`: one row until opened, then it scrolls inside its card.
+- Something to look over before saving is one card, a row per thing, in columns that line up; a row opens for the detail, and the two actions sit at the ends of the card's foot (`.rv` in notes.css, `.card-foot`). A question to keep or leave out is one line that opens (`concepts/QuestionRow.jsx`).
 - Text areas grow with what's written; nothing has a corner to drag.
 
 Inline `style={{…}}` is only for values computed at runtime, passed as CSS variables (`style={{ "--c": courseInk(color) }}`, `"--i": index` for staggered animations). Fixed spacing and sizes belong in CSS.

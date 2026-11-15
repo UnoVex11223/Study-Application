@@ -43,15 +43,15 @@ export function OutlineItem({ id, title, titleIcon, meta, side, open = false, on
   );
 }
 
-/** A concept in an open section: how well it's known, its name, and tags at the right. */
+/**
+ * A concept in an open section: how well it's known, its name, and tags at
+ * the right. With `onOpen` it's a row you can press; without, it's just a line
+ * of the list.
+ */
 export function ConceptRow({ concept, status, tags, onOpen }) {
-  return (
-    <button className={cx("concept-row", concept.suspended && "suspended")} onClick={() => onOpen(concept.id)}>
-      <StatusDot status={status}/>
-      <span className="ell">{concept.name}</span>
-      <span className="row gap-1">{tags}</span>
-    </button>
-  );
+  const cls = cx("concept-row", concept.suspended && "suspended");
+  const line = <><StatusDot status={status}/><span className="ell">{concept.name}</span><span className="row gap-1">{tags}</span></>;
+  return onOpen ? <button className={cls} onClick={() => onOpen(concept.id)}>{line}</button> : <div className={cls}>{line}</div>;
 }
 
 /** The actions under an open section's concepts. */

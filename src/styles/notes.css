@@ -7,8 +7,42 @@
 .note-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-from { flex-shrink: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); color: var(--ink-3); }
 
+/* ── Review (what processing found): one card ───────────────────────────────
+   An idea a row, in columns that line up down the card: a tick, its name,
+   where it's filed, how many questions, a chevron. A row opens to show the
+   idea and its questions; the list scrolls inside the card, and Discard and
+   Save sit at the two ends of its foot. */
+.rv { display: grid; min-width: 0; overflow: hidden; border: 1px solid var(--rule-strong); border-radius: var(--radius-xl); background: var(--surface); --btn-bg: var(--surface-2); --btn-bg-hover: color-mix(in srgb, var(--surface-3) 45%, var(--surface-2)); }
+.rv-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 64px; padding: 0 var(--space-6); border-bottom: 1px solid var(--rule); }
+.rv-title { display: flex; align-items: baseline; gap: var(--space-2); font: 600 var(--text-lg) / var(--leading-tight) var(--sans); }
+.rv-title-count { font-weight: 400; color: var(--ink-3); }
+.rv-list { max-height: max(320px, calc(100vh - 430px)); overflow-y: auto; overscroll-behavior: contain; }
+.rv-list::-webkit-scrollbar-thumb { border-color: var(--surface); }
+.rv-idea + .rv-idea, .rv-other + .rv-other { border-top: 1px solid var(--rule); }
+.rv-row { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: var(--space-4); min-height: 52px; padding: 0 var(--space-6); transition: background var(--dur-quick) var(--ease-out); }
+.rv-row:hover { background: var(--select); }
+.rv-toggle {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 96px var(--icon-sm); align-items: center; gap: var(--space-4);
+  min-height: 52px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.rv-toggle:focus-visible { box-shadow: inset 0 0 0 2px var(--link); }
+.rv-name { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-weight: 600; color: var(--ink); }
+.rv-where { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
+.rv-why { min-width: 0; font-size: var(--text-sm); line-height: var(--leading-ui); color: var(--ink-3); }
+.rv-count { font-size: var(--text-sm); color: var(--ink-2); text-align: right; white-space: nowrap; }
+.rv-chevron { width: var(--icon-sm); height: var(--icon-sm); color: var(--ink-3); transition: transform var(--dur-base) var(--ease-out); }
+.rv-idea.open .rv-chevron { transform: rotate(90deg); }
+.rv-idea.off .rv-name, .rv-idea.off .rv-count { color: var(--ink-3); font-weight: 500; }
+/* Under the name: the idea in a sentence, the note it came from, and its questions. */
+.rv-more { display: grid; gap: var(--space-3); padding: var(--space-1) var(--space-6) var(--space-5) calc(var(--space-6) + 16px + var(--space-4)); animation: enter var(--dur-base) var(--ease-out) both; }
+.rv-more .note-source .md { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+/* Notes that made nothing: why, and a way to keep one anyway. */
+.rv-sub { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-5) var(--space-6) var(--space-2); border-top: 1px solid var(--rule); font-size: var(--text-sm); font-weight: 600; color: var(--ink-3); }
+.rv-sub > span { font-weight: 400; }
+.rv-other { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto; padding-left: calc(var(--space-6) + 16px + var(--space-4)); }
+.rv-other .rv-name { font-weight: 400; color: var(--ink-2); }
+
 /* Processing results: the note as you wrote it, then what it became. */
 .note-source { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-1) 0 var(--space-1) var(--space-3); border-left: 3px solid var(--surface-3); color: var(--ink-2); }
 .note-source .md { flex: 1; min-width: 0; }
-.note-concept { padding-top: var(--space-4); border-top: 1px solid var(--rule); }
 .note-outcome { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-width: 0; color: var(--ink-3); }
