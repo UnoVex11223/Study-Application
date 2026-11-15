@@ -27,7 +27,7 @@
   flex-shrink: 0; aspect-ratio: 2 / 3; border-radius: 3px 5px 5px 3px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .06);
 }
-.panel-cover { width: 108px; }
+.panel-cover { width: 100%; align-self: start; }
 .recall-cover { width: 64px; }
-.edit-cover { width: 120px; }
+.edit-cover { width: 100%; }
 .recall-cover .cloth-author { display: none; }

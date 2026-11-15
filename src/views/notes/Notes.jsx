@@ -3,13 +3,16 @@
 // each idea under a broad area, a course of its own, and leaves out what you
 // already study. Areas can be regrouped into broader ones, and a note can be
 // deleted along with everything made from it.
+//
+// The page stays short however many notes there are: the inbox and the
+// history are each one row that opens into a list (ui/layout.jsx Fold).
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
 import Markdown from "../../ui/Markdown.jsx";
-import { Page, PageHeader, Section } from "../../ui/layout.jsx";
+import { Page, PageHeader, Section, Fold } from "../../ui/layout.jsx";
 import { Notice, Spinner } from "../../ui/display.jsx";
 import { ConfirmDialog } from "../../ui/overlays.jsx";
 import { cx } from "../../ui/cx.js";
@@ -22,8 +25,6 @@ import QuestionRow from "../concepts/QuestionRow.jsx";
 import CourseRow from "../courses/CourseRow.jsx";
 
 const PER_RUN = 40; // notes processed per run, so a big upload stays reviewable
-const INBOX_SHOWN = 12;
-const HISTORY_SHOWN = 10;
 // One line of a note as you wrote it (no markdown stripping, which would eat
 // the underscores in names like foreign_keys).
 const preview = (text, max) => {
@@ -106,7 +107,7 @@ export default function Notes() {
   const [review, setReview] = useState(null); // { entries, partial }
   const [hasKey, setHasKey] = useState(null);
   const [conceptId, setConceptId] = useState(nav.route.conceptId ?? null);
-  const [showAll, setShowAll] = useState(false);
+  const [open, setOpen] = useState(null); // which list is open: "inbox", "history" or neither
   const [drag, setDrag] = useState(false);
   const [deleting, setDeleting] = useState(null); // { notes, made }: waiting for you to confirm
   const taRef = useRef(null);
@@ -213,7 +214,7 @@ export default function Notes() {
       {!aiBridge() && <Notice>Turning notes into questions runs in the desktop app. You can still collect notes here.</Notice>}
       {aiBridge() && hasKey === false && <Notice tone="warn" icon="alert">Add your Anthropic API key in <button className="link" onClick={() => nav.go("settings")}>Settings</button> to turn notes into questions.</Notice>}
 
-      <div className={cx("panel capture", drag && "over")}
+      <div className={cx("capture", drag && "over")}
         onDragOver={e => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={e => { e.preventDefault(); setDrag(false); readFiles([...e.dataTransfer.files]); }}>
@@ -222,8 +223,7 @@ export default function Notes() {
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); capture(); } }}/>
         <div className="capture-foot">
-          <span className="grow"/>
-          <button className="btn btn-quiet" onClick={() => fileRef.current?.click()} title="Upload .md or .txt notes (or drop them here)"><Icon name="upload"/>Upload notes</button>
+          <button className="btn" onClick={() => fileRef.current?.click()} title="Upload .md or .txt notes (or drop them here)"><Icon name="upload"/>Upload notes</button>
           <button className="btn btn-primary" disabled={!text.trim()} onClick={capture}><Icon name="plus"/>Add note</button>
         </div>
         <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,text/plain,text/markdown" multiple hidden onChange={e => { readFiles([...e.target.files]); e.target.value = ""; }}/>
@@ -235,8 +235,8 @@ export default function Notes() {
 
       {review && !busy && (
         <Section title="Review" actions={<>
-          <button className="btn btn-sm btn-quiet" onClick={() => setReview(null)}>Discard</button>
-          <button className="btn btn-sm btn-primary" onClick={save}>Save {plural(chosen, "question")}</button>
+          <button className="btn btn-quiet" onClick={() => setReview(null)}>Discard</button>
+          <button className="btn btn-primary" onClick={save}>Save {plural(chosen, "question")}</button>
         </>}>
           {review.partial && <Notice tone="warn" icon="alert">Part of this didn't go through: {review.partial}. Those notes stay in your inbox.</Notice>}
           {review.entries.map((e, ei) => (
@@ -247,24 +247,22 @@ export default function Notes() {
       )}
 
       {!review && !busy && inbox.length > 0 && (
-        <Section title="Inbox" count={inbox.length} actions={
-          <button className="btn btn-primary btn-sm" disabled={!aiBridge() || hasKey === false} onClick={process}>
-            <Icon name="sparkle"/>Process {inbox.length > PER_RUN ? `next ${PER_RUN}` : plural(inbox.length, "note")}
+        <Fold title="Inbox" count={inbox.length} open={open === "inbox"} onToggle={(v) => setOpen(v ? "inbox" : null)} actions={
+          <button className="btn btn-primary" disabled={!aiBridge() || hasKey === false} onClick={process}>
+            <Icon name="sparkle"/>{inbox.length > PER_RUN ? `Process next ${PER_RUN}` : "Process notes"}
           </button>
         }>
-          <div className="list">
-            {inbox.slice(0, INBOX_SHOWN).map(n => (
-              <div key={n.id} className="list-row">
-                <div className="grow stack gap-1">
-                  <div className="ell">{preview(n.text, 180)}</div>
-                  <div className="meta"><span>{n.source}</span>{n.context && <span>{n.context}</span>}{n.force && <span>keep anyway</span>}</div>
-                </div>
+          {inbox.map(n => (
+            <div key={n.id} className="fold-row">
+              <div className="note-text grow">{preview(n.text, 220)}</div>
+              {n.force && <span className="tag">Keep anyway</span>}
+              {n.source && n.source !== "Captured" && <span className="note-from">{n.source}</span>}
+              <div className="fold-row-actions">
                 <button className="btn btn-quiet btn-sm btn-icon" title="Delete note" aria-label="Delete note" onClick={() => remove([n])}><Icon name="trash"/></button>
               </div>
-            ))}
-            {inbox.length > INBOX_SHOWN && <div className="list-row muted small">and {inbox.length - INBOX_SHOWN} more</div>}
-          </div>
-        </Section>
+            </div>
+          ))}
+        </Fold>
       )}
 
       {areas.length > 0 && (
@@ -277,23 +275,22 @@ export default function Notes() {
       )}
 
       {history.length > 0 && (
-        <Section title="Processed" count={history.length} actions={skipped.length > 0 && (
-          <button className="btn btn-sm btn-quiet" onClick={() => remove(skipped)}>Clear {plural(skipped.length, "skipped note")}</button>
+        <Fold title="Processed" count={history.length} open={open === "history"} onToggle={(v) => setOpen(v ? "history" : null)} actions={skipped.length > 0 && (
+          <button className="btn btn-quiet" onClick={() => remove(skipped)}>Clear {plural(skipped.length, "skipped note")}</button>
         )}>
-          <div className="list">
-            {(showAll ? history : history.slice(0, HISTORY_SHOWN)).map(n => (
-              <div key={n.id} className="list-row">
-                <div className="grow stack gap-1">
-                  <div className="ell">{preview(n.text, 160)}</div>
-                  <NoteOutcome note={n} ix={ix} onOpen={setConceptId}/>
-                </div>
-                {n.status === "skipped" && <button className="btn btn-sm" onClick={() => keepAnyway(n.id)}>Keep anyway</button>}
+          {history.map(n => (
+            <div key={n.id} className="fold-row">
+              <div className="note-line">
+                <div className="note-text">{preview(n.text, 200)}</div>
+                <NoteOutcome note={n} ix={ix} onOpen={setConceptId}/>
+              </div>
+              {n.status === "skipped" && <button className="btn btn-sm" onClick={() => keepAnyway(n.id)}>Keep anyway</button>}
+              <div className="fold-row-actions">
                 <button className="btn btn-quiet btn-sm btn-icon" title="Delete note and what it made" aria-label="Delete note" onClick={() => remove([n])}><Icon name="trash"/></button>
               </div>
-            ))}
-            {history.length > HISTORY_SHOWN && !showAll && <button className="list-row muted small" onClick={() => setShowAll(true)}>Show all {history.length}</button>}
-          </div>
-        </Section>
+            </div>
+          ))}
+        </Fold>
       )}
 
       {conceptId && <ConceptPanel conceptId={conceptId} onOpen={setConceptId} onClose={() => setConceptId(null)}/>}

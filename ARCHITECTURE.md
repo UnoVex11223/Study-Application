@@ -44,7 +44,7 @@ src/
     progress/           Progress
     settings/           Settings
   ui/                 building blocks with no knowledge of Tenax's data
-    layout.jsx          Page, PageHeader, Section, EmptyState
+    layout.jsx          Page, PageHeader, Section, Fold, EmptyState
     controls.jsx        Segmented, Field, Confirm
     overlays.jsx        Drawer, Modal, ConfirmDialog, Menu, MenuItem, PointerMenu
     display.jsx         Bar, Spark, Figures, Notice, StatusDot, Stars, Logo, Spinner…
@@ -136,6 +136,16 @@ All visual decisions live in **`src/styles/tokens.css`**. Components use those n
 | Controls | `--control-sm` 28, `--control-md` 36, `--control-lg` 44 | Buttons, inputs, selects and segmented controls share these, so they line up in a row. |
 
 Buttons are `btn` plus a variant: `btn-primary` (the one thing to do next, at most one per area), `btn-quiet` (secondary), `btn-danger`; sizes `btn-sm` and `btn-lg`; `btn-icon` for square icon-only buttons. Icons size themselves to the button, so leave out `size` unless an icon stands alone.
+
+**Lining things up.** A few rules keep every screen even, so check a new one against them:
+
+- A top-level page uses `<PageHeader center …/>`; a page inside another has a back link and a left-aligned title.
+- Everything that sits on the page as a card is one card: `.list`, `.panel`, `.fold`, `.capture` (16px corners, one hairline). Don't put a bordered box inside a card; write straight into it (`.capture`, `.book-notes`).
+- In a form, every row is as wide as the form: inputs share a `.form-row` in equal columns, and a choice is `<Segmented fill …/>`. In a list of settings, a short choice goes on its label's line at the right (`<Field inline …/>`).
+- Two actions on one row sit at its two ends, the same size, the main one at the right (`.capture-foot`). A destructive button keeps its outline; only `btn-quiet` goes without.
+- A column beside a picture is as tall as the picture: first row level with its top, last row with its foot (`.shelf-form`, `.book-head`).
+- A long list you rarely read (an inbox, a history) is a `<Fold>`: one row until opened, then it scrolls inside its card.
+- Text areas grow with what's written; nothing has a corner to drag.
 
 Inline `style={{…}}` is only for values computed at runtime, passed as CSS variables (`style={{ "--c": courseInk(color) }}`, `"--i": index` for staggered animations). Fixed spacing and sizes belong in CSS.
 

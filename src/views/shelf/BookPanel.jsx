@@ -1,5 +1,8 @@
 // A book you read for its own sake: its status, pages, rating, three short
 // notes in your own words (they save as you type), and its next recall.
+//
+// Two blocks, each one shape: the cover beside its facts (the two start and
+// end together), then one card for the notes, with the recall along its foot.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -19,6 +22,7 @@ const NOTES = [
   ["ideas", "Ideas worth keeping"],
 ];
 const SAVE_AFTER = 600; // ms of quiet typing before notes are saved
+const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /** Notes save as you type (after a short pause) and when the panel closes. */
 function useDraft(item, act) {
@@ -53,44 +57,50 @@ export default function BookPanel({ item, now, onClose, onEdit, onRecall }) {
   return (
     <Drawer onClose={onClose} title={item.title} context={item.author || undefined}
       actions={<button className="btn btn-sm btn-quiet" onClick={onEdit}><Icon name="edit"/>Edit</button>}>
-      <div className="book-panel-top">
+      <div className="book-head">
         <CoverArt src={item.cover} title={item.title} author={item.author} className="panel-cover"/>
-        <div className="stack">
-          <Segmented label="Status" options={STATUS_OPTIONS} value={status} onChange={(k) => patch({ status: k })}/>
-          {status !== "want" && (
-            <div className="row">
-              <input className="input count-input" type="number" min="0" aria-label={`${unit} done`} value={item.done || ""} onChange={count("done")}/>
-              <span className="muted small">of</span>
-              <input className="input count-input" type="number" min="0" aria-label={`Total ${unit}`} value={item.total || ""} onChange={count("total")}/>
-              <span className="muted small">{unit}</span>
+        <div className="book-facts">
+          <Segmented fill label="Status" options={STATUS_OPTIONS} value={status} onChange={(k) => patch({ status: k })}/>
+          <div className="form-row">
+            <Field label={capitalize(unit)} htmlFor="it-total">
+              <input id="it-total" className="input" type="number" min="0" value={item.total || ""} onChange={count("total")}/>
+            </Field>
+            {status !== "want" && (
+              <Field label="Read so far" htmlFor="it-done">
+                <input id="it-done" className="input" type="number" min="0" value={item.done || ""} onChange={count("done")}/>
+              </Field>
+            )}
+          </div>
+          <div className="book-dates">
+            <div className="meta">
+              {item.startedAt && <span>Started {longDate(item.startedAt)}</span>}
+              {item.finishedAt && <span>Finished {longDate(item.finishedAt)}</span>}
+              {!item.startedAt && !item.finishedAt && <span>Not started</span>}
             </div>
-          )}
-          {finished && <Stars value={item.rating || 0} onChange={(n) => patch({ rating: n })} size={18}/>}
-          <div className="meta">
-            {item.startedAt && <span>Started {longDate(item.startedAt)}</span>}
-            {item.finishedAt && <span>Finished {longDate(item.finishedAt)}</span>}
+            {finished && <Stars value={item.rating || 0} onChange={(n) => patch({ rating: n })} size={18}/>}
           </div>
         </div>
       </div>
 
-      <div className="form">
+      <div className="book-notes">
         {NOTES.map(([field, label]) => (
-          <Field key={field} label={label} htmlFor={`it-${field}`}>
-            <textarea id={`it-${field}`} className="textarea short" value={draft[field]} onChange={e => change(field, e.target.value)}/>
-          </Field>
+          <div key={field} className="book-note">
+            <label htmlFor={`it-${field}`}>{label}</label>
+            <textarea id={`it-${field}`} className="book-note-text" rows={2} value={draft[field]} placeholder="A few lines, in your own words"
+              onChange={e => change(field, e.target.value)}/>
+          </div>
         ))}
+        {hasNotes({ ...item, ...draft }) && (
+          <div className="book-notes-foot">
+            <span className="grow small">
+              {item.recall
+                ? <>Next recall {recallWhen(item.recall, now)}{item.recall.count ? <span className="muted">, recalled {plural(item.recall.count, "time")}</span> : null}</>
+                : "First recall in 3 days"}
+            </span>
+            <button className="btn btn-sm" onClick={onRecall}><Icon name="play"/>Recall now</button>
+          </div>
+        )}
       </div>
-
-      {hasNotes({ ...item, ...draft }) && (
-        <div className="book-recall-row">
-          <span className="grow small">
-            {item.recall
-              ? <>Next recall {recallWhen(item.recall, now)}{item.recall.count ? <span className="muted">, recalled {plural(item.recall.count, "time")}</span> : null}</>
-              : "First recall in 3 days"}
-          </span>
-          <button className="btn btn-sm" onClick={onRecall}><Icon name="play"/>Recall now</button>
-        </div>
-      )}
 
       <div className="rule-top">
         {confirm ? (
@@ -98,7 +108,7 @@ export default function BookPanel({ item, now, onClose, onEdit, onRecall }) {
             Remove “{item.title}” and its notes?
           </Confirm>
         ) : (
-          <button className="btn btn-sm btn-quiet" onClick={() => setConfirm(true)}><Icon name="trash"/>Remove from shelf</button>
+          <button className="btn btn-sm btn-danger" onClick={() => setConfirm(true)}><Icon name="trash"/>Remove from shelf</button>
         )}
       </div>
     </Drawer>

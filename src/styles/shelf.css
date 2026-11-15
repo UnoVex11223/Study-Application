@@ -1,9 +1,8 @@
 /* The shelf (views/shelf/): tabs, books standing on planks in CSS 3D, the
    spine view, a year on the shelf, the book panel, the recall and the form. */
 
-/* ── The title, centred and larger, then the tabs centred under it ──────── */
-.shelf-head { display: grid; justify-items: center; gap: var(--space-4); }
-.shelf-title { font-size: 36px; letter-spacing: -0.03em; }
+/* The title is the same centred header as every top-level page (ui/layout.jsx
+   PageHeader), with the tabs centred under it. */
 
 /* ── Tabs, and a line that slides to the chosen one ─────────────────────── */
 .shelf-bar { display: flex; align-items: flex-end; justify-content: center; gap: var(--space-4); border-bottom: 1px solid var(--rule); }
@@ -222,20 +221,65 @@
 @media (max-width: 1000px) { .year-body { grid-template-columns: 1fr; } }
 
 /* ── A book's panel, its recall, and the form ───────────────────────────── */
-.book-panel-top { display: flex; align-items: flex-start; gap: var(--space-5); }
-.count-input { width: 84px; }
-.book-recall-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-2); }
-.book-recall-row { --btn-bg: color-mix(in srgb, var(--surface-3) 45%, var(--surface-2)); --btn-bg-hover: color-mix(in srgb, var(--surface-3) 70%, var(--surface-2)); }
+/* The panel's top: the cover beside its facts. The facts column is as tall as
+   the cover, its first row level with the cover's top and its last with the
+   cover's foot. */
+.book-head { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: stretch; gap: var(--space-5); }
+.book-facts { display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.book-dates { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 20px; }
+
+/* The notes: one card, a part for each, and the recall along its foot. You
+   write straight into it (no boxes inside the box), and each part grows with
+   what you write. */
+.book-notes { overflow: hidden; border: 1px solid var(--rule-strong); border-radius: var(--radius-lg); background: var(--inset); transition: border-color var(--dur-quick) var(--ease-out); }
+.book-notes:focus-within { border-color: var(--ink-3); }
+.book-note { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-4) var(--space-3); border-top: 1px solid var(--rule); }
+.book-note:first-child { border-top: 0; }
+.book-note > label { font-size: var(--text-sm); font-weight: 600; color: var(--ink-3); transition: color var(--dur-quick) var(--ease-out); }
+.book-note:focus-within > label { color: var(--ink); }
+.book-note-text {
+  display: block; width: 100%; min-height: 48px; max-height: 32vh; padding: 0; resize: none; field-sizing: content;
+  border: 0; outline: 0; background: none; color: var(--ink); font-size: var(--text-lg); line-height: var(--leading-body);
+}
+.book-note-text::placeholder { color: var(--ink-3); opacity: .7; }
+.book-note-text:focus-visible { box-shadow: none; }
+.book-notes-foot { display: flex; align-items: center; gap: var(--space-3); min-height: 52px; padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); border-top: 1px solid var(--rule); background: var(--surface); }
 
 .recall-head { display: flex; align-items: center; gap: var(--space-4); }
 .recall-title { font: 500 var(--title-md) / var(--leading-tight) var(--serif); }
-.recall-notes { display: grid; gap: var(--space-4); padding: var(--space-4); border-left: 3px solid var(--link); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; background: var(--surface-2); }
-.recall-notes p { white-space: pre-wrap; line-height: var(--leading-body); }
+/* Your notes, shown after you've answered: the same card as in the book's panel, to read. */
+.recall-notes p { font-size: var(--text-lg); white-space: pre-wrap; line-height: var(--leading-body); }
 .recall-ratings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
 
-.cover-field { display: flex; align-items: flex-end; gap: var(--space-4); padding: 2px; border-radius: var(--radius-lg); transition: background var(--dur-quick) var(--ease-out); }
-.cover-field.over { background: var(--surface-2); outline: 1.5px dashed var(--link); }
-.cover-adjust { flex-shrink: 0; border-radius: 3px 5px 5px 3px; }
+/* The form: the cover with its two actions at the left, the fields at the
+   right. Both columns are the same height: the cover's top is level with the
+   first field and its actions with the last, and every row of fields is as
+   wide as its column. */
+.shelf-form { display: grid; grid-template-columns: 160px minmax(0, 1fr); align-items: stretch; gap: var(--space-6); }
+.shelf-form-cover { display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3); min-width: 0; border-radius: var(--radius-sm); }
+.shelf-form-cover.over { outline: 1.5px dashed var(--ink-2); outline-offset: var(--space-2); }
+.cover-slot { position: relative; }
+.cover-empty {
+  display: grid; place-content: center; justify-items: center; gap: var(--space-2); width: 100%; aspect-ratio: 2 / 3; padding: var(--space-3);
+  border: 1px dashed var(--rule-strong); border-radius: 3px 5px 5px 3px; background: none; cursor: pointer;
+  color: var(--ink-3); font-size: var(--text-sm); text-align: center;
+  transition: border-color var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), background var(--dur-quick) var(--ease-out);
+}
+.cover-empty:hover, .shelf-form-cover.over .cover-empty { border-color: var(--ink-3); color: var(--ink); background: var(--select); }
+/* × on the cover's corner takes the picture off again. */
+.cover-remove {
+  position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border-radius: var(--radius-full); cursor: pointer;
+  color: #fff; border: 1px solid rgba(255, 255, 255, .16); background: rgba(10, 10, 12, .6); backdrop-filter: blur(8px); transition: background var(--dur-quick) var(--ease-out);
+}
+.cover-remove > svg { width: 12px; height: 12px; }
+.cover-remove:hover { background: rgba(10, 10, 12, .9); }
+.cover-actions { display: grid; gap: var(--space-2); }
+@media (max-width: 640px) {
+  .shelf-form { grid-template-columns: minmax(0, 1fr); }
+  .shelf-form-cover { flex-direction: row; align-items: flex-end; justify-content: flex-start; }
+  .cover-slot { width: 120px; }
+}
+.cover-adjust { border-radius: 3px 5px 5px 3px; }
 .cover-adjust.movable { cursor: grab; touch-action: none; }
 .cover-adjust.movable:active { cursor: grabbing; }
 .cover-adjust:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }

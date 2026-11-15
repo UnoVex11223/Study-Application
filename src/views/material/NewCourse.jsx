@@ -86,23 +86,19 @@ export default function NewCourse() {
       {error && <Notice tone="warn" icon="alert">{error}</Notice>}
 
       {!plan && (
-        <div className="panel panel-pad form">
-          <textarea className="textarea source-text paste-text" value={text} onChange={e => setText(e.target.value)} autoFocus
+        <div className={cx("capture", drag && "over")}
+          onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+          onDrop={e => { e.preventDefault(); setDrag(false); readFiles(e.dataTransfer.files); }}>
+          <textarea className="capture-text paste-text" value={text} onChange={e => setText(e.target.value)} autoFocus
             aria-label="What you want to learn"
-            placeholder="Paste your notes, a guide or a transcript. Tenax sorts it into courses and writes the questions."/>
-          <div className={cx("dropzone", drag && "over")} role="button" tabIndex={0}
-            onClick={() => fileRef.current?.click()}
-            onKeyDown={e => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}
-            onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-            onDrop={e => { e.preventDefault(); setDrag(false); readFiles(e.dataTransfer.files); }}>
-            <Icon name="upload"/><span>Or drop notes (.md, .txt) or the book's PDF</span>
-            <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,.pdf" multiple hidden onChange={e => { readFiles(e.target.files); e.target.value = ""; }}/>
-          </div>
-          <div className="row">
+            placeholder="Paste your notes, a guide or a transcript, or drop a file here. Tenax sorts it into courses and writes the questions."/>
+          <div className="capture-foot">
+            <button className="btn" onClick={() => fileRef.current?.click()} title="Notes (.md, .txt) or a book's PDF"><Icon name="upload"/>Upload a file</button>
             <button className="btn btn-primary" disabled={!text.trim() || busy || !bridge || hasKey === false} onClick={sort}>
               {busy ? <Spinner/> : <Icon name="sparkle"/>}{busy ? "Sorting…" : "Sort into courses"}
             </button>
           </div>
+          <input ref={fileRef} type="file" accept=".md,.markdown,.txt,.text,.pdf" multiple hidden onChange={e => { readFiles(e.target.files); e.target.value = ""; }}/>
         </div>
       )}
 

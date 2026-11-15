@@ -131,10 +131,10 @@ export default function ItemForm({ courseId, item, conceptId: fixedConcept, sect
         </div>
       )}
       {!editing && conceptId === NEW && (
-        <Field label="Importance"><Segmented label="Importance" options={IMPORTANCE_OPTIONS} value={importance} onChange={setImportance}/></Field>
+        <Field label="Importance"><Segmented fill label="Importance" options={IMPORTANCE_OPTIONS} value={importance} onChange={setImportance}/></Field>
       )}
-      <Field label="Type of question"><Segmented label="Type of question" options={ABILITY_OPTIONS} value={ability} onChange={setAbility}/></Field>
-      <Field label="Step on the concept's ladder"><Segmented label="Step on the ladder" options={LEVEL_OPTIONS} value={level} onChange={setLevel}/></Field>
+      <Field label="Type of question"><Segmented fill label="Type of question" options={ABILITY_OPTIONS} value={ability} onChange={setAbility}/></Field>
+      <Field label="Step on the concept's ladder"><Segmented fill label="Step on the ladder" options={LEVEL_OPTIONS} value={level} onChange={setLevel}/></Field>
       <Field label="Question" htmlFor="if-prompt">
         <textarea id="if-prompt" className="textarea short" value={prompt} onChange={e => setPrompt(e.target.value)}/>
       </Field>

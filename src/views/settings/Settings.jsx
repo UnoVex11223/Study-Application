@@ -228,19 +228,19 @@ export default function Settings() {
           <Field label="Questions per day" htmlFor="st-per-day" value={questionsPerDay(s)}>
             <input id="st-per-day" type="range" min={5} max={60} step={5} value={questionsPerDay(s)} onChange={e => set({ dailyQuestions: Number(e.target.value) })}/>
           </Field>
-          <Field label="Daily mix">
+          <Field inline label="Daily mix">
             <Segmented label="Daily mix" options={MIX_OPTIONS} value={mix} onChange={(v) => set({ mix: v })}/>
           </Field>
           <Field label="New concepts per day, at most" htmlFor="st-new" value={s.maxNewPerDay}>
             <input id="st-new" type="range" min={0} max={20} step={1} value={s.maxNewPerDay} onChange={e => set({ maxNewPerDay: Number(e.target.value) })}/>
           </Field>
-          <Field label="Memory target">
+          <Field inline label="Memory target">
             <Segmented label="Memory target" options={RETENTION_OPTIONS} value={s.retention} onChange={(v) => set({ retention: v })}/>
           </Field>
-          <Field label="Fresh versions">
+          <Field inline label="Fresh versions">
             <Segmented label="Fresh versions" options={ON_OFF} value={s.freshVersions !== false} onChange={(v) => set({ freshVersions: v })}/>
           </Field>
-          <Field label="A new study day starts at" htmlFor="st-roll">
+          <Field inline label="A new study day starts at" htmlFor="st-roll">
             <select id="st-roll" className="select settings-select" value={s.rolloverHour} onChange={e => set({ rolloverHour: Number(e.target.value) })}>
               {ROLLOVER_HOURS.map(h => <option key={h} value={h}>{h === 0 ? "Midnight" : `${h}:00 am`}</option>)}
             </select>
@@ -250,10 +250,10 @@ export default function Settings() {
         <Group title="Anthropic API key" {...group}><ApiKey/></Group>
 
         <Group title="AI and cost" {...group}>
-          <Field label="Question writing">
+          <Field inline label="Question writing">
             <Segmented label="Question writing" options={WRITER_OPTIONS} value={WRITERS[s.questionWriting] ? s.questionWriting : "thorough"} onChange={(v) => set({ questionWriting: v })}/>
           </Field>
-          <Field label="Book imports and rebuilds">
+          <Field inline label="Book imports and rebuilds">
             <Segmented label="Book imports and rebuilds" options={IMPORT_OPTIONS} value={s.batchImports !== false} onChange={(v) => set({ batchImports: v })}/>
           </Field>
           <Field label="What it has cost"><AiUsage/></Field>
@@ -262,10 +262,10 @@ export default function Settings() {
         <Group title="Sync across computers" {...group}><Sync/></Group>
 
         <Group title="Look and sound" {...group}>
-          <Field label="Theme">
+          <Field inline label="Theme">
             <Segmented label="Theme" options={THEME_OPTIONS} value={s.theme} onChange={(v) => set({ theme: v })}/>
           </Field>
-          <Field label="Sounds">
+          <Field inline label="Sounds">
             <Segmented label="Sounds" options={[[false, "Off"], [true, "On"]]} value={Boolean(s.sounds)}
               onChange={(v) => { set({ sounds: v }); if (v) play("chime", { force: true }); }}/>
           </Field>

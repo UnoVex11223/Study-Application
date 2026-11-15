@@ -10,11 +10,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useStore } from "../../state/store.jsx";
 import { useNav } from "../../ui/nav.js";
 import Icon from "../../ui/Icon.jsx";
-import { Page } from "../../ui/layout.jsx";
+import { Page, PageHeader } from "../../ui/layout.jsx";
 import { ConfirmDialog } from "../../ui/overlays.jsx";
 import { transition } from "../../ui/motion.js";
 import { shelfEntries, SHELF_FILTERS, SHELF_KINDS, makeShelfItem } from "../../lib/shelf.js";
 import { dueForRecall } from "../../lib/recall.js";
+import { plural } from "../../lib/format.js";
 import { BookCard, AddCard, Fillers } from "./BookCard.jsx";
 import BookPanel from "./BookPanel.jsx";
 import ShelfForm from "./ShelfForm.jsx";
@@ -160,10 +161,9 @@ export default function Shelf({ recall: startRecall = false, openItem = null, ad
 
   return (
     <Page className="shelf-page">
-      <header className="shelf-head">
-        <h1 className="page-title shelf-title">Shelf</h1>
-        {due.length > 0 && <button className="btn btn-sm" onClick={() => setRecallQueue(due.map(it => it.id))}><Icon name="play"/>Recall {due.length}</button>}
-      </header>
+      <PageHeader center title="Shelf" actions={due.length > 0 && (
+        <button className="btn" onClick={() => setRecallQueue(due.map(it => it.id))}><Icon name="play"/>Recall {plural(due.length, "book")}</button>
+      )}/>
 
       <div className="shelf-bar">
         <Tabs tabs={SHELF_FILTERS} value={filter} onChange={setFilter} counts={counts}/>
