@@ -117,9 +117,9 @@ export async function runBookJob({ jobId, getState, act, book, sleep, pollMs }) 
             onSaved: (batch) => setChapter(i, { pending: { ex, batch } }),
           });
           if (res.batchBroken) batchOff = true;
-          if (res.batchUnavailable) res = await generateTasks({ state: getState(), courseId, sections: ex.sections });
+          if (res.batchUnavailable) res = await generateTasks({ state: getState(), courseId, sections: ex.sections, requireReview: true });
         } else {
-          res = await generateTasks({ state: getState(), courseId, sections: ex.sections });
+          res = await generateTasks({ state: getState(), courseId, sections: ex.sections, requireReview: true });
         }
       } catch (err) { res = { ok: false, error: err?.message || "Something went wrong." }; }
       await prev;

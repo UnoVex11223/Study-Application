@@ -9,7 +9,11 @@
 //   2. Critic (AI, see electron.cjs): an independent review that scores each
 //      question 1–5 on importance, clarity, retrieval, gradability and
 //      accuracy, and keeps, rewrites or drops it. Only questions scoring 4+ on
-//      every dimension pass.
+//      every dimension pass. A question the critic skipped, or told to
+//      rewrite without supplying the rewrite, doesn't pass.
+//   2b. Blind solve (AI, lib/ai.js blindCheck): questions with something to
+//      work out are answered by a model that doesn't see the answer; a
+//      question whose own answer key marks that answer wrong is dropped.
 //   3. Ladder: one question per step of the concept's ladder (model.js
 //      LEVELS), the best-scoring at each step, up to 5 steps for a core
 //      concept, 3 for a supporting one and 2 for a detail.
@@ -62,6 +66,14 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const YES_NO = /^\s*(is|are|was|were|does|do|did|can|could|will|would|should|has|have|had)\b/i;
 const OPEN = /\b(why|how|explain|describe|what happens|what would)\b/i;
+const TRUE_FALSE = /\btrue or false\b|\bcorrect or incorrect\b|\bright or wrong\b/i;
+// "Which is faster, A or B?": a coin flip gets it half the time.
+const EITHER_OR = /^\s*(which|is|are|was|were|does|do|did|can|could|will|would|should|has|have|had)\b[^?]*\bor\b[^?]*\?/i;
+/** The sentence that asks: the last one ending in a question mark (code left out). */
+const askingSentence = (plain) => {
+  const qs = plain.split(/(?<=[.?!:])\s+|\n+/).map(x => x.trim()).filter(x => x.endsWith("?"));
+  return qs.length ? qs[qs.length - 1] : "";
+};
 const CONTEXT = /\b(according to (the|this) (text|author|book|chapter|passage|reading|section)|in (this|the) (chapter|section|passage|reading)|the author|as (mentioned|discussed|described|noted) (above|earlier|previously|in the)|as shown (earlier|previously|in the)|(figure|fig\.|table|listing) \d)/i;
 // Pointing at a picture or example that isn't in the question (fine when a diagram is attached).
 const FIGURE_REF = /\b(the (above|following|previous) (example|figure|table|listing|code|diagram)|as shown above|the (diagram|picture|drawing|figure) (below|above|shown)|shown (below|above))\b/i;
@@ -97,7 +109,13 @@ export function lintQuestion(q, { others = [] } = {}) {
   if (!prompt.trim() || !answer.trim()) add("empty", "block", "Missing the question or its answer.");
   else if (pw.length < 4 && !hasCode) add("short", "block", "Too short to be clear on its own.");
   if (pw.length > 110) add("long", "warn", "Long question; it may be testing several things at once.");
-  if (YES_NO.test(prompt) && !OPEN.test(prompt)) add("yes-no", "block", "Yes/no questions can be answered by guessing.");
+  // A yes/no question is one wherever it sits: "Given a sorted array. Is binary search faster?"
+  const asking = askingSentence(stripCode(prompt));
+  if (((YES_NO.test(prompt) || YES_NO.test(asking)) && !OPEN.test(prompt)) || TRUE_FALSE.test(stripCode(prompt))) {
+    add("yes-no", "block", "Yes/no questions can be answered by guessing.");
+  } else if (EITHER_OR.test(asking) && !OPEN.test(asking)) {
+    add("either-or", "warn", "Offers the choices in the question; a guess is right half the time.");
+  }
   if (CONTEXT.test(prompt)) add("context", "block", "Refers to the book or an example you won't have in front of you later.");
   if (LIST_ALL.test(prompt)) add("list", "warn", "Asks for a complete list; long lists are hard to recall and to grade.");
   if ((prompt.match(/\?/g) || []).length > 2) add("multi", "warn", "Asks several questions at once.");
@@ -163,11 +181,16 @@ export function judge(candidate, review) {
   let revised = false;
   const reasons = [];
   let dims = null;
-  if (review) {
+  // A review without a verdict only carries a blind-solve result (the critic didn't run).
+  if (review?.verdict) {
     const keys = Object.keys(DIMENSIONS).filter(k => !OPTIONAL_DIMENSIONS.has(k) || review.scores?.[k] != null);
     dims = Object.fromEntries(keys.map(k => [k, clampScore(review.scores?.[k])]));
     if (review.verdict === "drop") return { keep: false, q, dims, score: avg(dims), revised, reasons: [review.reason || "Dropped by the quality review."] };
-    if (review.verdict === "revise" && review.revision?.prompt?.trim()) {
+    if (review.verdict === "revise") {
+      // The scores are the rewrite's, so without the rewrite there is nothing they vouch for.
+      if (!review.revision?.prompt?.trim()) {
+        return { keep: false, q, dims, score: avg(dims), revised, reasons: [`The review asked for a rewrite but didn't supply one${review.reason ? `: ${review.reason}` : "."}`] };
+      }
       q = { ...candidate, ...pickRevision(review.revision) };
       revised = true;
     }
@@ -180,21 +203,33 @@ export function judge(candidate, review) {
     }
     if (review.reason) reasons.push(review.reason);
   }
+  // Solved blind by a second model (lib/ai.js blindCheck), the answer key didn't hold up.
+  if (review?.blind) return { keep: false, q, dims, score: dims ? avg(dims) : null, revised, reasons: [review.blind] };
   return { keep: true, q, dims, score: dims ? avg(dims) : null, revised, reasons };
 }
 
+// A revision replaces the question whole. Its accepted answers, key points and
+// diagram are the revised question's own: keeping the original's would mark the
+// old answer right on the new question.
 function pickRevision(r) {
+  const list = (x) => (Array.isArray(x) ? x.map(v => String(v).trim()).filter(Boolean) : []);
   const out = {};
   if (r.prompt?.trim()) out.prompt = r.prompt.trim();
   if (r.model_answer?.trim()) out.answer = r.model_answer.trim();
-  if (Array.isArray(r.accept) && r.accept.length) out.accept = r.accept;
-  if (Array.isArray(r.required_points) && r.required_points.length) out.points = r.required_points;
-  if (Array.isArray(r.misconceptions)) out.misconceptions = r.misconceptions;
+  out.accept = [...new Set(list(r.accept))];
+  const points = list(r.required_points);
+  if (points.length) out.points = points;
+  else if (out.accept.length) out.points = [out.accept[0]];
+  else if (out.answer) out.points = [out.answer];
+  if (Array.isArray(r.misconceptions)) out.misconceptions = list(r.misconceptions);
   if (typeof r.hint === "string") out.hint = r.hint;
   if (typeof r.shape === "string" && r.shape.trim()) out.shape = r.shape.trim();
-  if (typeof r.diagram === "string" && r.diagram.trim()) {
-    const d = parseDiagram(r.diagram);
-    if (d.ok) { out.diagram = d.diagram; out.diagramError = undefined; } else out.diagramError = d.error;
+  if (typeof r.diagram === "string") {
+    if (!r.diagram.trim()) { out.diagram = null; out.diagramError = undefined; }
+    else {
+      const d = parseDiagram(r.diagram);
+      if (d.ok) { out.diagram = d.diagram; out.diagramError = undefined; } else { out.diagram = null; out.diagramError = d.error; }
+    }
   }
   return out;
 }
@@ -210,10 +245,17 @@ const avg = (dims) => {
  * reviews: { [id]: review } from the critic, or {} if unavailable.
  * existing: questions the concept already has (topping up): they count toward
  * the cap, new ones mustn't duplicate them, and missing question types go first.
+ * reviewed: whether the critic ran. When it did, a question it left out (or whose id it garbled)
+ * is dropped rather than waved through. Defaults to "some question here has a verdict".
  * Returns { kept: [...], dropped: [...] } — each entry { ...question, id, score, dims, revised, reasons }.
  */
-export function selectForConcept(candidates, reviews, importance = "supporting", { existing = [], extra = 0 } = {}) {
-  const judged = candidates.map(c => ({ c, j: judge(c, reviews[c.id] ?? null) }));
+export function selectForConcept(candidates, reviews, importance = "supporting", { existing = [], extra = 0, reviewed } = {}) {
+  const ran = reviewed ?? Object.values(reviews || {}).some(r => r?.verdict);
+  const judged = candidates.map(c => {
+    const review = reviews?.[c.id] ?? null;
+    if (ran && !review?.verdict) return { c, j: { keep: false, q: c, dims: null, score: null, revised: false, reasons: ["The quality review skipped this question."] } };
+    return { c, j: judge(c, review) };
+  });
   const dropped = [];
   const passing = [];
   for (const { c, j } of judged) {

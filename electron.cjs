@@ -357,7 +357,7 @@ const SPEC = {};
 const str = (description) => (description ? { type: "string", description } : { type: "string" });
 const strList = (description) => ({ type: "array", items: { type: "string" }, ...(description ? { description } : {}) });
 const obj = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-const escapeTag = (s) => String(s ?? "").replace(/<\/(source|answer|known_concepts|note)>/gi, "</ $1>");
+const escapeTag = (s) => String(s ?? "").replace(/<\/(source|answer|known_concepts|note|concept|passage|lesson|question)>/gi, "</ $1>");
 
 // ── 1. Curriculum extraction ─────────────────────────────────────────────────
 const EXTRACT_SCHEMA = obj({
@@ -436,7 +436,9 @@ In technical material the key idea often lives in a code example or equation: ex
 Never add facts that the source doesn't support.`;
 
 ipcMain.handle("ai:extract", async (_e, { courseName, title, location, text, known = [] }) => {
-  const knownList = known.slice(0, 400).map((k) => `- ${k.name}${k.section ? ` (${k.section})` : ""}`).join("\n");
+  // The list is oldest first; when it has to be cut, the newest stay: the chapters
+  // just before this one are the likeliest prerequisites and the likeliest repeats.
+  const knownList = known.slice(-800).map((k) => `- ${k.name}${k.section ? ` (${k.section})` : ""}`).join("\n");
   const prompt = `Course: ${courseName}
 ${title ? `Material: ${title}\n` : ""}${location ? `Location: ${location}\n` : ""}
 <known_concepts>
@@ -597,6 +599,9 @@ SIMPLE AND PRECISE
 ${SUBJECT}
 If a concept's name or summary is itself tied to the book's example, write its questions about the general technique behind it.
 
+THE SOURCE PASSAGE
+A concept may come with a passage: the learner's own material around the place the concept was found (it can run into neighbouring ideas; ignore those). It is there so that what you write agrees with what the learner read: its definitions, its rules and conventions, the pitfalls it warns about (step 4), the terms it uses. Where the passage and your own knowledge differ on a convention or a term, follow the passage; if the passage is plainly wrong on a fact, don't write a question on that point. Take facts from it, never its examples, and never refer to it.
+
 PRACTICE THAT BUILDS SKILL
 - Most of the learning happens in steps 3 to 5: doing something with the idea on a problem the learner has not seen. Make these real, small problems with one right answer, never "describe how you would".
 - Each step should be answerable by someone who can do the steps below it and has read the lesson, and by no one who is guessing.
@@ -617,6 +622,8 @@ WRITING
 - Markdown: fenced code blocks with a language tag, \`inline code\`, $...$ for math, and small tables (| a | b |) for truth tables.`;
 
 const oneLine = (p) => p.replace(/\s+/g, " ").slice(0, 300);
+// The learner's material around a concept (src/lib/source.js finds it), for the writer and the reviewer.
+const passageOf = (c) => (c.passage ? `\n<passage>\n${escapeTag(String(c.passage).slice(0, 4000))}\n</passage>` : "");
 
 // How question writing trades cost for care (Settings → Question writing).
 // The reviewer is the same at every level, so every question still passes the same gate.
@@ -635,7 +642,7 @@ SPEC.items = ({ courseName, sectionTitle, concepts, writer = "thorough" }) => {
     return `<concept key="${c.key}" importance="${c.importance}" kind="${c.kind}">
 name: ${c.name}
 summary: ${c.summary}
-${c.excerpt ? `source: ${c.excerpt}` : ""}${has}${current}
+${c.excerpt ? `source: ${escapeTag(c.excerpt)}` : ""}${passageOf(c)}${has}${current}
 </concept>`;
   }).join("\n");
   const prompt = `Course: ${courseName}
@@ -668,6 +675,17 @@ const CRITIQUE_SCHEMA = obj({
     description: "One entry per question with verdict revise, and only those",
     items: { ...REVISION, properties: { id: str("The question id"), ...REVISION.properties }, required: ["id", ...REVISION.required] },
   },
+  lessons: {
+    type: "array",
+    description: "One entry per lesson that needs a change, and only those: the complete corrected lesson",
+    items: obj({
+      concept_key: str("Key of the concept whose lesson this replaces"),
+      problem: str("One short sentence on what was wrong"),
+      terms: { type: "array", items: obj({ term: str(), definition: str("One plain sentence") }) },
+      worked_example: str("The corrected worked example (markdown), or empty to remove it"),
+      diagram: DIAGRAM_FIELD,
+    }),
+  },
 });
 
 const CRITIQUE_SYSTEM = `You are the quality gate for a learner's long-term memory. Every question you let through will be reviewed for months or years: a weak question wastes real time and a wrong one teaches errors. Be strict — dropping a mediocre question is better than keeping it.
@@ -680,7 +698,7 @@ Score each question from 1 to 5 on:
 - focus: asks for exactly one thing. 5 = one target, and the shape of the answer (a word, a number, what it prints) is clear. 3 = two things joined ("…, and why?"). 1 = an essay prompt or several questions.
 - retrieval: answering requires producing the idea from memory. Low if the prompt contains or hints at the answer, is yes/no or either/or, or can be answered by guessing or common sense.
 - gradability: a grader could mark a correct paraphrase right and a plausible wrong answer wrong. Steps 1–4 need one specific key point; accept must list every correct exact form (and no wrong one) when the answer is a term, value, output or line of code.
-- accuracy: the model answer is correct and consistent with the source excerpt. Work out code and circuits yourself; don't trust the stated answer.
+- accuracy: the model answer is correct, and consistent with the concept's source quote and passage (the learner's own material around the concept, when given: it can run into neighbouring ideas). Work out code and circuits yourself; don't trust the stated answer. A question that contradicts what the passage teaches (its definition, its convention, its term for the thing) is not accurate for this learner.
 
 ${SUBJECT}
 A question that breaks this rule is never a keep. If the idea behind it is a real part of the subject, revise it into a general, self-contained question on a fresh example (same step, same kind of answer); if it only makes sense inside the book's example, drop it.
@@ -689,9 +707,17 @@ Then check each concept's ladder as a whole: the steps go from simplest to harde
 
 Verdicts:
 - keep: every score is 4 or 5 as written.
-- revise: it tests something important (importance 4+) but has a fixable flaw. The most common one is asking two things: keep one target and move the rest into the model answer. Put the complete improved question in revisions (with the same id) and give the scores the REVISED question earns.
+- revise: it tests something important (importance 4+) but has a fixable flaw. The most common one is asking two things: keep one target and move the rest into the model answer. Put the complete improved question in revisions (with the same id) and give the scores the REVISED question earns. The revision replaces the question whole, so write out every field of the revised question, including the ones you didn't change: its accept list and its diagram are used exactly as you give them (empty means the revised question has none). If you change the example, work the new answer out from scratch.
 - drop: importance 3 or lower, redundant, or not fixable.
-Leave reason empty for keep. Only revised questions go in revisions.
+Leave reason empty for keep. Only revised questions go in revisions. Give every question a review, under the id it came with.
+
+LESSONS
+Each concept's lesson (its terms and a worked example) is shown to the learner just before their first question on that concept, so an error in it is taught as fact. Check every lesson given:
+- each definition is correct, plain, and agrees with the concept's summary and passage;
+- the worked example is right at every step (work it out yourself) and shows the method step 3 needs;
+- it is the lesson's own example, not the source's sample program or case;
+- it is not the problem any of the concept's questions asks (the same code, values or circuit would give that answer away), and no definition hands over a step 2-5 answer word for word.
+For a lesson that fails any of these, put the complete corrected lesson in lessons: all of its terms and its worked example, fixed (leave worked_example empty to remove one you can't fix). Lessons that are fine don't appear there.
 
 ${ONE_TARGET}
 
@@ -699,10 +725,13 @@ ${DIAGRAMS}
 
 ${QUALITY_BAR}`;
 
-SPEC.critique = ({ courseName, sectionTitle, concepts, questions }) => {
+SPEC.critique = ({ courseName, sectionTitle, concepts, questions, lessons = [] }) => {
   const ctx = concepts.map((c) => `<concept key="${c.key}" importance="${c.importance}">
-${c.name}: ${c.summary}${c.excerpt ? `\nsource: ${c.excerpt}` : ""}
+${c.name}: ${c.summary}${c.excerpt ? `\nsource: ${escapeTag(c.excerpt)}` : ""}${passageOf(c)}
 </concept>`).join("\n");
+  const taught = lessons.map((l) => `<lesson concept="${l.concept_key}">
+${(l.terms || []).map((t) => `term: ${t.term} = ${t.definition}`).join("\n")}
+${l.worked_example ? `worked_example:\n${l.worked_example}\n` : ""}${l.diagram ? `diagram: ${l.diagram}\n` : ""}</lesson>`).join("\n");
   const qs = questions.map((q) => `<question id="${q.id}" concept="${q.concept_key}"${q.level ? ` step="${q.level}"` : ""} type="${q.ability}">
 ${q.shape ? `shape: ${q.shape}\n` : ""}prompt: ${q.prompt}
 ${q.diagram ? `diagram: ${q.diagram}\n` : ""}model_answer: ${q.model_answer}
@@ -717,11 +746,51 @@ Section: ${sectionTitle}
 ${ctx}
 ${inUse ? `\nQuestions already in use (not for review; drop new questions that repeat them):\n${inUse}\n` : ""}
 ${qs}
-
-Review every question above.`;
+${taught ? `\nLessons (shown before the first question on each concept):\n${taught}\n` : ""}
+Review every question above${taught ? ", and check the lessons" : ""}.`;
   return { kind: "critique", tier: "deep", effort: "high", system: CRITIQUE_SYSTEM, prompt, schema: CRITIQUE_SCHEMA, maxTokens: 32000 };
 };
 ipcMain.handle("ai:critique", (_e, payload) => structured(SPEC.critique(payload)));
+
+// ── 2b′. Blind solve (a second check on answers) ────────────────────────────
+// The writer and the reviewer both see the intended answer, so a slip in it
+// can pass both. Here the question is answered by a model that doesn't see
+// the answer; the app then checks that answer against the answer key
+// (src/lib/ai.js blindCheck). A question an expert answers "wrong" has a
+// wrong key, an incomplete accept list, or more than one right answer.
+const SOLVE_SCHEMA = obj({
+  answers: {
+    type: "array",
+    items: obj({
+      id: str("The question id"),
+      working: str("Brief working: the trace, the arithmetic, the reasoning"),
+      answer: str("The answer alone, in the form asked for"),
+      problem: str("Empty, unless the question can't be answered as posed: what is missing or ambiguous, in one sentence"),
+    }),
+  },
+});
+
+const SOLVE_SYSTEM = `You answer study questions as an expert in the subject, to check them before a learner sees them. You are not shown the intended answers, and you are not grading anything: just answer each question correctly.
+
+For each question:
+- working: work it out carefully from your own knowledge. Trace code line by line, keeping track of every variable; evaluate circuits gate by gate; do the arithmetic. Keep it brief.
+- answer: your answer in the form the question asks for (answer_form says what that is: a word, a number, what it prints, one line of code, one sentence), as short as that form allows, with no explanation. For printed output give exactly what is printed.
+- problem: leave it empty unless the question cannot be answered as posed: something it needs is missing, it is ambiguous, or two different answers would both be right. Then say what is wrong in one sentence, and still give your best answer.
+
+A question may come with a diagram, described as JSON: a circuit (gates, inputs with their values, the output asked about), memory boxes with pointers, a binary word, or a tree. "?" in it marks what the question asks for.
+
+Answer every question, under the id it came with.`;
+
+SPEC.solve = ({ courseName, sectionTitle, questions }) => {
+  const qs = questions.map((q) => `<question id="${q.id}"${q.shape ? ` answer_form="${String(q.shape).replace(/"/g, "'")}"` : ""}>
+${escapeTag(q.prompt)}
+</question>`).join("\n");
+  const prompt = `Course: ${courseName || "(not given)"}${sectionTitle ? `\nSection: ${sectionTitle}` : ""}
+
+${qs}`;
+  return { kind: "solve", tier: "deep", system: SOLVE_SYSTEM, prompt, schema: SOLVE_SCHEMA, maxTokens: 8000 };
+};
+ipcMain.handle("ai:solve", (_e, payload) => structured(SPEC.solve(payload)));
 
 // ── 2c. Rewrite a question you reported ──────────────────────────────────────
 const REWRITE_SCHEMA = obj({

@@ -6,9 +6,13 @@
 // every group's review in a second. Progress is handed to onSaved so an
 // import can pick a batch back up after the app restarts instead of paying
 // for it twice. Anything a batch can't handle is redone live, so quality
-// never depends on the batch.
+// never depends on the batch. The last checks (questions the review skipped,
+// and solving the kept ones blind: lib/ai.js reviewCandidates) run live.
+//
+// Nobody looks these questions over before they're added, so a group whose
+// review couldn't run at all adds nothing.
 
-import { api, splitBatches, writeAndReview, reviewsById, toCandidates, toLessons, forReview, writerConcept, writerOf, planRebuild } from "./ai.js";
+import { api, splitBatches, writeAndReview, reviewCandidates, reviewsById, toCandidates, toLessons, forReview, forLessonReview, applyLessonFixes, writerConcept, writerOf, planRebuild, inParallel, NO_REVIEW } from "./ai.js";
 import { selectForConcept } from "./quality.js";
 import { index } from "./model.js";
 
@@ -90,7 +94,7 @@ export async function writeViaBatch({ state, courseId, sections, saved = null, o
         kind: "critique",
         requests: toReview.map(gi => ({ id: `c${gi}`, payload: {
           courseName, sectionTitle: sectionTitle(groups[gi]), concepts: groups[gi].concepts.map(conceptCtx),
-          questions: candidates[gi].map(forReview),
+          questions: candidates[gi].map(forReview), lessons: forLessonReview(lessons[gi]),
         } })),
       });
       if (created?.ok) {
@@ -102,60 +106,63 @@ export async function writeViaBatch({ state, courseId, sections, saved = null, o
       const waited = await waitForBatch(a, batchId, { sleep, pollMs, stopped });
       if (!waited.ok) return { ok: false, error: waited.error, stopped: waited.stopped };
       const res = await a.batchResults(batchId);
-      if (res?.ok) for (const gi of toReview) { const r = res.results[`c${gi}`]; if (r?.ok) reviews[gi] = reviewsById(r.data); }
+      if (res?.ok) for (const gi of toReview) {
+        const r = res.results[`c${gi}`];
+        if (r?.ok) { reviews[gi] = reviewsById(r.data); lessons[gi] = applyLessonFixes(lessons[gi] || {}, r.data); }
+      }
     }
   }
 
-  // Anything the batch didn't cover is done live.
-  const out = [];
-  let written = 0, reviewed = true, failed = null;
-  for (let gi = 0; gi < groups.length; gi++) {
-    const g = groups[gi];
-    let cands = candidates[gi], rev = reviews[gi], taught = lessons[gi] || {};
-    if (!cands || (cands.length && !rev)) {
+  // Anything the batch didn't cover is done live, and every group gets the last checks.
+  const done = groups.map(() => null);
+  await inParallel(groups, LIVE_GROUPS, async (g, gi) => {
+    const cands = candidates[gi];
+    const concepts = g.concepts.map(conceptCtx);
+    if (!cands) {
       live++;
-      const r = cands
-        ? await liveReview({ a, courseName, group: g, candidates: cands })
-        : await writeAndReview({ a, courseName, sectionTitle: sectionTitle(g), concepts: g.concepts, tag: `q${gi}`, writer }).catch(err => ({ ok: false, error: err?.message }));
-      if (!r.ok) { failed = r.error; continue; }
-      cands = r.candidates; rev = r.reviews;
-      if (r.lessons) taught = r.lessons;
-      if (!r.reviewed) reviewed = false;
+      done[gi] = await writeAndReview({ a, courseName, sectionTitle: sectionTitle(g), concepts: g.concepts, tag: `q${gi}`, writer, requireReview: true })
+        .catch(err => ({ ok: false, error: err?.message }));
+      return;
     }
-    written += cands.length;
+    if (cands.length && !reviews[gi]) live++;
+    const r = await reviewCandidates({ a, courseName, sectionTitle: sectionTitle(g), concepts, candidates: cands, lessons: lessons[gi] || {}, reviews: reviews[gi] })
+      .catch(() => ({ reviews: {}, reviewed: false, lessons: {} }));
+    done[gi] = r.reviewed ? { ok: true, candidates: cands, reviews: r.reviews, lessons: r.lessons } : { ok: false, error: NO_REVIEW };
+  });
+
+  const out = [];
+  let written = 0, failed = null;
+  for (let gi = 0; gi < groups.length; gi++) {
+    const g = groups[gi], r = done[gi];
+    if (!r?.ok) { failed = r?.error || "Something went wrong."; continue; }
+    written += r.candidates.length;
     for (const c of g.concepts) {
-      const { kept, dropped } = selectForConcept(cands.filter(q => q.conceptKey === c.key), rev || {}, c.importance);
+      const { kept, dropped } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.key), r.reviews, c.importance, { reviewed: true });
       out.push({
-        sectionTitle: g.section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: Boolean(rev),
-        lesson: taught[c.key] ?? null,
+        sectionTitle: g.section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: true,
+        lesson: r.lessons?.[c.key] ?? null,
         kept: kept.map(q => ({ ...q, selected: true })),
         dropped: dropped.map(q => ({ ...q, selected: false })),
       });
     }
   }
   if (!out.length) return { ok: false, error: failed || "No questions could be written." };
-  return { ok: true, groups: out, written, reviewed, partial: failed, live };
+  return { ok: true, groups: out, written, reviewed: true, partial: failed, live };
 }
 
-async function liveReview({ a, courseName, group, candidates }) {
-  const crit = await a.critique({
-    courseName, sectionTitle: group.section.title, concepts: group.concepts.map(conceptCtx),
-    questions: candidates.map(forReview),
-  }).catch(() => null);
-  return { ok: true, candidates, reviews: crit?.ok ? reviewsById(crit.data) : {}, reviewed: Boolean(crit?.ok) };
-}
+const LIVE_GROUPS = 4; // groups finishing their checks at once
 
 async function liveAll({ a, courseName, groups, writer }) {
   const out = [];
   let written = 0, failed = null;
   for (let gi = 0; gi < groups.length; gi++) {
     const g = groups[gi];
-    const r = await writeAndReview({ a, courseName, sectionTitle: g.section.title, concepts: g.concepts, tag: `q${gi}`, writer }).catch(err => ({ ok: false, error: err?.message }));
+    const r = await writeAndReview({ a, courseName, sectionTitle: g.section.title, concepts: g.concepts, tag: `q${gi}`, writer, requireReview: true }).catch(err => ({ ok: false, error: err?.message }));
     if (!r.ok) { failed = r.error; continue; }
     written += r.candidates.length;
     for (const c of g.concepts) {
-      const { kept, dropped } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.key), r.reviews, c.importance);
-      out.push({ sectionTitle: g.section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: r.reviewed,
+      const { kept, dropped } = selectForConcept(r.candidates.filter(q => q.conceptKey === c.key), r.reviews, c.importance, { reviewed: true });
+      out.push({ sectionTitle: g.section.title, conceptKey: c.key, conceptName: c.name, importance: c.importance, reviewed: true,
         lesson: r.lessons?.[c.key] ?? null,
         kept: kept.map(q => ({ ...q, selected: true })), dropped: dropped.map(q => ({ ...q, selected: false })) });
     }
