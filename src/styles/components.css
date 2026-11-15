@@ -29,7 +29,7 @@
 .btn.on { background: var(--select); color: var(--select-ink); }
 
 /* On a surface, buttons step up one shade. */
-:is(.panel, .list, .modal, .drawer, .result, .notice, .banner, .q-card, .feedback, .nav-job, .confirm, .menu-list) {
+:is(.panel, .list, .fold, .capture, .modal, .drawer, .result, .notice, .banner, .q-card, .feedback, .nav-job, .confirm, .menu-list) {
   --btn-bg: var(--surface-2);
   --btn-bg-hover: color-mix(in srgb, var(--surface-3) 45%, var(--surface-2));
   --btn-quiet-hover: var(--surface-2);
@@ -59,6 +59,9 @@
 .seg > button:focus-visible { box-shadow: inset 0 0 0 2px var(--link); }
 .seg.sm { height: var(--control-sm); padding: 2px; }
 .seg.sm > button { padding: 0 10px; border-radius: calc(var(--radius-md) - 2px); font-size: var(--text-xs); }
+/* Stretched across a form, every option the same width, so it lines up with the inputs around it. */
+.seg.fill { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-self: stretch; }
+.seg.fill > button { justify-content: center; min-width: 0; padding: 0 var(--space-2); }
 
 /* ── Forms ──────────────────────────────────────────────────────────────── */
 .form { display: flex; flex-direction: column; gap: var(--space-5); }
@@ -69,6 +72,10 @@
   font-weight: 600; font-size: var(--text-md); color: var(--ink-2);
 }
 .field-value { color: var(--ink); font-weight: 700; }
+/* On one line: the label at the left edge, the control at the right (a short choice in a list of settings). */
+.field.inline { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: var(--control-md); }
+.field.inline > .field-label { flex: 1; min-width: 0; }
+.field.inline > .seg { align-self: center; }
 .help { font-size: var(--text-sm); line-height: var(--leading-ui); color: var(--ink-3); }
 
 .input, .select, .textarea {
@@ -85,13 +92,30 @@
   background: var(--inset) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237A776C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M7 10l5 5 5-5'/></svg>") no-repeat right 10px center;
 }
 .select option { background: var(--surface); color: var(--ink); }
-.textarea { display: block; min-height: 120px; padding: var(--space-2) var(--space-3); line-height: var(--leading-body); resize: vertical; }
+/* A text area grows with what you write (up to half the window, then it scrolls), so there's no corner to drag. */
+.textarea { display: block; min-height: 120px; max-height: 50vh; padding: var(--space-2) var(--space-3); line-height: var(--leading-body); resize: none; field-sizing: content; }
 .textarea.short { min-height: 72px; }
 .textarea.code { min-height: 120px; font: 400 var(--text-md) / var(--leading-body) var(--mono); tab-size: 4; white-space: pre; overflow-x: auto; }
 input[type="range"] { width: 100%; margin: 0; accent-color: var(--link); }
 input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex-shrink: 0; accent-color: var(--link); }
 /* A checkbox with its label beside it. */
 .check-label { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--ink-2); cursor: pointer; user-select: none; }
+
+/* ── A box you write in, with its actions along the foot ────────────────────
+   Notes' capture box and Import course's paste box: you write in the top,
+   and the two actions sit at the two ends of the row under it, the same
+   size (the quiet one left, the main one right). Dropping a file on it works too. */
+.capture { overflow: hidden; transition: border-color var(--dur-quick) var(--ease-out), background var(--dur-quick) var(--ease-out); }
+.capture:focus-within { border-color: var(--ink-3); }
+.capture.over { border-color: var(--ink-2); border-style: dashed; background: var(--surface-2); }
+.capture-text {
+  display: block; width: 100%; min-height: 112px; max-height: 40vh; padding: var(--space-5) var(--space-6) var(--space-4); resize: none; field-sizing: content;
+  border: 0; outline: 0; background: transparent; color: var(--ink); font-size: var(--text-lg); line-height: var(--leading-body);
+}
+.capture-text::placeholder { color: var(--ink-3); }
+.capture-text:focus-visible { box-shadow: none; }
+.capture-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border-top: 1px solid var(--rule); }
+.capture-foot .btn { min-width: 152px; }
 
 .dropzone {
   display: flex; align-items: center; justify-content: center; gap: var(--space-2);
@@ -197,6 +221,45 @@ button.list-row:hover { background: var(--surface-2); }
 .list-action > svg { width: var(--icon-sm); height: var(--icon-sm); }
 button.list-row:hover .list-action { color: var(--ink); transform: translateX(3px); }
 
+/* ── Fold (ui/layout.jsx Fold): a card whose header shows or hides its list ──
+   Closed, it's one row: a title, a count, an action, a chevron. Open, the
+   list scrolls inside the card instead of lengthening the page. The whole
+   header is the button; its actions sit above it. */
+.fold { display: grid; min-width: 0; overflow: hidden; }
+.fold-head {
+  position: relative; display: flex; align-items: center; gap: var(--space-4); min-height: 64px; padding: 0 var(--space-6);
+  transition: background var(--dur-quick) var(--ease-out);
+}
+.fold-head:hover { background: var(--select); }
+.fold-head:has(.fold-toggle:focus-visible) { box-shadow: inset 0 0 0 2px var(--link); }
+.fold-title { flex: 1; min-width: 0; font: inherit; }
+.fold-toggle {
+  display: inline-flex; align-items: baseline; gap: var(--space-2); padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--ink); font: 600 var(--text-lg) / var(--leading-tight) var(--sans); text-align: left;
+}
+.fold-toggle::after { content: ""; position: absolute; inset: 0; }
+.fold-toggle:focus-visible { box-shadow: none; }
+.fold-count { font-weight: 400; color: var(--ink-3); }
+.fold-actions { position: relative; z-index: 1; display: flex; align-items: center; gap: var(--space-2); }
+.fold-chevron { flex-shrink: 0; width: var(--icon-sm); height: var(--icon-sm); color: var(--ink-3); pointer-events: none; transition: transform var(--dur-base) var(--ease-out), color var(--dur-quick) var(--ease-out); }
+.fold-head:hover .fold-chevron { color: var(--ink); }
+.fold.open .fold-chevron { transform: rotate(90deg); }
+/* Eight and a half rows: the half row says there's more to scroll to. */
+.fold-body { max-height: 408px; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--rule); animation: fold-open var(--dur-base) var(--ease-out); }
+.fold-body::-webkit-scrollbar-thumb { border-color: var(--surface); }
+@keyframes fold-open { from { opacity: 0; max-height: 0; } }
+/* A row in a fold: one line, with what you can do to it at the end. */
+.fold-row {
+  display: flex; align-items: center; gap: var(--space-3); min-height: 48px; padding: var(--space-2) var(--space-4) var(--space-2) var(--space-6);
+  border-top: 1px solid var(--rule); transition: background var(--dur-quick) var(--ease-out);
+}
+.fold-row:first-child { border-top: 0; }
+.fold-row:hover, .fold-row:focus-within { background: var(--select); }
+/* Its actions stay out of the way until you point at the row (or tab to them). */
+.fold-row-actions { display: flex; align-items: center; gap: var(--space-1); flex-shrink: 0; opacity: 0; transition: opacity var(--dur-quick) var(--ease-out); }
+.fold-row:hover .fold-row-actions, .fold-row:focus-within .fold-row-actions { opacity: 1; }
+.fold-row-actions.always { opacity: 1; }
+
 /* A line of facts about something: "12 concepts   3 of 5 mastered   1 slipping". */
 .meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-3); font-size: var(--text-sm); color: var(--ink-3); }
 .meta > * { white-space: nowrap; }
@@ -272,6 +335,10 @@ button.list-row:hover .list-action { color: var(--ink); transform: translateX(3p
 }
 .modal.sm { width: min(440px, 92vw); }
 .modal.lg { width: min(640px, 94vw); }
+.modal.xl { width: min(720px, 94vw); }
+/* A dialog opened from a drawer sits over it, and the drawer dims with the page. */
+.modal-scrim { z-index: calc(var(--z-dialog) + 1); }
+.modal { z-index: calc(var(--z-dialog) + 2); }
 .modal.leaving { animation: modal-out var(--dur-quick) var(--ease-out) forwards; }
 .modal-title { padding: var(--space-6) var(--space-6) 0; font: 500 var(--title-md) / var(--leading-tight) var(--serif); }
 .modal-body { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-5) var(--space-6) var(--space-6); overflow-y: auto; }

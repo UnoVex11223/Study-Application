@@ -4,7 +4,8 @@
 //
 //   <Page width="narrow">
 //     <PageHeader title="Settings" back={{ label: "Courses", onClick }} actions={<button…/>}/>
-//     <Section title="Inbox" count={3} actions={<button…/>}>…</Section>
+//     <Section title="Areas" count={3} actions={<button…/>}>…</Section>
+//     <Fold title="Inbox" count={22} open={open} onToggle={setOpen} actions={<button…/>}>…</Fold>
 //   </Page>
 
 import Icon from "./Icon.jsx";
@@ -44,6 +45,29 @@ export function Section({ title, count, note, actions, className, children }) {
         {actions}
       </div>
       {children}
+    </section>
+  );
+}
+
+/**
+ * A card that opens: its header (a title, a count, actions) is always there,
+ * and pressing it shows or hides what's inside. For long lists you rarely
+ * need to read (an inbox, a history): the list scrolls inside the card, so
+ * opening it never pushes the rest of the page away.
+ */
+export function Fold({ title, count, actions, open, onToggle, children }) {
+  return (
+    <section className={cx("fold", open && "open")}>
+      <div className="fold-head">
+        <h2 className="fold-title">
+          <button type="button" className="fold-toggle" aria-expanded={open} onClick={() => onToggle(!open)}>
+            {title}{count != null && <span className="fold-count num">{count}</span>}
+          </button>
+        </h2>
+        {actions && <div className="fold-actions">{actions}</div>}
+        <Icon name="chevron" className="fold-chevron"/>
+      </div>
+      {open && <div className="fold-body">{children}</div>}
     </section>
   );
 }

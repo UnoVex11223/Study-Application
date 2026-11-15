@@ -47,13 +47,17 @@ export function Drawer({ title, context, actions, onClose, modeless = false, ent
   );
 }
 
-/** A dialog in the middle of the window. size: "sm" | "md" (default) | "lg". The footer holds its buttons, the main one last. */
+/**
+ * A dialog in the middle of the window. size: "sm" | "md" (default) | "lg" | "xl".
+ * The footer holds its buttons, the main one last. Opened from a drawer, it
+ * sits over the drawer, which dims with the rest of the page.
+ */
 export function Modal({ title, footer, size = "md", onClose, children }) {
   const [leaving, close] = useExit(onClose, 130);
   useKey((e) => { if (e.key === "Escape") close(); }, [close]);
   return (
     <>
-      <div className={cx("scrim", leaving && "leaving")} onClick={close}/>
+      <div className={cx("scrim modal-scrim", leaving && "leaving")} onClick={close}/>
       <div className={cx("modal", size !== "md" && size, leaving && "leaving")} role="dialog" aria-label={title}>
         {title && <h2 className="modal-title">{title}</h2>}
         <div className="modal-body">{children}</div>

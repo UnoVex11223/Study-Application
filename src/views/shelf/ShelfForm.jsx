@@ -1,6 +1,10 @@
 // Add something to the shelf, or edit it: what kind it is, its title, author
 // and cover (chosen, dropped, or found on Open Library), its status and how
 // far along you are.
+//
+// The form is two columns that start and end together: the cover with its two
+// actions at the left, and the fields at the right, every row as wide as the
+// column (see .shelf-form in styles/shelf.css).
 
 import { useRef, useState } from "react";
 import { useStore } from "../../state/store.jsx";
@@ -18,21 +22,16 @@ const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const coverApi = () => (typeof window !== "undefined" ? window.tenax?.covers : null);
 
 /**
- * The cover: a preview you can drop a picture on, with ways to choose one. A
- * picture that isn't a book's shape is cut to fit, and can be dragged to
- * choose what shows (`pos`). `busy` is true while a picture is being shrunk.
+ * Choosing a cover: a picture you pick or drop, or one found on Open Library.
+ * A picture that isn't a book's shape is cut to fit, and can be dragged to
+ * choose what shows (`pos`). Returns what the two parts below need.
  */
-function CoverField({ cover, setCover, pos, setPos, title, author, setError, busy, setBusy }) {
-  const [over, setOver] = useState(false);
+function useCoverPicker({ cover, setCover, pos, setPos, title, author, setError, setBusy }) {
   const [found, setFound] = useState(null); // null | { query, covers, error }
   const [finding, setFinding] = useState(false);
   const [picking, setPicking] = useState(null);
-  const fileRef = useRef(null);
-  const drag = useRef(null);
   const info = useCoverInfo(cover);
   const movable = Boolean(info && !bookShaped(info.aspect));
-  const wide = info?.aspect > 2 / 3;
-  const at = pos ?? info?.pos ?? 0.5;
 
   const choose = (src) => { setCover(src); setPos(null); setError(""); };
   const takeFile = async (file) => {
@@ -41,27 +40,8 @@ function CoverField({ cover, setCover, pos, setPos, title, author, setError, bus
     try { choose(await shrinkImage(file)); } catch (err) { setError(err.message); }
     setBusy(false);
   };
-  // Dragging moves the picture under the cover: the part that shows follows the pointer.
-  const startDrag = (e) => {
-    if (!movable) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const r = e.currentTarget.getBoundingClientRect();
-    const room = wide ? r.height * info.aspect - r.width : r.width / info.aspect - r.height;
-    drag.current = { from: wide ? e.clientX : e.clientY, at, room };
-  };
-  const moveDrag = (e) => {
-    const d = drag.current;
-    if (!d) return;
-    setPos(Math.min(1, Math.max(0, d.at - ((wide ? e.clientX : e.clientY) - d.from) / d.room)));
-  };
-  const nudge = (e) => {
-    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
-    if (!movable || !step) return;
-    e.preventDefault();
-    setPos(p => Math.min(1, Math.max(0, (p ?? info.pos) + step * 0.05)));
-  };
   // Covers from Open Library: searched by the title (or an ISBN typed as the title) and author.
-  const findCovers = async () => {
+  const find = async () => {
     const q = { title: title.trim(), author: author.trim() };
     if (!q.title) return setError("Give it a title first.");
     setFinding(true); setError("");
@@ -69,7 +49,7 @@ function CoverField({ cover, setCover, pos, setPos, title, author, setError, bus
     setFinding(false);
     setFound({ query: q.title, covers: res.ok ? res.covers : [], error: res.ok ? "" : res.error });
   };
-  const pickCover = async (c) => {
+  const pick = async (c) => {
     setPicking(c.id);
     const res = await coverApi().fetch(c.id).catch(() => ({ ok: false, error: "Couldn't download the cover" }));
     if (res.ok) {
@@ -77,42 +57,83 @@ function CoverField({ cover, setCover, pos, setPos, title, author, setError, bus
     } else setError(res.error);
     setPicking(null);
   };
+  return { cover, pos, setPos, title, author, info, movable, found, finding, picking, choose, takeFile, find, pick };
+}
+
+/** The left column: the cover as it will stand on the shelf (or an empty place for one), and the two ways to get one. */
+function CoverSide({ picker: p, busy }) {
+  const [over, setOver] = useState(false);
+  const drag = useRef(null);
+  const fileRef = useRef(null);
+  const browse = () => fileRef.current?.click();
+  const wide = p.info?.aspect > 2 / 3;
+  const at = p.pos ?? p.info?.pos ?? 0.5;
+
+  // Dragging moves the picture under the cover: the part that shows follows the pointer.
+  const startDrag = (e) => {
+    if (!p.movable) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const r = e.currentTarget.getBoundingClientRect();
+    const room = wide ? r.height * p.info.aspect - r.width : r.width / p.info.aspect - r.height;
+    drag.current = { from: wide ? e.clientX : e.clientY, at, room };
+  };
+  const moveDrag = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    p.setPos(Math.min(1, Math.max(0, d.at - ((wide ? e.clientX : e.clientY) - d.from) / d.room)));
+  };
+  const nudge = (e) => {
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (!p.movable || !step) return;
+    e.preventDefault();
+    p.setPos(v => Math.min(1, Math.max(0, (v ?? p.info.pos) + step * 0.05)));
+  };
 
   return (
-    <Field label="Cover">
-      <div className={cx("cover-field", over && "over")}
-        onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-        onDrop={(e) => { e.preventDefault(); setOver(false); takeFile(e.dataTransfer.files?.[0]); }}>
-        <div className={cx("cover-adjust", movable && "movable")} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { drag.current = null; }}
-          {...(movable && { tabIndex: 0, role: "slider", "aria-label": "What part of the picture shows", "aria-orientation": wide ? "horizontal" : "vertical",
-            "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(at * 100), onKeyDown: nudge })}>
-          <CoverArt src={cover} title={title} author={author} className="edit-cover" pos={pos}/>
-        </div>
-        <div className="stack gap-3">
-          <div className="row wrap">
-            {coverApi() && <button type="button" className="btn btn-sm" onClick={findCovers} disabled={finding}>{finding ? <Spinner/> : <Icon name="search"/>}Find a cover</button>}
-            <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? <Spinner/> : <Icon name="upload"/>}Choose an image</button>
-            {cover && <button type="button" className="btn btn-sm btn-quiet" onClick={() => choose(null)}><Icon name="x"/>Remove</button>}
+    <div className={cx("shelf-form-cover", over && "over")}
+      onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+      onDrop={(e) => { e.preventDefault(); setOver(false); p.takeFile(e.dataTransfer.files?.[0]); }}>
+      <div className="cover-slot">
+        {p.cover || p.title ? (
+          <div className={cx("cover-adjust", p.movable && "movable")} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { drag.current = null; }}
+            {...(p.movable && { tabIndex: 0, role: "slider", "aria-label": "What part of the picture shows", "aria-orientation": wide ? "horizontal" : "vertical",
+              "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(at * 100), onKeyDown: nudge })}>
+            <CoverArt src={p.cover} title={p.title} author={p.author} className="edit-cover" pos={p.pos}/>
           </div>
-          {movable && <p className="small muted">Cut to fit the cover. Drag the picture to choose what shows.</p>}
-        </div>
+        ) : (
+          <button type="button" className="cover-empty" onClick={browse}>
+            <Icon name="plus" size={18}/>
+            <span>Drop a cover here</span>
+          </button>
+        )}
+        {p.cover && (
+          <button type="button" className="cover-remove" title="Remove the cover" aria-label="Remove the cover" onClick={() => p.choose(null)}><Icon name="x"/></button>
+        )}
       </div>
-      {found && (found.covers.length > 0 ? (
-        <div className="cover-picks" role="listbox" aria-label="Covers from Open Library">
-          {found.covers.map((c, i) => (
-            <button key={c.id} type="button" role="option" aria-selected={picking === c.id} className="cover-pick"
-              style={{ "--i": i }} onClick={() => pickCover(c)} disabled={Boolean(picking)} title={[c.title, c.author, c.year].filter(Boolean).join(", ")}>
-              <img src={c.thumb} alt="" loading="lazy" onError={(e) => { e.currentTarget.closest(".cover-pick").hidden = true; }}/>
-              {picking === c.id && <span className="cover-pick-busy"><Spinner/></span>}
-              {c.year && <span className="cover-pick-year">{c.year}</span>}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <p className="small muted">{found.error || `No covers found for “${found.query}”.`}</p>
+      <div className="cover-actions">
+        {coverApi() && <button type="button" className="btn btn-sm" onClick={p.find} disabled={p.finding}>{p.finding ? <Spinner/> : <Icon name="search"/>}Find a cover</button>}
+        <button type="button" className="btn btn-sm" onClick={browse} disabled={busy}>{busy ? <Spinner/> : <Icon name="upload"/>}Choose an image</button>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { p.takeFile(e.target.files?.[0]); e.target.value = ""; }}/>
+    </div>
+  );
+}
+
+/** Under both columns: the covers Open Library found, to pick one from. */
+function CoverPicks({ picker: p }) {
+  if (!p.found) return null;
+  if (!p.found.covers.length) return <p className="small muted">{p.found.error || `No covers found for “${p.found.query}”.`}</p>;
+  return (
+    <div className="cover-picks" role="listbox" aria-label="Covers from Open Library">
+      {p.found.covers.map((c, i) => (
+        <button key={c.id} type="button" role="option" aria-selected={p.picking === c.id} className="cover-pick"
+          style={{ "--i": i }} onClick={() => p.pick(c)} disabled={Boolean(p.picking)} title={[c.title, c.author, c.year].filter(Boolean).join(", ")}>
+          <img src={c.thumb} alt="" loading="lazy" onError={(e) => { e.currentTarget.closest(".cover-pick").hidden = true; }}/>
+          {p.picking === c.id && <span className="cover-pick-busy"><Spinner/></span>}
+          {c.year && <span className="cover-pick-year">{c.year}</span>}
+        </button>
       ))}
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { takeFile(e.target.files?.[0]); e.target.value = ""; }}/>
-    </Field>
+    </div>
   );
 }
 
@@ -141,6 +162,9 @@ export default function ShelfForm({ entry, startKind, onClose, onSaved }) {
   const shownStatus = statuses[status] ? status : "active";
   // A Tenax course is a textbook or a course; anything else can be any kind.
   const kinds = Object.keys(SHELF_KINDS).filter(k => !course || categoryOf(k) === "study");
+  const picker = useCoverPicker({
+    cover, setCover, pos: coverPos, setPos: setCoverPos, title: title.trim() || course?.name || "", author: reading ? author.trim() : "", setError, setBusy,
+  });
 
   const pickKind = (k) => {
     setKind(k);
@@ -174,48 +198,53 @@ export default function ShelfForm({ entry, startKind, onClose, onSaved }) {
   };
 
   return (
-    <Modal title={entry ? "Edit" : "Add to your shelf"} size="lg" onClose={onClose}
+    <Modal title={entry ? `Edit ${SHELF_KINDS[kind].label.toLowerCase()}` : "Add to your shelf"} size="xl" onClose={onClose}
       footer={<>
         <button className="btn btn-quiet" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={busy}>{entry ? "Save changes" : "Add to shelf"}</button>
       </>}>
-      {kinds.length > 1 && (
-        <Field label="Type">
-          <Segmented label="Type" options={kinds.map(k => [k, SHELF_KINDS[k].label])} value={kind} onChange={pickKind}/>
-        </Field>
-      )}
-      <div className={reading ? "form-row" : undefined}>
-        <Field label="Title" htmlFor="shelf-title">
-          <input id="shelf-title" className="input" value={title} autoFocus={!entry} onChange={e => setTitle(e.target.value)}/>
-        </Field>
-        {reading && (
-          <Field label="Author" htmlFor="shelf-author">
-            <input id="shelf-author" className="input" value={author} onChange={e => setAuthor(e.target.value)}/>
-          </Field>
-        )}
+      <div className="shelf-form">
+        <CoverSide picker={picker} busy={busy}/>
+        <div className="form">
+          {kinds.length > 1 && (
+            <Field label="Type">
+              <Segmented fill label="Type" options={kinds.map(k => [k, SHELF_KINDS[k].label])} value={kind} onChange={pickKind}/>
+            </Field>
+          )}
+          <div className="form-row">
+            <Field label="Title" htmlFor="shelf-title">
+              <input id="shelf-title" className="input" value={title} autoFocus={!entry} onChange={e => setTitle(e.target.value)}/>
+            </Field>
+            {reading && (
+              <Field label="Author" htmlFor="shelf-author">
+                <input id="shelf-author" className="input" value={author} onChange={e => setAuthor(e.target.value)}/>
+              </Field>
+            )}
+          </div>
+          {!course && (
+            <Field label="Status">
+              <Segmented fill label="Status" options={Object.entries(statuses)} value={shownStatus} onChange={setStatus}/>
+            </Field>
+          )}
+          <div className="form-row">
+            {!reading && (
+              <Field label="Counted in" htmlFor="shelf-unit">
+                <input id="shelf-unit" className="input" value={unitLabel} onChange={e => { setUnitLabel(e.target.value); setUnitTouched(true); }}/>
+              </Field>
+            )}
+            <Field label={reading ? capitalize(readingUnit) : "Total"} htmlFor="shelf-total">
+              <input id="shelf-total" className="input" type="number" min="0" value={total} onChange={e => setTotal(e.target.value)}/>
+            </Field>
+            {shownStatus !== "want" && (
+              <Field label={reading ? "Read so far" : "Done so far"} htmlFor="shelf-done">
+                <input id="shelf-done" className="input" type="number" min="0" value={done} onChange={e => setDone(e.target.value)}/>
+              </Field>
+            )}
+          </div>
+        </div>
       </div>
-      <CoverField cover={cover} setCover={setCover} pos={coverPos} setPos={setCoverPos} title={title.trim() || course?.name || ""} author={reading ? author.trim() : ""}
-        setError={setError} busy={busy} setBusy={setBusy}/>
-      {!course && (
-        <Field label="Status">
-          <Segmented label="Status" options={Object.entries(statuses)} value={shownStatus} onChange={setStatus}/>
-        </Field>
-      )}
-      <div className="form-row">
-        {!reading && (
-          <Field label="Counted in" htmlFor="shelf-unit">
-            <input id="shelf-unit" className="input" value={unitLabel} onChange={e => { setUnitLabel(e.target.value); setUnitTouched(true); }}/>
-          </Field>
-        )}
-        <Field label={reading ? capitalize(readingUnit) : "Total"} htmlFor="shelf-total">
-          <input id="shelf-total" className="input" type="number" min="0" value={total} onChange={e => setTotal(e.target.value)}/>
-        </Field>
-        {shownStatus !== "want" && (
-          <Field label={reading ? "Read so far" : "Done so far"} htmlFor="shelf-done">
-            <input id="shelf-done" className="input" type="number" min="0" value={done} onChange={e => setDone(e.target.value)}/>
-          </Field>
-        )}
-      </div>
+      {picker.movable && <p className="help">The picture is cut to fit the cover. Drag it to choose what shows.</p>}
+      <CoverPicks picker={picker}/>
       {error && <p className="error-text">{error}</p>}
     </Modal>
   );

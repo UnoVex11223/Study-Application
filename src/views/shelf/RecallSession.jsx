@@ -52,9 +52,9 @@ export default function RecallSession({ queue, onClose }) {
       </Field>
       {shown && (
         <>
-          <div className="recall-notes">
+          <div className="book-notes recall-notes">
             {NOTES.filter(([k]) => item[k]?.trim()).map(([k, label]) => (
-              <div key={k} className="stack gap-1"><div className="caption">{label}</div><p>{item[k]}</p></div>
+              <div key={k} className="book-note"><label>{label}</label><p>{item[k]}</p></div>
             ))}
           </div>
           {text.trim() && (
