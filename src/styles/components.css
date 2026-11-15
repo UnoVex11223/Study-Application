@@ -114,8 +114,10 @@ input[type="checkbox"] { width: 16px; height: 16px; margin: 0; flex-shrink: 0; a
 }
 .capture-text::placeholder { color: var(--ink-3); }
 .capture-text:focus-visible { box-shadow: none; }
-.capture-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border-top: 1px solid var(--rule); }
+/* The foot of a card: two actions, one at each end, the same size. */
+.capture-foot, .card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border-top: 1px solid var(--rule); }
 .capture-foot .btn { min-width: 152px; }
+.card-foot .btn { min-width: 176px; }
 
 .dropzone {
   display: flex; align-items: center; justify-content: center; gap: var(--space-2);

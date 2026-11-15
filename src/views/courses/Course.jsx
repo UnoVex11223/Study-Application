@@ -21,7 +21,6 @@ import { sectionMastery } from "../../lib/mastery.js";
 import { aiBridge } from "../../lib/ai.js";
 import { pct, plural } from "../../lib/format.js";
 import { Outline, OutlineItem, ConceptRow, OutlineActions } from "../concepts/Outline.jsx";
-import ConceptPanel from "../concepts/ConceptPanel.jsx";
 import ItemForm from "../concepts/ItemForm.jsx";
 import CourseForm from "./CourseForm.jsx";
 import { JobBanner, TopUpBanner } from "./CourseBanners.jsx";
@@ -42,17 +41,19 @@ export default function Course({ courseId }) {
   const bg = useBackground();
   const device = useSync()?.device ?? null;
   const now = nav.now;
-  const [open, setOpen] = useState(() => new Set(nav.route.sectionId ? [nav.route.sectionId] : []));
-  const [conceptId, setConceptId] = useState(nav.route.conceptId ?? null);
+  // Opened at a chapter, or at a concept (from the palette or Notes): its chapter is open.
+  // A chapter lists its concepts; they don't open a panel for now (concepts/ConceptPanel.jsx isn't offered).
+  const startSection = nav.route.sectionId ?? ix.concept[nav.route.conceptId]?.sectionId ?? null;
+  const [open, setOpen] = useState(() => new Set(startSection ? [startSection] : []));
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [removing, setRemoving] = useState(null); // a section to remove
 
-  // Opened at a chapter (from the palette): bring it into view.
+  // Bring that chapter into view.
   useEffect(() => {
-    if (nav.route.sectionId) document.getElementById(`sec-${nav.route.sectionId}`)?.scrollIntoView({ block: "center" });
-  }, [nav.route.sectionId]);
+    if (startSection) document.getElementById(`sec-${startSection}`)?.scrollIntoView({ block: "center" });
+  }, [startSection]);
 
   if (!course) {
     return (
@@ -131,7 +132,7 @@ export default function Course({ courseId }) {
                     ? <button className="btn btn-sm" onClick={() => act("section/lock", { id: s.id, locked: false })}><Icon name="check"/>Mark as read</button>
                     : <span className="outline-pct num">{pct(sm.masteryPct)}</span>}>
                   {here.map(c => (
-                    <ConceptRow key={c.id} concept={c} status={sm.per[c.id]?.status ?? "new"} onOpen={setConceptId}/>
+                    <ConceptRow key={c.id} concept={c} status={sm.per[c.id]?.status ?? "new"}/>
                   ))}
                   <OutlineActions>
                     <span className="grow"/>
@@ -160,7 +161,6 @@ export default function Course({ courseId }) {
         )}
       </div>
 
-      {conceptId && <ConceptPanel conceptId={conceptId} onOpen={setConceptId} onClose={() => setConceptId(null)}/>}
       {editing && <CourseForm course={course} onClose={() => setEditing(false)} onSave={(patch) => { act("course/update", { id: course.id, patch }); setEditing(false); }}/>}
       {adding && <ItemForm courseId={courseId} onClose={() => setAdding(null)}/>}
       {deleting && (

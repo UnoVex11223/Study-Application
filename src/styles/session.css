@@ -164,7 +164,8 @@
 
 /* ── The lesson, with room to breathe ───────────────────────────────────────
    A small "New", the name, what it is; then Terms as a ruled list and the
-   worked example in a soft panel; then one plain Start button. */
+   worked example in a soft panel; then one plain Start button, in the middle
+   like Check under a question. */
 .lesson-view { gap: var(--space-10); }
 .lesson { display: flex; flex-direction: column; gap: var(--space-10); }
 .lesson-head { display: grid; gap: var(--space-3); }
@@ -182,8 +183,8 @@
 .lesson-example { padding: var(--space-5) var(--space-6); border-radius: var(--radius-lg); background: var(--surface); line-height: 1.75; color: var(--ink); }
 .lesson-example .md ul, .lesson-example .md ol { display: grid; gap: var(--space-2); }
 .lesson-example .md p + ul, .lesson-example .md p + ol, .lesson-example .md ul + p, .lesson-example .md ol + p { margin-top: var(--space-3); }
-.lesson-actions { display: flex; }
-.lesson-start { min-width: 168px; justify-content: center; }
+.lesson-actions { display: flex; justify-content: center; }
+.lesson-start { min-width: 200px; justify-content: center; }
 
 /* ── The question, refined ──────────────────────────────────────────────────
    Plain text at a comfortable measure (emphasis isn't styled: the wording
